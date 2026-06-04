@@ -1,0 +1,71 @@
+# Build the aggregated Javadoc and deploy it to GitHub Pages on every push to
+# main. The monorepo is Docker-only (no host JVM), so the Javadoc is built
+# inside the self-contained dev image via `docker compose run`, exactly like
+# the rest of the gradle gates — not with setup-java/setup-gradle.
+#
+# `aggregateJavadoc` (root build.gradle.kts) collects every module's Javadoc
+# under build/docs/javadoc with a small index.html, which is what the official
+# Pages flow (upload-pages-artifact + deploy-pages) publishes.
+#
+# Trigger policy (NO cron): push to main + manual workflow_dispatch.
+
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# checkout needs contents:read; the Pages deploy needs pages:write + the OIDC
+# id-token to mint the deployment.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deployments; do not cancel an in-flight deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (aggregate javadoc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # compose runs the container as ${UID:-1000}:${GID:-1000} and bind-mounts
+      # the checkout at /workspace; the runner user is uid 1001, so export the
+      # real ids or Gradle cannot write the bind-mounted build/docs/javadoc.
+      - name: export host uid/gid for compose
+        run: |
+          echo "UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # Reuse the published dev image; only build locally if it is not yet
+      # available (e.g. before the first dev-image publish).
+      - name: pull or build dev image
+        run: docker compose pull dev || docker compose build dev
+      # Javadoc only parses source — it does not load Leptonica or any native —
+      # so no extra runtime wiring is needed beyond the dev image. Toolchain
+      # auto-download stays off: the image's Liberica Full JDK is the only JDK.
+      - name: gradle aggregateJavadoc
+        run: >-
+          docker compose run --rm dev
+          ./gradlew aggregateJavadoc --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/docs/javadoc
+
+  deploy:
+    name: deploy (gh-pages)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

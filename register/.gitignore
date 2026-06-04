@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+/.gradle-home/
+# Build outputs (root + every module + the build-logic included build).
+build/
+
+# jqwik property-test example database (one per module that runs the jqwik engine).
+.jqwik-database
+
+# register outputs
+/out/
+
+# Claude Code local state (per-project transcripts, plans, locks) — never tracked.
+/.claude/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Real scan data is held out of the repo for copyright reasons; only the tiny
+# synthetic fixtures built by the tests are used.
+*.pdf
+/private/
+/scans/
+
+# Python bytecode cache (from the PDF pipeline scripts)
+__pycache__/
+*.pyc

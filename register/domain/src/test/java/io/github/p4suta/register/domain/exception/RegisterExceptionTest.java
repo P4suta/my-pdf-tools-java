@@ -1,0 +1,55 @@
+package io.github.p4suta.register.domain.exception;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.github.p4suta.shared.kernel.error.CommonErrorKind;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Pins {@link RegisterException}'s factory behavior, mirroring tate's {@code SpreadExceptionTest}:
+ * {@code of} adopts the kind's default message and leaves the detail null, {@code of(kind, cause)}
+ * preserves the cause, and {@code withDetail} folds the detail into the throwable message. The kind
+ * may be a {@link RegisterErrorKind} or a reused {@link CommonErrorKind}.
+ */
+final class RegisterExceptionTest {
+
+    @Test
+    void ofKindUsesDefaultMessage() {
+        RegisterException ex = RegisterException.of(RegisterErrorKind.IMAGE_UNREADABLE);
+        assertThat(ex.kind()).isEqualTo(RegisterErrorKind.IMAGE_UNREADABLE);
+        assertThat(ex.userMessage())
+                .isEqualTo(RegisterErrorKind.IMAGE_UNREADABLE.defaultUserMessage());
+        assertThat(ex.technicalDetail()).isNull();
+        assertThat(ex.getCause()).isNull();
+    }
+
+    @Test
+    void ofKindWithCausePreservesCause() {
+        var cause = new IllegalStateException("root");
+        RegisterException ex = RegisterException.of(RegisterErrorKind.NATIVE_TOOL_FAILED, cause);
+        assertThat(ex.kind()).isEqualTo(RegisterErrorKind.NATIVE_TOOL_FAILED);
+        assertThat(ex.getCause()).isSameAs(cause);
+    }
+
+    @Test
+    void withDetailIncludesTechnicalDetailInMessage() {
+        RegisterException ex =
+                RegisterException.withDetail(
+                        RegisterErrorKind.INPUT_NOT_FOUND, "input PDF not found: /x", null);
+        assertThat(ex.technicalDetail()).isEqualTo("input PDF not found: /x");
+        assertThat(ex.getMessage()).contains("INPUT_NOT_FOUND").contains("input PDF not found: /x");
+    }
+
+    @Test
+    void messageOmitsTechnicalDetailWhenAbsent() {
+        RegisterException ex = RegisterException.of(RegisterErrorKind.OUTPUT_CONFLICT);
+        assertThat(ex.getMessage()).contains("OUTPUT_CONFLICT").doesNotContain("(");
+    }
+
+    @Test
+    void reusesCommonErrorKind() {
+        RegisterException ex = RegisterException.of(CommonErrorKind.INTERNAL);
+        assertThat(ex.kind()).isEqualTo(CommonErrorKind.INTERNAL);
+        assertThat(ex.userMessage()).isEqualTo(CommonErrorKind.INTERNAL.defaultUserMessage());
+    }
+}

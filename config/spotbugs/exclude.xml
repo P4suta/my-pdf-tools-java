@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Repo-root SpotBugs exclude filter for the my-pdf-tools-java monorepo, referenced by the
+  p4suta quality convention. This is the union of the three apps' former per-repo
+  config/spotbugs/exclude.xml filters. Each exclusion documents why the pattern is noise,
+  not a blanket suppression. Add new entries with the same discipline: pattern + scope + reason.
+-->
+<FindBugsFilter>
+
+  <!-- ============================ despeckle ============================ -->
+
+  <!-- The report renderer builds trusted HTML from our own data and escapes
+       page stems in escape(); SpotBugs' XSS heuristic flags the StringBuilder
+       sink regardless. -->
+  <Match>
+    <Class name="io.github.p4suta.despeckle.infrastructure.report.HtmlReporter"/>
+    <Bug pattern="XSS_REQUEST_PARAMETER_TO_SERVLET_WRITER"/>
+  </Match>
+
+  <!-- The application services are the composition target of dependency injection: they store the
+       injected ports and hold Config records carrying Path/OptionalInt. That is the intended,
+       idiomatic shape (the ports are stateless adapters, the Configs are immutable value records),
+       so EI_EXPOSE_REP/REP2 here flags the DI pattern itself, not a real leak. -->
+  <Match>
+    <Package name="io.github.p4suta.despeckle.application"/>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+  </Match>
+
+  <!-- ============================ register ============================ -->
+
+  <!-- Deskewer.DeskewResult is a transient ownership-transfer carrier: deskewWithEstimate()
+       hands the caller a freshly-allocated Leptonica Pix (a native AutoCloseable handle) paired
+       with the single SkewEstimate that gated the rotation. The sole caller, LeptonicaPageRegistrar,
+       immediately adopts it in try-with-resources (`try (Pix deskewed = result.page())`) and closes
+       it. The record neither retains the Pix after construction nor shares it, so the EI_EXPOSE_REP/
+       REP2 finding flags the deliberate hand-off, not a leak. Defensive-copying the Pix would be a
+       real bug — it is a native handle, so a copy would double-allocate and leak or double-free. -->
+  <Match>
+    <Class name="io.github.p4suta.register.infrastructure.registrar.Deskewer$DeskewResult"/>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+  </Match>
+
+  <!-- ============================ tate-yoko-pdf ============================ -->
+
+  <!--
+    EI_EXPOSE_REP / EI_EXPOSE_REP2: SpotBugs warns when a constructor stores or a
+    method returns a mutable object reference. The JDK value-shaped types this
+    codebase holds in fields (Path, Instant) are effectively immutable, so the
+    warning is noise (e.g. QpdfLinearizer's qpdfBinary Path). A real exposure of a
+    genuinely mutable object (byte[], HashMap, …) still trips the check.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Or>
+      <Field type="java.nio.file.Path"/>
+      <Field type="java.time.Instant"/>
+    </Or>
+  </Match>
+
+  <!--
+    RuntimeBenchmark reads /proc/<pid>/status to sample a child process's peak RSS (VmHWM) — the
+    Linux kernel's own high-water mark, and the most accurate portable source without native code.
+    The absolute path is inherent (procfs lives at /proc). Dev-only benchmark — never shipped.
+  -->
+  <Match>
+    <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
+    <Class name="io.github.p4suta.tateyokopdf.tools.RuntimeBenchmark"/>
+  </Match>
+
+</FindBugsFilter>

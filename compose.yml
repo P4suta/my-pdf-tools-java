@@ -1,0 +1,40 @@
+# Unified monorepo dev service — one container that can build all three apps'
+# full gates. Mirrors register/despeckle's compose conventions (the warm path):
+# a single `dev` service, the whole repo bind-mounted at /workspace, the Gradle
+# user-home living in the host-owned ./.gradle-home (git-ignored) via the bind
+# mount, and the container running as the host UID/GID so bind-mounted files
+# never end up root-owned.
+name: my-pdf-tools-java
+
+services:
+  dev:
+    # CI publishes the prebuilt, self-contained dev image to ghcr.io
+    # (.github/workflows/dev-image.yml). `docker compose pull dev` retrieves it;
+    # `docker compose build dev` falls back to a local build from ./Dockerfile
+    # for Dockerfile iteration and for the very first run before the image has
+    # ever been published. The ghcr ref is the exact lowercase string the
+    # dev-image workflow pushes, so pull and CI stay in lockstep.
+    image: ghcr.io/p4suta/my-pdf-tools-java-dev:latest
+    build:
+      context: .
+    # `missing` = use the local image if present (whether pulled or built),
+    # pull only when it is absent. This keeps `docker compose run` from
+    # re-pulling/rebuilding on every invocation, and still works before the
+    # first publish once `docker compose build dev` has produced the image.
+    pull_policy: missing
+    working_dir: /workspace
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      INSIDE_CONTAINER: "1"
+      GRADLE_USER_HOME: /workspace/.gradle-home
+    volumes:
+      # Bind-mount the whole monorepo, so GRADLE_USER_HOME
+      # (/workspace/.gradle-home) lands in the host-owned ./.gradle-home
+      # (git-ignored) and the Gradle cache persists across runs. A named volume
+      # here would be created root-owned, and a non-root `docker compose run`
+      # could not write the wrapper lock/dist into it — exactly the failure that
+      # broke the per-app git hooks (see despeckle/compose.yml).
+      - .:/workspace:cached
+    init: true
+    stdin_open: true
+    tty: true

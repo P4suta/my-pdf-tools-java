@@ -1,0 +1,13 @@
+.git/
+.gradle/
+.gradle-home/
+build/
+artifacts/
+report/
+out/
+scans/
+private/
+.idea/
+.vscode/
+samples/
+*.pdf

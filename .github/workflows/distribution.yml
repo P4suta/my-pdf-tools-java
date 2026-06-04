@@ -1,0 +1,134 @@
+# Distribution / packaging — builds each app's jpackage (or installDist)
+# app-image and runs its CLI smoke check.
+#
+# Platform matrix is deliberately asymmetric, because the native dependencies
+# differ per app:
+#   - register + despeckle call Leptonica through the Java FFM layer, which is
+#     Linux-only here, so they build only on Linux, inside the dev image (which
+#     carries Leptonica + the PDF toolbox + jbig2).
+#   - tate-yoko-pdf has no native FFM dependency; its only native piece is the
+#     bundled qpdf, which its Gradle build self-downloads per OS from qpdf's
+#     GitHub releases (Linux + Windows zips; macOS uses the PATH/noOp fallback).
+#     So tate packages on Linux (dev image) AND on a macOS/Windows matrix, the
+#     cross-OS reach that is tate's contribution to the monorepo.
+#
+# Every action is SHA-pinned; Dependabot bumps the pins weekly.
+
+name: distribution
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # All Linux app-images build in the self-contained dev image (root Dockerfile):
+  # register + despeckle (Leptonica FFM) and tate-yoko-pdf's Linux leg. register
+  # and despeckle ship as installDist launchers; tate ships as a jpackage
+  # app-image (jlink-trimmed JRE + bundled qpdf). Each app's smoke runs its built
+  # launcher and asserts a clean exit / a valid PDF.
+  dist-linux:
+    name: dist + smoke (linux, dev image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # compose runs as ${UID:-1000}:${GID:-1000}; the runner user is uid 1001, so
+      # export the real ids or Gradle cannot write the bind-mounted build/ dirs.
+      - name: export host uid/gid for compose
+        run: |
+          echo "UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      - name: build dev image
+        run: docker compose build dev
+
+      # tate-yoko-pdf: full jpackage app-image + the cross-platform SmokeCheck
+      # (converts a sample PDF through the built launcher, asserts the %PDF magic).
+      - name: tate-yoko-pdf jpackage + smoke
+        run: >-
+          docker compose run --rm dev
+          ./gradlew :tate-yoko-pdf:app:jpackageImage :tate-yoko-pdf:app:smokeCheck
+          --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+
+      # register: installDist launcher, then run it with --version (exit 0).
+      - name: register installDist + smoke
+        run: >-
+          docker compose run --rm dev bash -lc '
+          ./gradlew :register:app:installDist --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+          && register/app/build/install/register/bin/register --version'
+
+      # despeckle: installDist launcher, then run it with --version (exit 0).
+      - name: despeckle installDist + smoke
+        run: >-
+          docker compose run --rm dev bash -lc '
+          ./gradlew :despeckle:app:installDist --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+          && despeckle/app/build/install/despeckle/bin/despeckle --version'
+
+      - name: upload app-images on failure
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: dist-linux-reports
+          path: |
+            **/build/reports/
+            **/build/dist-jpackage/
+          if-no-files-found: ignore
+
+  # tate-yoko-pdf cross-OS legs. macOS/Windows have no dev image, so they run
+  # natively on the matching host — exactly as tate's original CI did: setup-java
+  # (Liberica 25 Full, which ships the jmods jlink/jpackage need; Temurin omits
+  # them) plus the OS package manager for qpdf. jpackage emits an OS-native
+  # launcher (Contents/MacOS/<name> on macOS, <name>.exe on Windows), so each
+  # must build on its own host. The Linux leg lives in dist-linux above.
+  dist-tate-crossos:
+    name: tate jpackage + smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: liberica
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+
+      # qpdf per OS, as tate's original CI relied on. The Gradle build bundles a
+      # qpdf zip on Windows from qpdf's releases; macOS has no upstream Darwin
+      # binary, so QpdfLinearizer uses its PATH/noOp fallback — installing qpdf
+      # here gives that fallback a real binary to find for the smoke conversion.
+      - name: install qpdf (macOS)
+        if: runner.os == 'macOS'
+        run: brew install qpdf
+      - name: install qpdf (Windows)
+        if: runner.os == 'Windows'
+        run: choco install qpdf --no-progress
+
+      - name: build app-image
+        run: ./gradlew :tate-yoko-pdf:app:jpackageImage :tate-yoko-pdf:app:createSamplePdf --no-daemon --console=plain
+      # SmokeCheck.java resolves the OS-specific launcher path, runs the
+      # conversion, and asserts the %PDF magic — one task for every host.
+      - name: CLI smoke
+        run: ./gradlew :tate-yoko-pdf:app:smokeCheck --no-daemon --console=plain
+
+      - name: upload app-image on failure
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: tate-dist-${{ matrix.os }}
+          path: tate-yoko-pdf/app/build/dist-jpackage/
+          if-no-files-found: ignore

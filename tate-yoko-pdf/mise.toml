@@ -1,0 +1,4 @@
+[tools]
+# Host-side orchestrators (everything else lives in the Docker dev image)
+lefthook = "latest"
+just = "latest"

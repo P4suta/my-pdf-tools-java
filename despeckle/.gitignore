@@ -1,0 +1,28 @@
+# Gradle — match at any depth so every module's build/.gradle is ignored, not just the root's
+# (the build is now multi-module: domain/, port/, application/, infrastructure/, observability/,
+# app/, plus the build-logic included build, each producing their own build/ and .gradle/).
+.gradle/
+build/
+/.gradle-home/
+
+# despeckle outputs
+/artifacts/
+/report/
+/out/
+
+# Python (the scripts/ helpers)
+__pycache__/
+*.pyc
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Real scan data is held out of the repo for copyright reasons; only the
+# tiny synthetic fixtures under samples/ are tracked.
+*.pdf
+/private/
+/scans/
+/samples/private/

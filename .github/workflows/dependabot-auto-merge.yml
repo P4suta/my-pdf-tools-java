@@ -1,0 +1,40 @@
+# Auto-merge Dependabot PRs once required CI passes.
+#
+# Policy:
+#   - Every Dependabot bump (patch / minor / major) gets auto-merge enabled
+#     (squash). GitHub holds the PR until main's required checks (build + lint)
+#     are green and the branch is up to date, then merges it. Grouped bumps land
+#     as one PR, so there is no per-update-type gate — that gate cannot fire on a
+#     grouped PR anyway (no single update-type), and the monorepo relies on
+#     branch protection, not bump size, to keep main safe.
+#
+# main's branch protection requires green CI (not approvals) AND strict
+# "require branches up to date"; that protection is what makes `--auto` wait for
+# checks instead of merging immediately. Uses GITHUB_TOKEN only — no PAT.
+
+name: dependabot-auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: fetch dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: enable auto-merge (all bump types)
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

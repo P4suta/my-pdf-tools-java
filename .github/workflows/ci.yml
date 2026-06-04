@@ -1,0 +1,143 @@
+# Consolidated monorepo CI — builds and checks all 22 modules (3 apps x 5
+# hexagonal layers + 7 shared modules) in one workflow.
+#
+# Policy (inherited from register/despeckle's best-of-breed CI):
+#   - No `on: schedule` here; the only scheduled job is freshness.yml.
+#   - Every action is SHA-pinned; Dependabot bumps the pins weekly.
+#   - The monorepo build is Docker-only: there is no host JVM. The self-contained
+#     dev image (root Dockerfile) carries the entire toolchain — Liberica JDK 25
+#     Full, Leptonica, the PDF toolbox (poppler/qpdf/jbig2enc), the font stack,
+#     and the peripheral linters — so `build` and `rewrite-advisory` run inside
+#     it via `docker compose run --rm dev ./gradlew …`.
+#   - `lint` is the one job that does NOT use the dev image: it runs the
+#     peripheral linters on a bare ubuntu runner with the tool versions curl-
+#     pinned to match the Dockerfile, so CI and the container can never format
+#     with different versions.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build + check (all 22 modules)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # compose runs the container as ${UID:-1000}:${GID:-1000} and bind-mounts
+      # the checkout at /workspace; the GitHub runner user is uid 1001, so without
+      # this the container would run as 1000 and Gradle could not write the
+      # 1001-owned build/ and .gradle-home dirs. Export the real ids for every
+      # `docker compose` step in this job.
+      - name: export host uid/gid for compose
+        run: |
+          echo "UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # The dev image is self-contained (root Dockerfile): JDK + Leptonica + the
+      # PDF toolbox + fonts. Reuse the image published by dev-image.yml so CI
+      # does not rebuild the whole toolchain (notably jbig2enc-from-source) on
+      # every run; only fall back to a local build when no image is published
+      # yet (e.g. before the first dev-image publish).
+      - name: pull or build dev image
+        run: docker compose pull dev || docker compose build dev
+      # `build` runs the entire quality gate across every module: Error Prone
+      # (compileJava), Spotless (spotlessCheck), SpotBugs, NullAway, the JUnit
+      # suites and JaCoCo. Toolchain auto-download stays off — the image's
+      # Liberica Full JDK is the only JDK and jlink/jpackage need its jmods.
+      - name: gradle build
+        run: >-
+          docker compose run --rm dev
+          ./gradlew build --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+      - name: upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: reports
+          # Every module has its own build dir (the root is a pure aggregator),
+          # so glob across all of them for the failure diagnostics.
+          path: |
+            **/build/reports/
+            **/build/test-results/
+          if-no-files-found: ignore
+
+  lint:
+    name: lint (yaml / json / toml / spell / actions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: crate-ci/typos@f8a58b6b53f2279f71eb605f03a4ae4d10608f45 # v1.47.0
+      # Versions pinned to match the dev image (root Dockerfile) so CI and the
+      # container can never check formatting with different tool versions.
+      - name: install biome + taplo + yamlfmt + actionlint
+        run: |
+          BIOME_VERSION=2.4.16
+          curl -fsSL "https://github.com/biomejs/biome/releases/download/@biomejs/biome@${BIOME_VERSION}/biome-linux-x64" \
+            -o /usr/local/bin/biome
+          sudo chmod +x /usr/local/bin/biome
+          TAPLO_VERSION=0.10.0
+          curl -fsSL "https://github.com/tamasfe/taplo/releases/download/${TAPLO_VERSION}/taplo-linux-x86_64.gz" \
+            | gunzip | sudo tee /usr/local/bin/taplo > /dev/null
+          sudo chmod +x /usr/local/bin/taplo
+          YAMLFMT_VERSION=0.21.0
+          curl -fsSL "https://github.com/google/yamlfmt/releases/download/v${YAMLFMT_VERSION}/yamlfmt_${YAMLFMT_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar xz -C /usr/local/bin yamlfmt
+          ACTIONLINT_VERSION=1.7.12
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar xz -C /usr/local/bin actionlint
+      - run: biome format .
+      - run: taplo fmt --check
+      - run: yamlfmt --lint .
+      - run: actionlint -color
+
+  rewrite-advisory:
+    name: openrewrite (advisory, non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Advisory only: this job must never fail the workflow. The blocking gate is
+    # `build`; OpenRewrite stays out of it by design (build.gradle.kts +
+    # rewrite.yml). rewriteDryRun parses sources only.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # See the build job: compose must run as the 1001 runner user, not the 1000
+      # default, or Gradle cannot write into the bind-mounted checkout.
+      - name: export host uid/gid for compose
+        run: |
+          echo "UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # Reuse the published dev image (see the build job); fall back to a local
+      # build only when nothing is published yet.
+      - name: pull or build dev image
+        run: docker compose pull dev || docker compose build dev
+      # Emits the proposed patch to build/reports/rewrite/rewrite.patch and exits
+      # 0 even with suggestions, so the job is informational. OpenRewrite is not
+      # configuration-cache compatible (CC is on by default in gradle.properties),
+      # so the dry-run opts out of it.
+      - name: gradle rewriteDryRun
+        run: >-
+          docker compose run --rm dev
+          ./gradlew rewriteDryRun --no-daemon --console=plain --no-configuration-cache
+          -Dorg.gradle.java.installations.auto-download=false
+      - name: upload rewrite patch
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: rewrite-patch
+          path: build/reports/rewrite/rewrite.patch
+          # warn (not ignore) so a dry-run that crashed before writing the patch
+          # is visible as an annotation, even though the job is non-blocking.
+          if-no-files-found: warn

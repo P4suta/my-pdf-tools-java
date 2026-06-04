@@ -1,0 +1,57 @@
+# Tool-freshness check — diffs the monorepo's non-Gradle pinned versions against
+# upstream stable releases and goes red when a pin is behind.
+#
+# Dependabot tracks the Docker base image, the Gradle catalog, and the SHA-pinned
+# Actions, but NOT the Dockerfile's ARG-pinned tool downloads (just, lefthook,
+# typos, taplo, biome, yamlfmt, actionlint, jbig2enc) or the security-patch
+# floors the build repeats as literals. The consolidated `checkExtraVersions`
+# Gradle task (the monorepo successor to despeckle's CheckToolVersions.java and
+# tate's freshness check) fills that gap: on demand, plus whenever the pins
+# themselves change, it compares each pin with the latest upstream release. Run
+# in the dev image because it is a Gradle task; `-PfailOnUpdates=true` makes a
+# stale pin fail the job.
+#
+# Trigger policy (NO cron — the user's CI preference is no scheduled runs):
+#   - workflow_dispatch for an on-demand check
+#   - push to main touching the Dockerfile (where the pins live) or any
+#     workflow, so a pin edit is checked against upstream as it lands
+
+name: freshness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .github/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: pinned tools vs latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # compose runs as ${UID:-1000}:${GID:-1000}; the runner user is uid 1001, so
+      # export the real ids or Gradle cannot write the bind-mounted build/ dirs.
+      - name: export host uid/gid for compose
+        run: |
+          echo "UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # Reuse the published dev image (see ci.yml); build locally only when none
+      # is published yet.
+      - name: pull or build dev image
+        run: docker compose pull dev || docker compose build dev
+      # checkExtraVersions queries the GitHub / Maven Central release APIs
+      # UNAUTHENTICATED (it sets only User-Agent + Accept, no token), so no secret
+      # crosses into the container. The unauthenticated GitHub rate limit (60/hr)
+      # is ample for the on-demand / on-change run over a handful of pins.
+      - name: compare pins with latest upstream releases
+        run: >-
+          docker compose run --rm dev
+          ./gradlew checkExtraVersions --no-daemon --console=plain -PfailOnUpdates=true
+          -Dorg.gradle.java.installations.auto-download=false

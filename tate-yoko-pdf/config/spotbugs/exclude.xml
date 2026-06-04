@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Per-project SpotBugs exclude filter. Each exclusion documents why the pattern
+  is noise for this codebase, not just a blanket suppression. Add new entries
+  with the same discipline: pattern + scope + reason.
+-->
+<FindBugsFilter>
+
+  <!--
+    EI_EXPOSE_REP / EI_EXPOSE_REP2: SpotBugs warns when a constructor stores or a
+    method returns a mutable object reference. The JDK value-shaped types this
+    codebase holds in fields (Path, Instant) are effectively immutable, so the
+    warning is noise (e.g. QpdfLinearizer's qpdfBinary Path). A real exposure of a
+    genuinely mutable object (byte[], HashMap, …) still trips the check.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Or>
+      <Field type="java.nio.file.Path"/>
+      <Field type="java.time.Instant"/>
+    </Or>
+  </Match>
+
+  <!--
+    RuntimeBenchmark reads /proc/<pid>/status to sample a child process's peak RSS (VmHWM) — the
+    Linux kernel's own high-water mark, and the most accurate portable source without native code.
+    The absolute path is inherent (procfs lives at /proc). Dev-only benchmark — never shipped.
+  -->
+  <Match>
+    <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
+    <Class name="io.github.p4suta.tateyokopdf.tools.RuntimeBenchmark"/>
+  </Match>
+
+</FindBugsFilter>

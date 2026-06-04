@@ -1,0 +1,56 @@
+# Monorepo Dependabot — consolidates the three former per-app configs
+# (register/despeckle/tate-yoko-pdf) into one. Covers the Gradle ecosystem in
+# both builds — the root build and the `includeBuild("build-logic")` composite,
+# which Dependabot scans separately — plus the GitHub Actions used in workflows.
+#
+# Each gradle stanza groups every bump into a single weekly PR (patterns: "*")
+# so the auto-merge workflow lands them in one shot. Docker base/tool pins are
+# intentionally NOT tracked here: the self-contained dev image's pinned tools
+# are covered by the root checkExtraVersions task / freshness.yml instead.
+version: 2
+updates:
+  # Gradle — root build (all 22 modules' app/library dependencies).
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      gradle-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: build
+    labels:
+      - dependencies
+
+  # Gradle — build-logic composite build (convention plugins' own dependencies).
+  # `includeBuild` is a separate Gradle build, so it needs its own directory entry.
+  - package-ecosystem: gradle
+    directory: /build-logic
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      build-logic-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: build
+    labels:
+      - dependencies
+
+  # GitHub Actions — the SHA-pinned actions in .github/workflows/*.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies

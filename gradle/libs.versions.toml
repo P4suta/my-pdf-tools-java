@@ -1,0 +1,115 @@
+# Single source of truth for dependency and plugin versions across the my-pdf-tools-java monorepo.
+# This is the UNION of the former register/ and despeckle/ catalogs, plus the versions that
+# tate-yoko-pdf used to inline as string coordinates but which the unified conventions now read
+# from the catalog. Verified against Maven Central / the Gradle Plugin Portal (2026-05/06).
+#
+# tate-yoko-pdf's module build scripts still use inline string coordinates for their app-only,
+# host-specific bits (veraPDF, qpdf binary fetch) — those need NO catalog entry and are not added
+# here. What IS added are the versions the shared p4suta.* convention plugins reference.
+
+[versions]
+# --- Runtime / library versions (register + despeckle agreed on all of these) ---
+commons-cli = "1.11.0"
+pdfbox = "3.0.7"
+slf4j = "2.0.17"
+junit = "6.1.0"
+errorprone = "2.49.0"
+nullaway = "0.13.4"
+jspecify = "1.0.0"
+archunit = "1.4.2"
+# google-java-format: was inlined in despeckle's quality script and pinned in register's catalog;
+# the unified Spotless convention reads it from here.
+google-java-format = "1.35.0"
+assertj = "3.27.7"
+mockito = "5.23.0"
+jqwik = "1.10.1"
+jacoco = "0.8.13"
+# Test-stack versions that tate-yoko-pdf inlined and the unified p4suta.test-conventions now reads
+# from the catalog (EqualsVerifier / system-stubs / awaitility).
+equalsverifier = "4.5"
+system-stubs = "2.1.8"
+awaitility = "4.3.0"
+
+# --- Plugin marker versions (read by build-logic/build.gradle.kts and by `version.ref` below) ---
+spotless = "8.6.0"
+errorprone-plugin = "5.1.0"
+spotbugs-plugin = "6.5.5"
+# SpotBugs analysis-engine version (distinct from the Gradle plugin marker above); was inlined in
+# tate-yoko-pdf's quality script. The unified quality convention sets spotbugs.toolVersion from here.
+spotbugs-tool = "4.9.6"
+# Fat-jar plugin: shades the runtime classpath into <app>-all.jar, the single jar jpackage bundles
+# into the app-image. Applied per-app via `alias(libs.plugins.shadow)`.
+shadow = "9.4.2"
+rewrite-plugin = "7.33.0"
+rewrite-recipe-bom = "3.31.0"
+# rewrite-java-security is the one recipe module not managed by the recipe BOM, so its version is
+# pinned here. Compatibility comes from it depending on the same rewrite-bom (rewrite-core) line as
+# the recipe BOM — verify that shared line on each bump; the matching 3.31.0 numbers are incidental.
+rewrite-java-security = "3.31.0"
+
+# PIT mutation testing. ADOPTED FROM DESPECKLE (camelCase leaves, NOT dashed). `pitest` is the PIT
+# analysis tool version; `pitestJunit5Plugin` is the JUnit 5 bridge. Both are single camelCase
+# tokens ON PURPOSE: a dashed `pitest-*` name would turn `pitest` into a namespace node in the
+# generated accessors and shadow the `libs.versions.pitest` leaf that the pitest config reads.
+# (The plugin marker's own version lives inline on the [plugins] entry below.)
+pitest = "1.20.2"
+pitestJunit5Plugin = "1.2.3"
+
+# --- Security-patch floors (Dependabot transitive pins; consumed by version.ref below AND by the
+# securityPatches resolutionStrategy in p4suta.java-conventions, which reads them from the catalog) ---
+plexus-utils = "4.0.2"
+log4j-core = "2.26.0"
+
+# --- App-only / host-specific versions that tate-yoko-pdf inlines. Kept here as documentation of
+# the floors the project tracks; tate-yoko's own build scripts still inline these (no catalog
+# accessor is generated unless something references them), so they are intentionally version-only. ---
+verapdf = "1.30.1"
+qpdf = "12.3.2"
+
+[libraries]
+commons-cli = { module = "commons-cli:commons-cli", version.ref = "commons-cli" }
+# PDFBox assembles the cleaned/lossless output PDF (pipeline mode). xmpbox (adopted from despeckle)
+# carries the source XMP packet for the modules that model it; the modules that only copy the XMP
+# through as opaque bytes do not depend on it.
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+xmpbox = { module = "org.apache.pdfbox:xmpbox", version.ref = "pdfbox" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+jqwik = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
+# Test libraries the unified p4suta.test-conventions reads from the catalog (formerly inlined in
+# tate-yoko-pdf's test conventions).
+equalsverifier = { module = "nl.jqno.equalsverifier:equalsverifier", version.ref = "equalsverifier" }
+system-stubs-jupiter = { module = "uk.org.webcompere:system-stubs-jupiter", version.ref = "system-stubs" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+
+# OpenRewrite recipe modules (managed by the recipe BOM except rewrite-java-security).
+rewrite-recipe-bom = { module = "org.openrewrite.recipe:rewrite-recipe-bom", version.ref = "rewrite-recipe-bom" }
+rewrite-static-analysis = { module = "org.openrewrite.recipe:rewrite-static-analysis" }
+rewrite-testing-frameworks = { module = "org.openrewrite.recipe:rewrite-testing-frameworks" }
+rewrite-logging-frameworks = { module = "org.openrewrite.recipe:rewrite-logging-frameworks" }
+rewrite-migrate-java = { module = "org.openrewrite.recipe:rewrite-migrate-java" }
+rewrite-java-security = { module = "org.openrewrite.recipe:rewrite-java-security", version.ref = "rewrite-java-security" }
+
+[plugins]
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-plugin" }
+spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-plugin" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+rewrite = { id = "org.openrewrite.rewrite", version.ref = "rewrite-plugin" }
+# PIT plugin marker. Version is inline (NOT a `pitest-*` version.ref) on purpose: a dashed
+# `pitest-plugin` version key would turn `pitest` into a namespace node and shadow the
+# `libs.versions.pitest` leaf the pitest config reads via accessor. (despeckle's footgun fix.)
+pitest = { id = "info.solidsoft.pitest", version = "1.19.0" }

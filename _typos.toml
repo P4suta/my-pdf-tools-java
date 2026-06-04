@@ -1,0 +1,44 @@
+# typos spell-checker config (monorepo root). Merged best-of-breed from the
+# former per-app configs (register/_typos.toml, despeckle/_typos.toml,
+# tate-yoko-pdf/.typos.toml) — the exclusion lists and extend-words are the
+# union across all three apps.
+
+[files]
+# Skip binaries and generated/vendored files: typos would scan the Gradle
+# wrapper jar byte-for-byte and flag random byte sequences as misspellings.
+# Entries are gitignore-style, so a bare "build/" matches every module's build
+# directory at any depth.
+extend-exclude = [
+  "*.pbm",
+  "*.pdf",
+  "*.jar",
+  "gradlew",
+  "gradlew.bat",
+  "gradle/wrapper/",
+  "**/*.lock",
+  "build/",
+  ".gradle/",
+  ".gradle-home/",
+]
+
+[default]
+locale = "en-us"
+
+[default.extend-words]
+# Short tokens / romaji that look like typos but are intentional.
+ruby = "ruby"
+mmap = "mmap"
+# プロジェクト固有の語（typo に見えるが正しい）
+sakashita = "sakashita"
+yoko = "yoko"
+tate = "tate"
+# 技術設計書のシーケンス図で Strategy の短縮名として使っている
+strat = "strat"
+# Gradle CLI: `-P<prop>` で project property を指定する記法（typos は Pageant 誤字と誤検知）
+Pagent = "Pagent"
+# org.verapdf API names (en-GB), cannot rename — these are third-party identifiers
+# our PdfAConformanceTest must call verbatim: the `org.verapdf.pdfa.flavours`
+# package, the `PDFAFlavour` type, and `VeraGreenfieldFoundryProvider.initialise()`.
+Flavour = "Flavour"
+flavours = "flavours"
+initialise = "initialise"

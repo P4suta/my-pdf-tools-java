@@ -1,0 +1,10 @@
+.gradle/
+.gradle-home/
+**/build/
+out/
+out[0-9]*/
+*.log
+# jqwik property-test example database (one per module that runs the jqwik engine).
+# register/ and tate-yoko-pdf/ ignore this locally; cover despeckle/ and shared/ from root.
+.jqwik-database
+!gradle/wrapper/gradle-wrapper.jar
