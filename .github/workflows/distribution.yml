@@ -132,3 +132,23 @@ jobs:
           name: tate-dist-${{ matrix.os }}
           path: tate-yoko-pdf/app/build/dist-jpackage/
           if-no-files-found: ignore
+
+  # Single aggregate context to require in branch protection. Matrix legs expand
+  # to per-OS contexts ("tate jpackage + smoke (macos-latest)" …) that churn when
+  # the matrix changes; gating on one job that fans them in is the stable form.
+  # `if: always()` + explicit result checks make a skipped/cancelled leg fail the
+  # gate too (a bare `needs:` would let a cancelled leg pass).
+  distribution-complete:
+    name: distribution complete
+    needs: [dist-linux, dist-tate-crossos]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: assert all distribution legs passed
+        run: |-
+          if [ "${{ needs.dist-linux.result }}" != "success" ] \
+            || [ "${{ needs.dist-tate-crossos.result }}" != "success" ]; then
+            echo "::error::a distribution leg did not succeed"
+            exit 1
+          fi

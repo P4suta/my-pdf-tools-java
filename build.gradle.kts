@@ -188,11 +188,15 @@ tasks.withType<JacocoReport>().configureEach {
 tasks.register<Copy>("aggregateJavadoc") {
     group = "documentation"
     description = "Collect every module's Javadoc under build/docs/javadoc for GitHub Pages."
-    val apps = listOf("register", "despeckle", "tate-yoko-pdf")
-    val modules = listOf("domain", "port", "application", "infrastructure", "observability", "app")
+    // Per-app modules (the per-app :observability modules were removed; the cross-cutting
+    // mapper/handler/exit-codes now live in :shared:observability) + the shared library modules.
+    val appModules = listOf("domain", "port", "application", "infrastructure", "app")
+    val sharedModules = listOf("kernel", "observability", "imaging", "cli", "process", "pdf", "io")
     val outDir = layout.buildDirectory.dir("docs/javadoc")
     val coordinates =
-        apps.flatMap { app -> modules.map { module -> app to module } }
+        listOf("register", "despeckle", "tate-yoko-pdf")
+            .flatMap { app -> appModules.map { module -> app to module } } +
+            sharedModules.map { module -> "shared" to module }
     coordinates.forEach { (app, module) ->
         dependsOn(":$app:$module:javadoc")
         from("$app/$module/build/docs/javadoc") { into("$app/$module") }

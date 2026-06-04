@@ -317,6 +317,17 @@ val jpackageImage =
         val hostOs =
             org.gradle.internal.os.OperatingSystem
                 .current()
+        // macOS maps --app-version to CFBundleVersion, whose first component must be >= 1
+        // ("The first number in an app-version cannot be zero or negative"). The project
+        // version is 0.x, so on macOS substitute a valid placeholder for the bundle
+        // metadata only — the app-image contents are identical across OSes.
+        val rawVersion = project.version.toString()
+        val appVersion =
+            if (hostOs.isMacOsX && (rawVersion.substringBefore('.').toIntOrNull() ?: 0) < 1) {
+                "1.0.0"
+            } else {
+                rawVersion
+            }
         val jpackageArgs =
             listOf(
                 toolPath("jpackage").get(),
@@ -335,7 +346,7 @@ val jpackageImage =
                 "--dest",
                 jpackageOutputParent.get().asFile.absolutePath,
                 "--app-version",
-                project.version.toString(),
+                appVersion,
                 // MaxRAMPercentage adapts heap to the host (and container cgroups) instead of a
                 // fixed value. --low-memory additionally spills page streams to disk.
                 "--java-options",

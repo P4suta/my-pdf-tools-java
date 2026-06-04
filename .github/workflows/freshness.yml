@@ -50,8 +50,12 @@ jobs:
       # UNAUTHENTICATED (it sets only User-Agent + Accept, no token), so no secret
       # crosses into the container. The unauthenticated GitHub rate limit (60/hr)
       # is ample for the on-demand / on-change run over a handful of pins.
-      - name: compare pins with latest upstream releases
+      # Advisory/report-only: prints which pins are behind upstream but does NOT
+      # fail the job (omit -PfailOnUpdates). Dependabot files the actionable PRs
+      # for the catalog / Actions / base image; this surfaces the remainder
+      # (Dockerfile ARG tool pins) for a human to glance at, without a permanent red.
+      - name: compare pins with latest upstream releases (advisory)
         run: >-
           docker compose run --rm dev
-          ./gradlew checkExtraVersions --no-daemon --console=plain -PfailOnUpdates=true
+          ./gradlew checkExtraVersions --no-daemon --console=plain
           -Dorg.gradle.java.installations.auto-download=false
