@@ -11,10 +11,10 @@
 # --- Runtime / library versions (register + despeckle agreed on all of these) ---
 commons-cli = "1.11.0"
 pdfbox = "3.0.7"
-slf4j = "2.0.17"
+slf4j = "2.0.18"
 junit = "6.1.0"
 errorprone = "2.49.0"
-nullaway = "0.13.4"
+nullaway = "0.13.5"
 jspecify = "1.0.0"
 archunit = "1.4.2"
 # google-java-format: was inlined in despeckle's quality script and pinned in register's catalog;
@@ -40,12 +40,12 @@ spotbugs-tool = "4.9.6"
 # Fat-jar plugin: shades the runtime classpath into <app>-all.jar, the single jar jpackage bundles
 # into the app-image. Applied per-app via `alias(libs.plugins.shadow)`.
 shadow = "9.4.2"
-rewrite-plugin = "7.33.0"
-rewrite-recipe-bom = "3.31.0"
+rewrite-plugin = "7.34.0"
+rewrite-recipe-bom = "3.32.0"
 # rewrite-java-security is the one recipe module not managed by the recipe BOM, so its version is
 # pinned here. Compatibility comes from it depending on the same rewrite-bom (rewrite-core) line as
 # the recipe BOM — verify that shared line on each bump; the matching 3.31.0 numbers are incidental.
-rewrite-java-security = "3.31.0"
+rewrite-java-security = "3.32.0"
 
 # PIT mutation testing. ADOPTED FROM DESPECKLE (camelCase leaves, NOT dashed). `pitest` is the PIT
 # analysis tool version; `pitestJunit5Plugin` is the JUnit 5 bridge. Both are single camelCase
