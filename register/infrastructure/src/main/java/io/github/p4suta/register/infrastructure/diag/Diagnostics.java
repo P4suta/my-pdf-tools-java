@@ -1,12 +1,12 @@
 package io.github.p4suta.register.infrastructure.diag;
 
-import io.github.p4suta.register.domain.exception.RegisterErrorKind;
-import io.github.p4suta.register.domain.exception.RegisterException;
 import io.github.p4suta.register.domain.model.PageDiagnostic;
 import io.github.p4suta.register.domain.model.RunInfo;
+import io.github.p4suta.register.infrastructure.process.TempDirs;
 import io.github.p4suta.register.port.Reporter;
+import io.github.p4suta.shared.imaging.ImageEncoder;
 import io.github.p4suta.shared.imaging.Pix;
-import java.awt.Graphics2D;
+import io.github.p4suta.shared.process.WebpAnimation;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,7 +16,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import javax.imageio.ImageIO;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -26,11 +25,19 @@ import org.jspecify.annotations.Nullable;
  * overlay, the residual chart and an optional WebP flip-book. Thread-safe: each page writes its own
  * overlay file and appends to a synchronized list.
  *
- * <p>The deskewed page arrives as a path (the scratch the render pass read back), not a live {@code
- * Pix}, so the Leptonica image stack stays on this side of the {@code :port} boundary. The band the
- * column profile is clipped to is reconstructed from the diagnostic's recorded column.
+ * <p>Every still image is lossless WebP, written through the shared imaging island ({@link
+ * ImageEncoder} for the AWT overlays/charts); the animated flip-book goes through the shared {@link
+ * WebpAnimation}. The deskewed page arrives as a path (the scratch the render pass read back), not
+ * a live {@code Pix}, so the Leptonica image stack stays on this side of the {@code :port}
+ * boundary. The band the column profile is clipped to is reconstructed from the diagnostic's
+ * recorded column.
  */
 final class Diagnostics implements Reporter {
+
+    /**
+     * Flip-book frames taller than this are downscaled; the flip-book is a preview, not archival.
+     */
+    private static final int MAX_FRAME_HEIGHT = 1000;
 
     private final Path dir;
     private final boolean flipbook;
@@ -62,7 +69,7 @@ final class Diagnostics implements Reporter {
     @Override
     public void addPage(PageDiagnostic diagnostic, Path deskewedPage) throws IOException {
         try (Pix work = Pix.read(deskewedPage)) {
-            BufferedImage page = toRgbImage(work);
+            BufferedImage page = ImageEncoder.toBufferedImage(work);
             int[] rowInk = work.inkByRow();
             int[] columnInk = columnInk(work, diagnostic.column());
             BufferedImage overlay = DiagnosticRenderer.render(page, diagnostic, rowInk, columnInk);
@@ -72,15 +79,10 @@ final class Diagnostics implements Reporter {
                     dir.resolve(
                             String.format(
                                     Locale.ROOT,
-                                    "%04d-%s.diag.png",
+                                    "%04d-%s.diag.webp",
                                     diagnostic.index(),
                                     baseName(diagnostic.source())));
-            if (!ImageIO.write(overlay, "png", out.toFile())) {
-                throw RegisterException.withDetail(
-                        RegisterErrorKind.NATIVE_TOOL_FAILED,
-                        "no PNG writer available for " + out,
-                        null);
-            }
+            ImageEncoder.writeWebp(overlay, out);
         }
         pages.add(diagnostic);
     }
@@ -99,19 +101,54 @@ final class Diagnostics implements Reporter {
         List<PageDiagnostic> sorted = sortedPages();
         DiagnosticReport.writeJsonl(dir.resolve("pages.jsonl"), sorted);
         DiagnosticReport.writeSummary(dir.resolve("summary.txt"), info, sorted);
-        writePng(CorpusOverlayRenderer.render(sorted), dir.resolve("corpus-overlay.png"));
-        writePng(ResidualChartRenderer.render(sorted), dir.resolve("residuals.png"));
+        ImageEncoder.writeWebp(
+                CorpusOverlayRenderer.render(sorted), dir.resolve("corpus-overlay.webp"));
+        ImageEncoder.writeWebp(ResidualChartRenderer.render(sorted), dir.resolve("residuals.webp"));
         if (flipbook) {
-            WebpFlipbook.write(dir, outputs);
+            writeFlipbook(outputs);
         }
     }
 
-    private static void writePng(BufferedImage img, Path out) throws IOException {
-        if (!ImageIO.write(img, "png", out.toFile())) {
-            throw RegisterException.withDetail(
-                    RegisterErrorKind.NATIVE_TOOL_FAILED,
-                    "no PNG writer available for " + out,
-                    null);
+    /**
+     * Assemble {@code outputs} (the registered pages, in reading order) into {@code
+     * dir/flipbook.webp} via the shared {@link WebpAnimation}. The frames are sampled down and each
+     * is downscaled to at most {@link #MAX_FRAME_HEIGHT} px tall through a temporary PNG (img2webp
+     * reads from files), so a long book stays a small preview. The frame scratch directory is
+     * always removed.
+     *
+     * @param outputs the registered output image paths, in reading order
+     * @throws IOException if frame extraction or filesystem work fails
+     */
+    private void writeFlipbook(List<Path> outputs) throws IOException {
+        if (outputs.isEmpty()) {
+            return;
+        }
+        List<Path> sampled = WebpAnimation.sampleFrames(outputs, WebpAnimation.DEFAULT_MAX_FRAMES);
+        Path framesDir = Files.createTempDirectory(dir, ".flipbook-frames-");
+        try {
+            List<Path> frames = new ArrayList<>(sampled.size());
+            int n = 0;
+            for (Path output : sampled) {
+                Path frame = framesDir.resolve(String.format(Locale.ROOT, "frame%05d.png", n++));
+                try (Pix page = Pix.read(output)) {
+                    if (page.height() > MAX_FRAME_HEIGHT) {
+                        try (Pix small = page.scaleToHeight(MAX_FRAME_HEIGHT)) {
+                            small.writePng(frame);
+                        }
+                    } else {
+                        page.writePng(frame);
+                    }
+                }
+                frames.add(frame);
+            }
+            WebpAnimation.assemble(
+                    frames,
+                    dir.resolve("flipbook.webp"),
+                    WebpAnimation.DEFAULT_DELAY_MS,
+                    WebpAnimation.DEFAULT_MAX_FRAMES,
+                    "register.img2webp.path");
+        } finally {
+            TempDirs.deleteRecursively(framesDir);
         }
     }
 
@@ -120,31 +157,6 @@ final class Diagnostics implements Reporter {
             List<PageDiagnostic> out = new ArrayList<>(pages);
             out.sort(Comparator.comparingInt(PageDiagnostic::index));
             return out;
-        }
-    }
-
-    private BufferedImage toRgbImage(Pix work) throws IOException {
-        Path tmp = Files.createTempFile(dir, ".work-", ".png");
-        try {
-            work.writePng(tmp);
-            BufferedImage raw = ImageIO.read(tmp.toFile());
-            if (raw == null) {
-                throw RegisterException.withDetail(
-                        RegisterErrorKind.IMAGE_UNREADABLE,
-                        "ImageIO could not read back " + tmp,
-                        null);
-            }
-            BufferedImage rgb =
-                    new BufferedImage(raw.getWidth(), raw.getHeight(), BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = rgb.createGraphics();
-            try {
-                g.drawImage(raw, 0, 0, null);
-            } finally {
-                g.dispose();
-            }
-            return rgb;
-        } finally {
-            Files.deleteIfExists(tmp);
         }
     }
 

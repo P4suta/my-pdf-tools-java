@@ -78,7 +78,7 @@ public final class RegisterCommand {
                         .longOpt("format")
                         .hasArg()
                         .argName("fmt")
-                        .desc("Output format: same, pbm, png or tiff (default: same).")
+                        .desc("Output format: same, pbm, png, tiff or webp (default: same).")
                         .get());
         options.addOption(
                 Option.builder()
@@ -144,8 +144,8 @@ public final class RegisterCommand {
                                 "Development aid: write per-page diagnostic overlays (detected"
                                     + " column, band, reference, placement, skew + projection"
                                     + " profiles), a JSONL log, a summary, a corpus before/after"
-                                    + " overlay (corpus-overlay.png) and a residual chart"
-                                    + " (residuals.png) to this directory. Off by default.")
+                                    + " overlay (corpus-overlay.webp) and a residual chart"
+                                    + " (residuals.webp) to this directory. Off by default.")
                         .get());
         options.addOption(
                 Option.builder()

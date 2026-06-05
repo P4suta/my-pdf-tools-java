@@ -75,7 +75,7 @@ final class DespeckleOptions {
                         .longOpt(FORMAT)
                         .hasArg()
                         .argName("FMT")
-                        .desc("Output format: pbm | png | tiff | same (default: same).")
+                        .desc("Output format: pbm | png | tiff | webp | same (default: same).")
                         .get());
         options.addOption(
                 Option.builder()

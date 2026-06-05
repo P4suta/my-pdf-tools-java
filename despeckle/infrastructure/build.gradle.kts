@@ -52,8 +52,6 @@ val coverageExcludes =
         // shell-out / FFM-adjacent adapter surface below.
         "**/NativeTools.class",
         "**/QpdfLinearizer.class",
-        "**/Webp.class",
-        "**/Flipbook.class",
         "**/PdfBoxJbig2Assembler*.class",
         "**/PdfImagesCliExtractor.class",
     )

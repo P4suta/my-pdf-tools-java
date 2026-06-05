@@ -50,6 +50,12 @@ final class Leptonica {
     /** Portable aNy Map (PBM/PGM/PPM); a 1 bpp image writes as binary P4. */
     static final int IFF_PNM = 11;
 
+    /**
+     * WebP. Written via {@link #pixWriteWebP} (lossless) rather than the generic {@code pixWrite},
+     * whose WebP path defaults to lossy.
+     */
+    static final int IFF_WEBP = 15;
+
     // ----- size-selection flags (pix.h) -----
     /** Select on width. */
     static final int L_SELECT_WIDTH = 1;
@@ -166,6 +172,10 @@ final class Leptonica {
             handle("pixRead", FunctionDescriptor.of(ADDRESS, ADDRESS));
     private static final MethodHandle PIX_WRITE =
             handle("pixWrite", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+    private static final MethodHandle PIX_WRITE_WEBP =
+            handle(
+                    "pixWriteWebP",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
     private static final MethodHandle PIX_DESTROY =
             handle("pixDestroy", FunctionDescriptor.ofVoid(ADDRESS));
     private static final MethodHandle PIX_GET_WIDTH =
@@ -286,6 +296,20 @@ final class Leptonica {
             return (int) PIX_WRITE.invoke(filename, pix, format);
         } catch (Throwable t) {
             throw sneaky("pixWrite", t);
+        }
+    }
+
+    /**
+     * Write {@code pix} to {@code filename} as WebP; returns 0 on success. The dedicated WebP
+     * writer (not the generic {@link #pixWrite}, whose WebP path is lossy by default) so {@code
+     * lossless} is honored. With {@code lossless != 0}, {@code quality} is the libwebp lossless
+     * effort level.
+     */
+    static int pixWriteWebP(MemorySegment filename, MemorySegment pix, int quality, int lossless) {
+        try {
+            return (int) PIX_WRITE_WEBP.invoke(filename, pix, quality, lossless);
+        } catch (Throwable t) {
+            throw sneaky("pixWriteWebP", t);
         }
     }
 

@@ -1,5 +1,6 @@
 package io.github.p4suta.register.cli;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.p4suta.register.TestComposition;
@@ -56,9 +57,13 @@ class FlipbookE2eTest {
         TestComposition.registrationService().run(config);
 
         assertTrue(
-                Files.exists(diag.resolve("corpus-overlay.png")),
+                Files.exists(diag.resolve("corpus-overlay.webp")),
                 "corpus overlay written on --diag");
-        assertTrue(Files.exists(diag.resolve("residuals.png")), "residual chart written on --diag");
+        assertTrue(
+                Files.exists(diag.resolve("residuals.webp")), "residual chart written on --diag");
+        // Every human-facing still is lossless WebP — no PNG artifacts are left behind.
+        assertFalse(Files.exists(diag.resolve("corpus-overlay.png")), "no PNG corpus overlay");
+        assertFalse(Files.exists(diag.resolve("residuals.png")), "no PNG residual chart");
         // No stray frame scratch directory is left behind.
         try (Stream<Path> entries = Files.list(diag)) {
             assertTrue(

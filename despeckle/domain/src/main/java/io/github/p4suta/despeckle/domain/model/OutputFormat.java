@@ -11,7 +11,9 @@ public enum OutputFormat {
     /** Write every page as PNG. */
     PNG,
     /** Write every page as CCITT Group-4 TIFF (1 bpp, lossless) — the pipeline's intermediate. */
-    TIFF;
+    TIFF,
+    /** Write every page as lossless WebP. */
+    WEBP;
 
     /** The output file extension, or {@code null} to keep the input's. */
     public @Nullable String extension() {
@@ -20,6 +22,7 @@ public enum OutputFormat {
             case PBM -> "pbm";
             case PNG -> "png";
             case TIFF -> "tif";
+            case WEBP -> "webp";
         };
     }
 }

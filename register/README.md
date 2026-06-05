@@ -74,15 +74,15 @@ Registration is geometric and easy to "eyeball wrong", so `--diag` writes a set
 of artifacts that show *what the alignment actually did* — without touching the
 bilevel output:
 
-- **`NNNN-<page>.diag.png`** — one per page: the page with its detected column
+- **`NNNN-<page>.diag.webp`** — one per page: the page with its detected column
   (green), the band it came from (blue), the reference box (orange), the
   projection profiles and the numeric placement.
-- **`corpus-overlay.png`** — the whole corpus at a glance. For each parity it
+- **`corpus-overlay.webp`** — the whole corpus at a glance. For each parity it
   overlays every registered page's detected column **before** (raw page space —
   the scan-jitter cloud) and **after** (canvas space — where it landed). A tight
   *after* stack around the orange median grid box, where the *before* cloud was
   wide, is the visible proof the jitter collapsed onto the grid.
-- **`residuals.png`** — per-page distance from each placed column edge to the
+- **`residuals.webp`** — per-page distance from each placed column edge to the
   grid edge, plotted by page index (recto ●, verso ▲), one panel per axis. Low
   and flat means tight registration; a spike names the page that drifted. (Same
   numbers as `summary.txt`.)

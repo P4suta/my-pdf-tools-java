@@ -44,19 +44,6 @@ public final class LeptonicaPageCleaner implements PageCleaner {
     /** Relation: keep if value is greater than the threshold. */
     private static final int L_SELECT_IF_GT = 2;
 
-    // --- Leptonica image-file format codes (imageio.h), pinned app-side ---
-    // The OutputFormat → IFF_* mapping stays on the adapter side; the shared island keeps the IFF_*
-    // constants package-private, so the codes this adapter writes are pinned here (same literals).
-
-    /** PNG. */
-    private static final int IFF_PNG = 3;
-
-    /** CCITT Group-4 fax-compressed TIFF (1 bpp). */
-    private static final int IFF_TIFF_G4 = 8;
-
-    /** Portable aNy Map (PBM/PGM/PPM); a 1 bpp image writes as binary P4. */
-    private static final int IFF_PNM = 11;
-
     /**
      * Process one page from {@code input} to {@code output}.
      *
@@ -107,7 +94,7 @@ public final class LeptonicaPageCleaner implements PageCleaner {
                 // Stamp the resolution we honored, so a TIFF/PNG output carries an accurate tag.
                 // Only a known resolution is written; an unknown one is left untouched.
                 options.resolution(img).map(Resolution::dpi).ifPresent(current::setResolution);
-                current.write(output, toIff(format, sourceFormat));
+                writeIn(current, output, format, sourceFormat);
                 return new ProcessResult(
                         componentsBefore, componentsAfter, blackBefore, blackAfter);
             } finally {
@@ -133,22 +120,23 @@ public final class LeptonicaPageCleaner implements PageCleaner {
     }
 
     /**
-     * Resolve {@code format} to the Leptonica {@code IFF_*} code to pass to {@code pixWrite}. This
-     * mapping lives on the adapter side because the shared imaging island keeps the {@code IFF_*}
-     * constants package-private; the domain {@link OutputFormat} carries only the file extension.
+     * Write {@code pix} in the requested {@link OutputFormat} via {@link Pix}'s named writers, so
+     * no Leptonica {@code IFF_*} code is named app-side. {@code SAME} threads the page's source
+     * format (a derived Pix reports {@code inputFormat()==0}, so it is passed explicitly).
      *
+     * @param pix the cleaned page
+     * @param output the destination path
      * @param format the desired output format
-     * @param sourceFormat the {@code IFF_*} the page was read from (used by {@link
-     *     OutputFormat#SAME})
-     * @return the Leptonica format code
+     * @param sourceFormat the {@code IFF_*} the page was read from (for {@link OutputFormat#SAME})
      */
-    private static int toIff(OutputFormat format, int sourceFormat) {
-        return switch (format) {
-            case SAME -> sourceFormat;
-            case PBM -> IFF_PNM;
-            case PNG -> IFF_PNG;
-            case TIFF -> IFF_TIFF_G4;
-        };
+    private static void writeIn(Pix pix, Path output, OutputFormat format, int sourceFormat) {
+        switch (format) {
+            case SAME -> pix.writeSameAs(output, sourceFormat);
+            case PBM -> pix.writePbm(output);
+            case PNG -> pix.writePng(output);
+            case TIFF -> pix.writeTiffG4(output);
+            case WEBP -> pix.writeWebp(output);
+        }
     }
 
     /**

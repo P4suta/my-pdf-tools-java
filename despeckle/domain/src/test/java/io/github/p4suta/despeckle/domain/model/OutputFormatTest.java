@@ -18,6 +18,7 @@ final class OutputFormatTest {
         assertEquals("pbm", OutputFormat.PBM.extension());
         assertEquals("png", OutputFormat.PNG.extension());
         assertEquals("tif", OutputFormat.TIFF.extension());
+        assertEquals("webp", OutputFormat.WEBP.extension());
     }
 
     @Test
