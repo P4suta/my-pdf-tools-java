@@ -75,6 +75,21 @@ jobs:
           -Dorg.gradle.java.installations.auto-download=false
           && despeckle/app/build/install/despeckle/bin/despeckle --version'
 
+      # pipeline (pdfbook): installDist launcher, then run the whole single-pass pipeline
+      # (extract -> despeckle -> register -> RTL spread) on a synthetic sample scan and assert the
+      # one output is a valid PDF. This is the end-to-end smoke for the unified pipeline; it needs
+      # Leptonica + pdfimages + jbig2, all in the dev image, so it stays Linux-only (no cross-OS).
+      - name: pipeline (pdfbook) installDist + smoke
+        run: >-
+          docker compose run --rm dev bash -lc '
+          ./gradlew :pipeline:app:installDist :register:infrastructure:createSamplePdf
+          --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+          && pipeline/app/build/install/pdfbook/bin/pdfbook
+          register/infrastructure/build/sample/sample.pdf -o /tmp/pdfbook-smoke.pdf
+          && test -s /tmp/pdfbook-smoke.pdf
+          && head -c4 /tmp/pdfbook-smoke.pdf | grep -q "%PDF"'
+
       - name: upload app-images on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -138,7 +138,7 @@ dependencies {
     // over io.github.p4suta.shared, no main sources), so it has no production bytecode to cover and no
     // JaCoCo floor of its own — adding it to the aggregation would contribute zero coverable classes.
     // Hence there is no jacocoAggregation(project(":shared:arch-rules")) line below.
-    val aggregatedApps = listOf("register", "despeckle", "tate-yoko-pdf")
+    val aggregatedApps = listOf("register", "despeckle", "tate-yoko-pdf", "pipeline")
     val aggregatedModules =
         listOf("domain", "port", "application", "infrastructure", "app")
     aggregatedApps.forEach { app ->
@@ -194,7 +194,7 @@ tasks.register<Copy>("aggregateJavadoc") {
     val sharedModules = listOf("kernel", "observability", "imaging", "cli", "process", "pdf", "io")
     val outDir = layout.buildDirectory.dir("docs/javadoc")
     val coordinates =
-        listOf("register", "despeckle", "tate-yoko-pdf")
+        listOf("register", "despeckle", "tate-yoko-pdf", "pipeline")
             .flatMap { app -> appModules.map { module -> app to module } } +
             sharedModules.map { module -> "shared" to module }
     coordinates.forEach { (app, module) ->

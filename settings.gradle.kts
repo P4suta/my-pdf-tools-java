@@ -16,7 +16,13 @@ rootProject.name = "my-pdf-tools-java"
 //
 // :register:runner is intentionally omitted: it is an orphan that was never built and depends on
 // modules that do not exist.
-listOf("register", "despeckle", "tate-yoko-pdf").forEach { app ->
+//
+// :pipeline is the unified single-pass pipeline (pipes-and-filters): it extracts a scan PDF once,
+// runs despeckle -> register as filters over a shared image working-set, and composes the RTL
+// spread as the only repack — no intermediate PDFs. A full hexagon like the three apps; its
+// infrastructure wraps the existing apps' services as Source/Stage/Sink adapters, so the apps stay
+// untouched. New processing stages plug in by adding one Stage adapter.
+listOf("register", "despeckle", "tate-yoko-pdf", "pipeline").forEach { app ->
     listOf("domain", "port", "application", "infrastructure", "app").forEach { m ->
         include(":$app:$m")
     }
