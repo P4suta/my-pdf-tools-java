@@ -13,7 +13,6 @@ import io.github.p4suta.register.domain.model.Skew;
 import io.github.p4suta.register.domain.model.Transform;
 import io.github.p4suta.register.domain.service.Reference;
 import io.github.p4suta.register.domain.service.TransformPlanner;
-import io.github.p4suta.register.infrastructure.leptonica.LeptonicaFormats;
 import io.github.p4suta.register.port.PageRegistrar;
 import io.github.p4suta.shared.imaging.Pix;
 import java.nio.file.Path;
@@ -97,7 +96,6 @@ public final class LeptonicaPageRegistrar implements PageRegistrar {
             RegisterOptions options) {
         try (Pix deskewed = Pix.read(deskewedScratch)) {
             Optional<Detection> detection = analysis.detection();
-            int outputIff = LeptonicaFormats.toIff(format, analysis.sourceFormat());
             PageDiagnostic.Placement placement;
             try (Pix canvasPix = Pix.blankCanvas(canvas.width(), canvas.height())) {
                 if (detection.isPresent() && reference != null) {
@@ -116,7 +114,7 @@ public final class LeptonicaPageRegistrar implements PageRegistrar {
                     placement = centerPlace(deskewed, canvas, canvasPix);
                 }
                 canvasPix.setResolution(options.canvasDpi());
-                canvasPix.write(dest, outputIff);
+                writeIn(canvasPix, dest, format, analysis.sourceFormat());
             }
             return buildDiagnostic(
                     index,
@@ -129,6 +127,26 @@ public final class LeptonicaPageRegistrar implements PageRegistrar {
                     placement,
                     analysis.skew(),
                     options.deskew());
+        }
+    }
+
+    /**
+     * Write {@code pix} in the requested {@link OutputFormat} via {@link Pix}'s named writers, so
+     * no Leptonica {@code IFF_*} code is named app-side. {@code SAME} threads the page's source
+     * format (a derived Pix reports {@code inputFormat()==0}, so it is passed explicitly).
+     *
+     * @param pix the placed canvas
+     * @param output the destination path
+     * @param format the desired output format
+     * @param sourceFormat the {@code IFF_*} the page was read from (for {@link OutputFormat#SAME})
+     */
+    private static void writeIn(Pix pix, Path output, OutputFormat format, int sourceFormat) {
+        switch (format) {
+            case SAME -> pix.writeSameAs(output, sourceFormat);
+            case PBM -> pix.writePbm(output);
+            case PNG -> pix.writePng(output);
+            case TIFF -> pix.writeTiffG4(output);
+            case WEBP -> pix.writeWebp(output);
         }
     }
 

@@ -51,13 +51,13 @@ dependencies {
 }
 
 // Adapters that cross the FFM / process boundary (the Leptonica binding, the page registrar's pixel
-// ops, the pdfimages / jbig2 exec wrappers, the img2webp flip-book): their defensive branches
-// (native tool resolution, ProcessBuilder timeouts, FFM downcalls) cannot be unit-tested without
-// unnatural scaffolding. They ARE exercised end-to-end by :app's pipeline tests — see the true
-// numbers via `just coverage` (the aggregated report). They are excluded only from THIS module's
-// isolated floor, which then tracks the genuinely unit-testable adapter logic (Pix, the column
-// detector, the diagnostics renderers, the process/path helpers) at a measured ~92% line / 64%
-// branch; calibrated below with margin.
+// ops, the pdfimages / jbig2 exec wrappers): their defensive branches (native tool resolution,
+// ProcessBuilder timeouts, FFM downcalls) cannot be unit-tested without unnatural scaffolding. They
+// ARE exercised end-to-end by :app's pipeline tests — see the true numbers via `just coverage` (the
+// aggregated report). They are excluded only from THIS module's isolated floor, which then tracks the
+// genuinely unit-testable adapter logic (Pix, the column detector, the diagnostics renderers — now
+// including the thin flip-book assembly that delegates the img2webp exec to :shared:process — and the
+// process/path helpers) at a measured ~92% line / 64% branch; calibrated below with margin.
 val coverageExcludes =
     listOf(
         "**/leptonica/Leptonica.class",
@@ -65,7 +65,6 @@ val coverageExcludes =
         "**/process/NativeTools.class",
         "**/pdf/PdfImagesCliExtractor.class",
         "**/pdf/PdfBoxJbig2Assembler*.class",
-        "**/diag/WebpFlipbook.class",
     )
 
 tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {

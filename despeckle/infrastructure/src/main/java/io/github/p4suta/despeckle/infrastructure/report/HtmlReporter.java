@@ -1,11 +1,11 @@
 package io.github.p4suta.despeckle.infrastructure.report;
 
-import io.github.p4suta.despeckle.domain.exception.DespeckleErrorKind;
-import io.github.p4suta.despeckle.domain.exception.DespeckleException;
 import io.github.p4suta.despeckle.domain.model.PageStat;
 import io.github.p4suta.despeckle.domain.model.ProcessResult;
 import io.github.p4suta.despeckle.port.Reporter;
+import io.github.p4suta.shared.imaging.ImageEncoder;
 import io.github.p4suta.shared.imaging.Pix;
+import io.github.p4suta.shared.process.WebpAnimation;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import javax.imageio.ImageIO;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -23,48 +22,45 @@ import org.jspecify.annotations.Nullable;
  * Reporter} adapter backed by an HTML page tree.
  *
  * <p>For each page it writes the original and cleaned images plus an overlay that paints every
- * removed pixel red over the original — slimmed to lossless WebP when {@code cwebp} is present,
- * kept as PNG otherwise. At {@link #finish()} it rolls the per-page stats into three corpus
- * artifacts — a removed-pixel {@link RemovedHeatmap heatmap}, a {@link ConvergenceChartRenderer
- * component-convergence chart} and a {@link RemovalChartRenderer per-page removal chart}, each
- * encoded as lossless WebP — and, with {@code --flipbook}, an animated WebP {@link Flipbook} of the
- * overlays. It emits an {@code index.html} tying them together. This is the human eyeballing
- * surface that lets you confirm dust was removed without eating punctuation or ruby. It is
- * read-only with respect to the pipeline.
+ * removed pixel red over the original; at {@link #finish()} it rolls the per-page stats into three
+ * corpus artifacts — a removed-pixel {@link RemovedHeatmap heatmap}, a {@link
+ * ConvergenceChartRenderer component-convergence chart} and a {@link RemovalChartRenderer per-page
+ * removal chart} — and, with {@code --flipbook}, an animated WebP {@link WebpAnimation flip-book}
+ * of the overlays. Every still image is lossless WebP, written through the shared imaging island
+ * ({@link Pix#writeWebp} for the page rasters, {@link ImageEncoder} for the AWT charts/overlays);
+ * the animated flip-book goes through {@link WebpAnimation}. It emits an {@code index.html} tying
+ * them together. This is the human eyeballing surface; it is read-only with respect to the
+ * pipeline.
  *
  * <p>Both {@code inputImage} and {@code outputImage} are file paths on disk; the Leptonica {@link
- * Pix} used to re-read them and the AWT images painted from them never leave a method body, keeping
- * the image stack confined to {@code :infrastructure}.
+ * Pix} and the AWT images never leave a method body, keeping the image stack confined to {@code
+ * :infrastructure}.
  */
 public final class HtmlReporter implements Reporter {
 
     private static final int RED = 0xFF0000;
     private static final int LUMA_MIDPOINT = 128;
 
+    /** Every report image is lossless WebP. */
+    private static final String PANEL_EXT = "webp";
+
     private final Path outDir;
     private final boolean flipbook;
-
-    /**
-     * The extension every per-page panel is written with — {@code webp}, or {@code png} fallback.
-     */
-    private final String panelExt;
 
     private final RemovedHeatmap heatmap = new RemovedHeatmap();
     private final ConcurrentLinkedQueue<PageStat> stats = new ConcurrentLinkedQueue<>();
 
     /**
      * Construct a reporter over an already-prepared report directory tree. Built through {@link
-     * HtmlReporterFactory#create(Path, boolean)} rather than directly, so the {@code cwebp} probe
-     * and {@code before}/{@code overlay}/{@code after} directory creation happen exactly once.
+     * HtmlReporterFactory#create(Path, boolean)} so the {@code before}/{@code overlay}/{@code
+     * after} directories are created exactly once.
      *
      * @param outDir the report root, with its panel sub-directories already created
      * @param flipbook whether to assemble the animated-WebP overlay flip-book at finish
-     * @param panelExt the per-page panel extension — {@code webp} or {@code png}
      */
-    HtmlReporter(Path outDir, boolean flipbook, String panelExt) {
+    HtmlReporter(Path outDir, boolean flipbook) {
         this.outDir = outDir;
         this.flipbook = flipbook;
-        this.panelExt = panelExt;
     }
 
     /**
@@ -81,23 +77,21 @@ public final class HtmlReporter implements Reporter {
     public void addPage(Path relativeStem, Path inputImage, Path outputImage, ProcessResult result)
             throws IOException {
         String stem = stripExtension(relativeStem.toString());
-        Path beforePng = panelPath("before", stem);
-        Path afterPng = panelPath("after", stem);
-        Path overlayPng = panelPath("overlay", stem);
+        Path beforeWebp = panelPath("before", stem);
+        Path afterWebp = panelPath("after", stem);
+        Path overlayWebp = panelPath("overlay", stem);
 
+        BufferedImage beforeImg;
+        BufferedImage afterImg;
         try (Pix before = Pix.read(inputImage)) {
-            before.writePng(beforePng);
+            before.writeWebp(beforeWebp);
+            beforeImg = ImageEncoder.toBufferedImage(before);
         }
         try (Pix after = Pix.read(outputImage)) {
-            after.writePng(afterPng);
+            after.writeWebp(afterWebp);
+            afterImg = ImageEncoder.toBufferedImage(after);
         }
-        writeOverlayAndAccumulate(beforePng, afterPng, overlayPng);
-        if ("webp".equals(panelExt)) {
-            // The overlay was just built from the before/after panels, so it is safe to slim now.
-            slimToWebp(beforePng);
-            slimToWebp(afterPng);
-            slimToWebp(overlayPng);
-        }
+        writeOverlayAndAccumulate(beforeImg, afterImg, overlayWebp);
 
         stats.add(
                 new PageStat(
@@ -105,17 +99,6 @@ public final class HtmlReporter implements Reporter {
                         result.componentsBefore(),
                         result.componentsAfter(),
                         result.removedBlackPixelRatio()));
-    }
-
-    /**
-     * Convert a written {@code .png} panel to a sibling lossless {@code .webp}, dropping the PNG.
-     */
-    private static void slimToWebp(Path png) throws IOException {
-        String name = png.toString();
-        Path webp = Path.of(name.substring(0, name.length() - ".png".length()) + ".webp");
-        if (Webp.encode(png, webp)) {
-            Files.deleteIfExists(png);
-        }
     }
 
     /**
@@ -144,41 +127,31 @@ public final class HtmlReporter implements Reporter {
                         heatmapFile,
                         convergenceFile,
                         removalFile,
-                        flipbookWritten ? "flipbook.webp" : null,
-                        panelExt),
+                        flipbookWritten ? "flipbook.webp" : null),
                 StandardCharsets.UTF_8);
     }
 
     private boolean writeFlipbook(List<PageStat> sorted) throws IOException {
         List<Path> overlays = new ArrayList<>(sorted.size());
         for (PageStat stat : sorted) {
-            overlays.add(outDir.resolve("overlay").resolve(stat.stem() + "." + panelExt));
+            overlays.add(outDir.resolve("overlay").resolve(stat.stem() + "." + PANEL_EXT));
         }
-        return Flipbook.write(outDir, overlays);
+        return WebpAnimation.assemble(
+                overlays,
+                outDir.resolve("flipbook.webp"),
+                WebpAnimation.DEFAULT_DELAY_MS,
+                WebpAnimation.DEFAULT_MAX_FRAMES,
+                "despeckle.img2webp.path");
     }
 
-    /**
-     * Write a corpus image, preferring lossless WebP and keeping the PNG only when {@code cwebp} is
-     * unavailable. Returns the file name actually written, so the HTML links the real artifact.
-     */
+    /** Write a corpus chart as lossless WebP; returns the file name written, for the HTML link. */
     private String writeArtifact(String basename, BufferedImage img) throws IOException {
-        Path png = outDir.resolve(basename + ".png");
-        if (!ImageIO.write(img, "png", png.toFile())) {
-            throw DespeckleException.withDetail(
-                    DespeckleErrorKind.NATIVE_TOOL_FAILED,
-                    "no PNG writer available for " + png,
-                    null);
-        }
-        Path webp = outDir.resolve(basename + ".webp");
-        if (Webp.encode(png, webp)) {
-            Files.deleteIfExists(png);
-            return basename + ".webp";
-        }
-        return basename + ".png";
+        ImageEncoder.writeWebp(img, outDir.resolve(basename + ".webp"));
+        return basename + ".webp";
     }
 
     private Path panelPath(String panel, String stem) throws IOException {
-        Path path = outDir.resolve(panel).resolve(stem + ".png");
+        Path path = outDir.resolve(panel).resolve(stem + "." + PANEL_EXT);
         Path parent = path.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -187,21 +160,16 @@ public final class HtmlReporter implements Reporter {
     }
 
     /**
-     * Build the red-over-grey overlay for one page and, in the same single pass, drop each removed
-     * pixel into the calling thread's heatmap histogram.
+     * Build the red-over-grey overlay for one page from the already-decoded before/after rasters
+     * and, in the same single pass, drop each removed pixel into the calling thread's heatmap
+     * histogram. The overlay is written as lossless WebP via the shared imaging island.
      *
      * <p>Pixels are pulled a row at a time via the bulk {@code getRGB(x, y, w, 1, ...)} — one call
-     * per row, not one per pixel — which is the difference between a fast scan and a glacial one on
-     * a multi-megapixel page, while the luma test (and so the set of "removed" pixels) is
+     * per row, not one per pixel — while the luma test (and so the set of "removed" pixels) is
      * byte-for-byte the same as the per-pixel form.
      */
-    private void writeOverlayAndAccumulate(Path beforePng, Path afterPng, Path overlayPng)
-            throws IOException {
-        BufferedImage before = ImageIO.read(beforePng.toFile());
-        BufferedImage after = ImageIO.read(afterPng.toFile());
-        if (before == null || after == null) {
-            throw new IOException("could not read panels for overlay: " + overlayPng);
-        }
+    private void writeOverlayAndAccumulate(
+            BufferedImage before, BufferedImage after, Path overlayWebp) throws IOException {
         int width = Math.min(before.getWidth(), after.getWidth());
         int height = Math.min(before.getHeight(), after.getHeight());
         BufferedImage overlay = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -225,12 +193,7 @@ public final class HtmlReporter implements Reporter {
             }
             overlay.setRGB(0, y, width, 1, overlayRow, 0, width);
         }
-        if (!ImageIO.write(overlay, "png", overlayPng.toFile())) {
-            throw DespeckleException.withDetail(
-                    DespeckleErrorKind.NATIVE_TOOL_FAILED,
-                    "no PNG writer available for " + overlayPng,
-                    null);
-        }
+        ImageEncoder.writeWebp(overlay, overlayWebp);
     }
 
     private static int luma(int rgb) {
@@ -256,8 +219,7 @@ public final class HtmlReporter implements Reporter {
             String heatmapFile,
             String convergenceFile,
             String removalFile,
-            @Nullable String flipbookFile,
-            String panelExt) {
+            @Nullable String flipbookFile) {
         StringBuilder html = new StringBuilder(8192);
         html.append(
                         """
@@ -305,9 +267,9 @@ public final class HtmlReporter implements Reporter {
                     .append('>')
                     .append(pct)
                     .append("%</td><td><div class=\"panels\">")
-                    .append(figure("before", stem, panelExt))
-                    .append(figure("overlay", stem, panelExt))
-                    .append(figure("after", stem, panelExt))
+                    .append(figure("before", stem))
+                    .append(figure("overlay", stem))
+                    .append(figure("after", stem))
                     .append("</div></td></tr>");
         }
         return html.append("</table></body></html>").toString();
@@ -321,13 +283,13 @@ public final class HtmlReporter implements Reporter {
                 + "</figcaption></figure>";
     }
 
-    private static String figure(String panel, String stem, String ext) {
+    private static String figure(String panel, String stem) {
         return "<figure><img src=\""
                 + panel
                 + "/"
                 + stem
                 + "."
-                + ext
+                + PANEL_EXT
                 + "\" loading=\"lazy\"><figcaption>"
                 + panel
                 + "</figcaption></figure>";

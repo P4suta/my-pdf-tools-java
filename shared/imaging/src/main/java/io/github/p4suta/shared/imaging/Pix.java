@@ -70,8 +70,13 @@ public final class Pix implements AutoCloseable {
         return new Pix(raw);
     }
 
-    /** Write this image to {@code path} using the given Leptonica {@code IFF_*} format. */
-    public void write(Path path, int format) {
+    /**
+     * Write this image to {@code path} using the given Leptonica {@code IFF_*} format. The island's
+     * internal raster-write primitive: the public API is the named writers ({@link #writeWebp},
+     * {@link #writePng}, {@link #writeTiffG4}, {@link #writePbm}, {@link #writeSameAs}) that
+     * compose it, so no raw {@code IFF_*} code is ever named outside this package.
+     */
+    void write(Path path, int format) {
         MemorySegment h = requireHandle();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment name = arena.allocateFrom(path.toString());
@@ -91,6 +96,47 @@ public final class Pix implements AutoCloseable {
     /** Write this image as CCITT Group-4 TIFF — lossless for 1 bpp bitonal and compact. */
     public void writeTiffG4(Path path) {
         write(path, Leptonica.IFF_TIFF_G4);
+    }
+
+    /** Write this image as binary PBM (P4) — 1 bpp. */
+    public void writePbm(Path path) {
+        write(path, Leptonica.IFF_PNM);
+    }
+
+    /** libwebp lossless effort (0–100, higher = smaller/slower); honored only with lossless=1. */
+    private static final int WEBP_LOSSLESS_EFFORT = 75;
+
+    /**
+     * Write this image as lossless WebP — the standard format for the human-facing reports,
+     * diagnostics and previews. Lossless keeps line-art (charts, overlays) and bilevel text exact
+     * while beating PNG on size; bitonal page bodies keep CCITT G4 ({@link #writeTiffG4}) instead.
+     */
+    public void writeWebp(Path path) {
+        MemorySegment h = requireHandle();
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment name = arena.allocateFrom(path.toString());
+            int rc = Leptonica.pixWriteWebP(name, h, WEBP_LOSSLESS_EFFORT, 1);
+            if (rc != 0) {
+                throw new IllegalStateException(
+                        "Leptonica pixWriteWebP failed (rc=" + rc + "): " + path);
+            }
+        }
+    }
+
+    /**
+     * Write in the format the source page was read from ({@code --format same}). The source format
+     * is passed explicitly: a derived {@link Pix} (post-deskew/clean, created by Leptonica) reports
+     * {@link #inputFormat()} {@code == 0}, so the caller threads the original page's format here.
+     *
+     * @param path the output path
+     * @param sourceFormat the original {@code IFF_*} format to reproduce
+     */
+    public void writeSameAs(Path path, int sourceFormat) {
+        if (sourceFormat == Leptonica.IFF_WEBP) {
+            writeWebp(path);
+        } else {
+            write(path, sourceFormat);
+        }
     }
 
     public int width() {

@@ -74,6 +74,24 @@ final class PixTest {
         }
     }
 
+    @Test
+    void writeWebpRoundTrips(@TempDir Path dir) throws Exception {
+        Path pbm = dir.resolve("src.pbm");
+        Path webp = dir.resolve("out.webp");
+        boolean[][] img = TestImages.blank(20, 28);
+        TestImages.fillRect(img, 3, 3, 16, 24);
+        TestImages.writePbm(pbm, img);
+
+        try (Pix pix = Pix.read(pbm)) {
+            pix.writeWebp(webp);
+        }
+        assertTrue(java.nio.file.Files.size(webp) > 0, "lossless WebP must be written");
+        try (Pix back = Pix.read(webp)) {
+            assertEquals(20, back.width());
+            assertEquals(28, back.height());
+        }
+    }
+
     // ----- projection profiles -----
 
     @Test

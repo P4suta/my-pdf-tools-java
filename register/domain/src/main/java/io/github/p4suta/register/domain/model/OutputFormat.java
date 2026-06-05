@@ -11,10 +11,13 @@ public enum OutputFormat {
     /** Write every page as PNG. */
     PNG,
     /** Write every page as CCITT Group-4 bitonal TIFF. */
-    TIFF;
+    TIFF,
+    /** Write every page as lossless WebP. */
+    WEBP;
 
-    // The Leptonica IFF_* mapping (toIff) lives with the binding in :infrastructure
-    // (LeptonicaFormats), so this domain enum carries no Leptonica coupling.
+    // The Leptonica IFF_* mapping lives with the binding in :infrastructure (the page registrar
+    // calls Pix's named write wrappers per this enum), so this domain enum carries no Leptonica
+    // coupling.
 
     /** The output file extension, or {@code null} to keep the input's. */
     public @Nullable String extension() {
@@ -23,6 +26,7 @@ public enum OutputFormat {
             case PBM -> "pbm";
             case PNG -> "png";
             case TIFF -> "tiff";
+            case WEBP -> "webp";
         };
     }
 }
