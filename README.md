@@ -11,11 +11,26 @@ and the bitonal page images inside them, built on a shared hexagonal core.
 | [`despeckle`](despeckle/) | Removes scanner pepper-noise from bitonal scans while protecting ruby (振り仮名), 句読点, and dakuten/handakuten. |
 | [`tate-yoko-pdf`](tate-yoko-pdf/) | Converts 縦書き scanned PDFs into right-to-left (RTL) two-page spreads that read correctly in any PDF viewer. |
 
+## Unified pipeline
+
+[`pdfbook`](pipeline/) runs the whole chain in a single pass — extract the scan's
+pages **once**, then despeckle → register → RTL spreads — with **no intermediate
+PDFs** (the stages hand off image files in a temp work area; only the final spread
+is repacked). It is a pipes-and-filters composition (a `Source`, ordered `Stage`s,
+a `Sink`) over the three apps' services, so a new processing step is one `Stage`.
+
+```sh
+docker compose run --rm dev ./gradlew :pipeline:app:installDist
+pipeline/app/build/install/pdfbook/bin/pdfbook scan.pdf -o book.pdf   # one book
+pipeline/app/build/install/pdfbook/bin/pdfbook scans/ -o out/          # batch a directory
+```
+
 ## Layout
 
-Each app is a hexagonal stack of five modules — `domain`, `port`, `application`,
-`infrastructure`, `app` (composition root + runnable artifact). Cross-cutting
-code lives in seven shared modules:
+Each app — and the unified `pipeline` — is a hexagonal stack of five modules —
+`domain`, `port`, `application`, `infrastructure`, `app` (composition root +
+runnable artifact); the pipeline's infrastructure wraps the three apps' services as
+pipeline stages. Cross-cutting code lives in seven shared modules:
 
 ```
 shared/
@@ -39,7 +54,7 @@ image (root `Dockerfile`) carries the entire toolchain (Liberica JDK 25 Full,
 Leptonica, the PDF toolbox, fonts, and the linters).
 
 ```sh
-docker compose run --rm dev ./gradlew build   # full quality gate, all 22 modules
+docker compose run --rm dev ./gradlew build   # full quality gate, all 27 modules
 docker compose run --rm dev just build        # same, via the justfile
 docker compose run --rm dev just lint          # peripheral linters
 ```

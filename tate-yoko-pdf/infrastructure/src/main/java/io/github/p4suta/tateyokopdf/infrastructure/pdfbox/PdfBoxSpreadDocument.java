@@ -22,6 +22,8 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.CCITTFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.util.Matrix;
 import org.apache.xmpbox.type.BadFieldValueException;
 import org.slf4j.Logger;
@@ -61,15 +63,37 @@ public class PdfBoxSpreadDocument implements SpreadDocument {
 
         try (var cs = new PDPageContentStream(document, page)) {
             for (var placement : placements) {
-                var pdfBoxContent = (PdfBoxPageContent) placement.content();
-                PDFormXObject form = pdfBoxContent.importInto(document);
+                var content = placement.content();
+                var position = placement.position();
 
                 cs.saveGraphicsState();
-                cs.transform(
-                        Matrix.getTranslateInstance(
-                                placement.position().offsetXPt(),
-                                placement.position().offsetYPt()));
-                cs.drawForm(form);
+                switch (content) {
+                    // PDF source: import the page as a form XObject and stamp it at the offset.
+                    case PdfBoxPageContent pdfBoxContent -> {
+                        PDFormXObject form = pdfBoxContent.importInto(document);
+                        cs.transform(
+                                Matrix.getTranslateInstance(
+                                        position.offsetXPt(), position.offsetYPt()));
+                        cs.drawForm(form);
+                    }
+                    // Image source: embed the registered bitonal page as a CCITT G4 image XObject,
+                    // drawn at its natural points size. The G4 bytes pass through un-re-encoded.
+                    case ImagePageContent image -> {
+                        PDImageXObject xobject =
+                                CCITTFactory.createFromFile(document, image.path().toFile());
+                        cs.drawImage(
+                                xobject,
+                                position.offsetXPt(),
+                                position.offsetYPt(),
+                                image.widthPt(),
+                                image.heightPt());
+                    }
+                    default ->
+                            throw SpreadException.withDetail(
+                                    ErrorKind.INTERNAL,
+                                    "unsupported page content: " + content.getClass().getName(),
+                                    null);
+                }
                 cs.restoreGraphicsState();
             }
         } catch (IOException e) {

@@ -1,5 +1,6 @@
-# Consolidated monorepo CI — builds and checks all 22 modules (3 apps x 5
-# hexagonal layers + 7 shared modules) in one workflow.
+# Consolidated monorepo CI — builds and checks all 27 modules (3 apps + the
+# unified pipeline = 4 hexagonal stacks x 5 layers + 7 shared modules) in one
+# workflow.
 #
 # Policy (inherited from register/despeckle's best-of-breed CI):
 #   - No `on: schedule` here; the only scheduled job is freshness.yml.
@@ -31,6 +32,9 @@ concurrency:
 
 jobs:
   build:
+    # This job NAME is a required-status-check context in main's branch protection, so it is kept
+    # byte-stable even though the module count is now 27 (renaming it would orphan the required
+    # check). Retitle to a count-free name only together with a protection edit to the new context.
     name: build + check (all 22 modules)
     runs-on: ubuntu-latest
     timeout-minutes: 45

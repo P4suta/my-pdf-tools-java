@@ -1,6 +1,8 @@
 import net.ltgt.gradle.errorprone.CheckSeverity
 import net.ltgt.gradle.errorprone.errorprone
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.plugins.BasePluginExtension
+import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.getByType
 
 // Shared Java compilation conventions for every production module across all three p4suta apps:
@@ -16,8 +18,25 @@ plugins {
     id("net.ltgt.errorprone")
 }
 
-group = "io.github.p4suta"
+// Unique per-app group so each module's Gradle capability (group:name) is distinct across apps.
+// Every app repeats the leaf module names domain/port/application/infrastructure, so register's
+// :domain and pipeline's :domain are both Gradle-named "domain" — without a distinct group they
+// collide on the single capability io.github.p4suta:domain the moment one classpath pulls both
+// (e.g. :pipeline:infrastructure depends on every app's :domain). Deriving the group from the
+// parent project (the app/shared directory) keeps coordinates unique. Modules are never published,
+// so the group is internal-only.
+group = "io.github.p4suta." + (project.parent?.name ?: project.name)
 version = "0.1.0"
+
+// Unique jar filename per module ("<app>-<layer>", e.g. register-application, pipeline-domain).
+// Every app repeats the leaf names domain/port/application/infrastructure, so the default jar name
+// "<leaf>-<version>.jar" collides when one distribution bundles several apps' modules — the
+// pipeline's installDist pulls every app's :application, all otherwise named application-0.1.0.jar,
+// which have DIFFERENT contents (so deduping by name would drop classes). A shadow jar that sets its
+// own archiveBaseName (the apps' jpackage shadowJar) is unaffected.
+extensions.configure<BasePluginExtension> {
+    archivesName = (project.parent?.name ?: project.name) + "-" + project.name
+}
 
 // Precompiled script plugins get no type-safe `libs.` accessors; read the catalog directly via the
 // VersionCatalogsExtension (wired into this included build by build-logic/settings.gradle.kts).
