@@ -138,7 +138,7 @@ dependencies {
     // over io.github.p4suta.shared, no main sources), so it has no production bytecode to cover and no
     // JaCoCo floor of its own — adding it to the aggregation would contribute zero coverable classes.
     // Hence there is no jacocoAggregation(project(":shared:arch-rules")) line below.
-    val aggregatedApps = listOf("register", "despeckle", "tate-yoko-pdf", "pipeline")
+    val aggregatedApps = listOf("register", "despeckle", "tate-yoko-pdf", "pipeline", "webapp")
     val aggregatedModules =
         listOf("domain", "port", "application", "infrastructure", "app")
     aggregatedApps.forEach { app ->
@@ -153,6 +153,7 @@ dependencies {
     jacocoAggregation(project(":shared:process"))
     jacocoAggregation(project(":shared:pdf"))
     jacocoAggregation(project(":shared:io"))
+    jacocoAggregation(project(":shared:progress"))
 }
 
 // Register the aggregated report over every module's `test` suite. Produces the
@@ -191,10 +192,11 @@ tasks.register<Copy>("aggregateJavadoc") {
     // Per-app modules (the per-app :observability modules were removed; the cross-cutting
     // mapper/handler/exit-codes now live in :shared:observability) + the shared library modules.
     val appModules = listOf("domain", "port", "application", "infrastructure", "app")
-    val sharedModules = listOf("kernel", "observability", "imaging", "cli", "process", "pdf", "io")
+    val sharedModules =
+        listOf("kernel", "observability", "imaging", "cli", "process", "pdf", "io", "progress")
     val outDir = layout.buildDirectory.dir("docs/javadoc")
     val coordinates =
-        listOf("register", "despeckle", "tate-yoko-pdf", "pipeline")
+        listOf("register", "despeckle", "tate-yoko-pdf", "pipeline", "webapp")
             .flatMap { app -> appModules.map { module -> app to module } } +
             sharedModules.map { module -> "shared" to module }
     coordinates.forEach { (app, module) ->

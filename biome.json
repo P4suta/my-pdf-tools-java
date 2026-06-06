@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -13,15 +13,53 @@
       "trailingCommas": "none"
     }
   },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "files": {
     "includes": [
       "**/*.json",
       "**/*.jsonc",
+      "**/*.ts",
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.svelte",
       "!**/build/**",
       "!**/.gradle/**",
       "!**/.gradle-home/**",
-      "!**/artifacts/**"
+      "!**/artifacts/**",
+      "!**/node_modules/**",
+      "!**/dist/**"
     ]
   },
-  "linter": { "enabled": false }
+  "overrides": [
+    {
+      "includes": ["**/*.svelte"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off",
+            "noUnusedFunctionParameters": "off"
+          }
+        }
+      }
+    }
+  ]
 }

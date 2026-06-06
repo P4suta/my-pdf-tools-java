@@ -12,6 +12,14 @@ import java.nio.file.Path;
 public interface Sink {
 
     /**
+     * {@return a short, filesystem-safe label for this sink's phase} Used to label the sink's
+     * progress events; defaults to {@code "sink"}.
+     */
+    default String name() {
+        return "sink";
+    }
+
+    /**
      * Writes {@code input} to {@code output}.
      *
      * @param input the final corpus

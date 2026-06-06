@@ -4,6 +4,8 @@ import io.github.p4suta.pipeline.domain.Corpus;
 import io.github.p4suta.pipeline.port.Sink;
 import io.github.p4suta.pipeline.port.Source;
 import io.github.p4suta.pipeline.port.Stage;
+import io.github.p4suta.shared.progress.ProgressEvent;
+import io.github.p4suta.shared.progress.ProgressSink;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +34,9 @@ public final class PipelineRunner {
     private static final Logger log = LoggerFactory.getLogger(PipelineRunner.class);
 
     /**
-     * Runs {@code source -> stages -> sink}, writing the result to {@code output}.
+     * Runs {@code source -> stages -> sink}, writing the result to {@code output}, reporting no
+     * progress. Equivalent to {@link #run(Source, List, Sink, Path, ProgressSink)} with {@link
+     * ProgressSink#NO_OP}.
      *
      * @param source produces the initial corpus
      * @param stages the filters applied in order
@@ -40,24 +45,66 @@ public final class PipelineRunner {
      * @throws IOException if any step fails
      */
     public void run(Source source, List<Stage> stages, Sink sink, Path output) throws IOException {
+        run(source, stages, sink, output, ProgressSink.NO_OP);
+    }
+
+    /**
+     * Runs {@code source -> stages -> sink}, writing the result to {@code output} and reporting
+     * lifecycle/progress events into {@code progress}: one {@link ProgressEvent.RunStarted}, a
+     * {@link ProgressEvent.StageStarted}/{@link ProgressEvent.StageCompleted} pair around the
+     * source, each stage, and the sink, then a terminal {@link ProgressEvent.RunCompleted} on
+     * success or {@link ProgressEvent.RunFailed} (the exception is still rethrown) on failure.
+     *
+     * @param source produces the initial corpus
+     * @param stages the filters applied in order
+     * @param sink writes the final corpus to {@code output}
+     * @param output the single output file
+     * @param progress receives the run's lifecycle and progress events
+     * @throws IOException if any step fails
+     */
+    public void run(
+            Source source, List<Stage> stages, Sink sink, Path output, ProgressSink progress)
+            throws IOException {
+        int total = stages.size() + 2;
+        progress.emit(new ProgressEvent.RunStarted(total));
         Path work = Files.createTempDirectory("p4suta-pipeline-");
         log.info("pipeline work area: {}", work);
         try {
-            Corpus corpus = source.open(stageDir(work, 0, "source"));
-            log.info("source: {} page(s) at {} dpi", corpus.pageCount(), corpus.dpi());
+            int position = 0;
 
-            int index = 1;
+            progress.emit(new ProgressEvent.StageStarted(source.name(), position, total));
+            Corpus corpus = source.open(stageDir(work, 0, source.name()));
+            log.info("source: {} page(s) at {} dpi", corpus.pageCount(), corpus.dpi());
+            progress.emit(new ProgressEvent.StageCompleted(source.name()));
+            position++;
+
+            int dirIndex = 1;
             for (Stage stage : stages) {
-                corpus = stage.apply(corpus, stageDir(work, index, stage.name()));
-                log.info("stage {} ({}): {} page(s)", index, stage.name(), corpus.pageCount());
-                index++;
+                progress.emit(new ProgressEvent.StageStarted(stage.name(), position, total));
+                corpus = stage.apply(corpus, stageDir(work, dirIndex, stage.name()));
+                log.info("stage {} ({}): {} page(s)", dirIndex, stage.name(), corpus.pageCount());
+                progress.emit(new ProgressEvent.StageCompleted(stage.name()));
+                position++;
+                dirIndex++;
             }
 
+            progress.emit(new ProgressEvent.StageStarted(sink.name(), position, total));
             sink.write(corpus, output);
             log.info("wrote {}", output);
+            progress.emit(new ProgressEvent.StageCompleted(sink.name()));
+
+            progress.emit(new ProgressEvent.RunCompleted());
+        } catch (IOException | RuntimeException e) {
+            progress.emit(new ProgressEvent.RunFailed(e.getClass().getSimpleName(), message(e)));
+            throw e;
         } finally {
             deleteRecursively(work);
         }
+    }
+
+    private static String message(Throwable e) {
+        @Nullable String m = e.getMessage();
+        return m == null ? e.getClass().getSimpleName() : m;
     }
 
     private static Path stageDir(Path work, int index, String name) throws IOException {

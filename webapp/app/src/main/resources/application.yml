@@ -1,0 +1,32 @@
+server:
+  # Bind to loopback by default: this is a personal/local tool. To expose it on the LAN, override
+  # with SERVER_ADDRESS=0.0.0.0 (and add authentication first).
+  address: 127.0.0.1
+  port: 8080
+
+spring:
+  application:
+    name: pdfbook-web
+  servlet:
+    multipart:
+      # Scanned books are large; the 1MB default rejects them.
+      max-file-size: 512MB
+      max-request-size: 512MB
+
+app:
+  # Per-job working directories live here (one subdirectory per job id).
+  work-dir: ${java.io.tmpdir}/pdfbook-web/jobs
+  # At most one conversion runs at a time; this many may wait.
+  queue-capacity: 4
+  # A single conversion is killed if it runs longer than this.
+  conversion-timeout: 30m
+  # A job (and its files + SSE buffer) is removed this long after it was created.
+  job-ttl: 6h
+  # How often the reaper sweeps expired jobs.
+  reaper-interval-ms: 900000
+  # The pdfbook executable. Leave unset to resolve it via -Dp4suta.pdfbook.binary or the PATH.
+  # pdfbook-binary: /path/to/pdfbook
+
+logging:
+  level:
+    io.github.p4suta: INFO

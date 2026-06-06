@@ -13,6 +13,8 @@ plugins {
 dependencies {
     implementation(project(":pipeline:domain"))
     implementation(project(":pipeline:port"))
+    // The shared progress/lifecycle event vocabulary the runner emits into its ProgressSink.
+    implementation(project(":shared:progress"))
     implementation(libs.slf4j.api)
 }
 

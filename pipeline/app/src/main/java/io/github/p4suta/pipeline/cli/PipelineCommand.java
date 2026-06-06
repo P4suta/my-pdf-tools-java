@@ -28,6 +28,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Command-line front end for the unified pipeline ({@code pdfbook}): one self-contained pass that
@@ -112,6 +113,15 @@ public final class PipelineCommand {
                         .get());
         options.addOption(
                 Option.builder().longOpt("pdf-a").desc("Emit PDF/A-2b conformance.").get());
+        options.addOption(
+                Option.builder()
+                        .longOpt("progress-file")
+                        .hasArg()
+                        .argName("path")
+                        .desc(
+                                "Write machine-readable JSONL progress events to this file (single"
+                                        + " input only); used by front ends to report progress.")
+                        .get());
         return options;
     }
 
@@ -165,12 +175,16 @@ public final class PipelineCommand {
         Config config = parseConfig(cmd);
 
         if (inputs.size() == 1) {
-            runOne(inputs.get(0), output, config);
+            Path progressFile =
+                    cmd.hasOption("progress-file")
+                            ? Path.of(cmd.getOptionValue("progress-file"))
+                            : null;
+            runOne(inputs.get(0), output, config, progressFile);
             return ExitCodes.OK;
         }
 
         // Batch: -o is a directory; each book is written to <output>/<same-name>,
-        // continue-on-error.
+        // continue-on-error. --progress-file is single-input only, so it is ignored here.
         Files.createDirectories(output);
         return new BatchDriver<Path>()
                 .run(
@@ -178,10 +192,11 @@ public final class PipelineCommand {
                         (in, index, total) ->
                                 String.format(
                                         Locale.ROOT, "[%d/%d] %s", index, total, in.getFileName()),
-                        in -> runOne(in, output.resolve(outputName(in)), config));
+                        in -> runOne(in, output.resolve(outputName(in)), config, null));
     }
 
-    private static void runOne(Path input, Path output, Config config) throws IOException {
+    private static void runOne(Path input, Path output, Config config, @Nullable Path progressFile)
+            throws IOException {
         List<Stage> stages = new ArrayList<>();
         if (config.despeckle()) {
             stages.add(new DespeckleStage(config.jobs()));
@@ -197,7 +212,13 @@ public final class PipelineCommand {
                         config.pdfA(),
                         MemoryMode.IN_MEMORY,
                         DocumentMetadata.empty());
-        new PipelineRunner().run(source, stages, sink, output);
+        if (progressFile == null) {
+            new PipelineRunner().run(source, stages, sink, output);
+        } else {
+            try (JsonlFileProgressSink progress = new JsonlFileProgressSink(progressFile)) {
+                new PipelineRunner().run(source, stages, sink, output, progress);
+            }
+        }
     }
 
     private static String outputName(Path input) {

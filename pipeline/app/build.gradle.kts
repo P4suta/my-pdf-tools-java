@@ -21,6 +21,9 @@ dependencies {
     // memory-mode / metadata value types.
     implementation(project(":tate-yoko-pdf:domain"))
 
+    // The shared progress event vocabulary + JSONL codec: the --progress-file sink writes these.
+    implementation(project(":shared:progress"))
+
     // The shared CLI scaffolding: positional/glob input resolver, batch driver, exit-code reporter,
     // and the int/enum/positional parse helpers — the one layer allowed to write to System.out/err.
     implementation(project(":shared:cli"))

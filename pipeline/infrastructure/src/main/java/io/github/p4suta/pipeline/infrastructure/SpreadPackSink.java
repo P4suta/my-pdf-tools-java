@@ -50,6 +50,11 @@ public final class SpreadPackSink implements Sink {
     }
 
     @Override
+    public String name() {
+        return "spread";
+    }
+
+    @Override
     public void write(Corpus input, Path output) {
         ImageDirDocumentFactory factory =
                 new ImageDirDocumentFactory(

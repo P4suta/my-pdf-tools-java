@@ -40,6 +40,10 @@ spotbugs-tool = "4.9.6"
 # Fat-jar plugin: shades the runtime classpath into <app>-all.jar, the single jar jpackage bundles
 # into the app-image. Applied per-app via `alias(libs.plugins.shadow)`.
 shadow = "9.4.2"
+# Spring Boot Gradle plugin (bootRun/bootJar) for the :webapp:app web front end. Boot 4.0 (Spring
+# Framework 7) baselines Java 17 with first-class Java 25 support. Applied only in :webapp:app via
+# `alias(libs.plugins.springBoot)`; it imports its own dependency BOM for spring-boot-starter-*.
+spring-boot = "4.0.4"
 rewrite-plugin = "7.34.0"
 rewrite-recipe-bom = "3.32.0"
 # rewrite-java-security is the one recipe module not managed by the recipe BOM, so its version is
@@ -108,6 +112,7 @@ spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-plugin" }
 spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-plugin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+springBoot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 rewrite = { id = "org.openrewrite.rewrite", version.ref = "rewrite-plugin" }
 # PIT plugin marker. Version is inline (NOT a `pitest-*` version.ref) on purpose: a dashed
 # `pitest-plugin` version key would turn `pitest` into a namespace node and shadow the
