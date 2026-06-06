@@ -1,8 +1,12 @@
 package io.github.p4suta.tateyokopdf.cli;
 
 import io.github.p4suta.shared.cli.BatchDriver;
+import io.github.p4suta.shared.cli.CliDocs;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
+import io.github.p4suta.shared.cli.CliVersion;
 import io.github.p4suta.shared.cli.InputResolver;
+import io.github.p4suta.shared.cli.OutputGuard;
 import io.github.p4suta.shared.cli.OutputTarget;
 import io.github.p4suta.shared.cli.StdinSource;
 import io.github.p4suta.tateyokopdf.application.SpreadOptions;
@@ -37,7 +41,13 @@ import org.jspecify.annotations.Nullable;
 public final class SpreadCommand {
 
     static final String NAME = "tate-yoko-pdf";
-    static final String VERSION = "tate-yoko-pdf 0.1.0";
+
+    private static final String SYNTAX = "tate-yoko-pdf [options] INPUT...";
+
+    private static final String HEADER =
+            "Convert scanned PDF pages into a side-by-side spread layout for Japanese vertical"
+                + " text. INPUT may be one or more PDF files, a directory (its *.pdf children), or"
+                + " '-' to read a single PDF from stdin.";
 
     private SpreadCommand() {}
 
@@ -61,15 +71,21 @@ public final class SpreadCommand {
             CommandLine cmd = new DefaultParser().parse(options, args);
             verbose = cmd.hasOption("verbose");
             if (verbose) {
-                configureVerboseLogging();
+                CliLogging.enableDebug();
             }
             if (cmd.hasOption("help")) {
                 printHelp(System.out);
                 return CliExitCodes.OK;
             }
             if (cmd.hasOption("version")) {
-                System.out.println(VERSION);
+                System.out.println(CliVersion.line(NAME, SpreadCommand.class));
                 return CliExitCodes.OK;
+            }
+            int docs =
+                    CliDocs.handle(
+                            cmd, NAME, SpreadCommand.class, SYNTAX, HEADER, options, List.of());
+            if (docs >= 0) {
+                return docs;
             }
             if (cmd.getArgList().isEmpty()) {
                 printHelp(System.out);
@@ -105,6 +121,7 @@ public final class SpreadCommand {
                     (outputOpt == null || "-".equals(outputOpt))
                             ? OutputTarget.stdout("tate-yoko-out", ".pdf")
                             : OutputTarget.file(Path.of(outputOpt));
+            guardOutput(target, args.force());
             StdinSource.withStdin(
                     "tate-yoko-in", ".pdf", in -> conversion.convert(in, target, null));
             return CliExitCodes.OK;
@@ -118,7 +135,9 @@ public final class SpreadCommand {
         // Single input: let the exception bubble up to run()'s mapper.
         if (files.size() == 1) {
             Path input = files.get(0);
-            conversion.convert(input, singleOutput(input, outputOpt), null);
+            OutputTarget target = singleOutput(input, outputOpt);
+            guardOutput(target, args.force());
+            conversion.convert(input, target, null);
             return CliExitCodes.OK;
         }
 
@@ -134,10 +153,25 @@ public final class SpreadCommand {
         List<BatchItem> items = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
             Path input = files.get(i);
+            OutputTarget target = batchOutput(input, outDir);
+            Path outPath = Objects.requireNonNull(target.file(), "batch output is always a file");
+            // Skip an output that already exists unless --force, mirroring the register/despeckle
+            // batch convention (single inputs refuse; batch keeps going past what is already done).
+            if (!args.force() && Files.exists(outPath)) {
+                System.err.println(
+                        "["
+                                + (i + 1)
+                                + "/"
+                                + total
+                                + "] "
+                                + input.getFileName()
+                                + ": skipped (exists; use --force)");
+                continue;
+            }
             // Precompute the "[i/n] filename" progress prefix and bundle it into the item: the
             // BatchDriver processor (unlike its labeler) gets only the item.
             String progress = "[" + (i + 1) + "/" + total + "] " + input.getFileName();
-            items.add(new BatchItem(input, batchOutput(input, outDir), progress));
+            items.add(new BatchItem(input, target, progress));
         }
         // The labeler renders the raw path for the per-failure error line; the processor threads
         // the precomputed progress prefix into the ConsoleProgressListener.
@@ -159,6 +193,14 @@ public final class SpreadCommand {
     private record BatchItem(Path input, OutputTarget target, String progressLabel) {}
 
     // Output resolution
+
+    /** Refuses to overwrite an existing file target unless {@code --force}; stdout has no guard. */
+    private static void guardOutput(OutputTarget target, boolean force) {
+        if (!target.toStdout()) {
+            OutputGuard.refuseIfExists(
+                    Objects.requireNonNull(target.file(), "file target has a path"), force);
+        }
+    }
 
     private static OutputTarget singleOutput(Path input, @Nullable String outputOpt) {
         if (outputOpt == null) {
@@ -239,13 +281,22 @@ public final class SpreadCommand {
                                         + " (slightly slower; uses java.io.tmpdir)")
                         .get());
         options.addOption(
+                Option.builder()
+                        .longOpt("force")
+                        .desc(
+                                "Overwrite an existing output; in batch, regenerate outputs that"
+                                        + " already exist instead of skipping them.")
+                        .get());
+        options.addOption(
                 Option.builder("v")
                         .longOpt("verbose")
                         .desc("Enable verbose logging output (DEBUG level)")
                         .get());
         options.addOption(
                 Option.builder("h").longOpt("help").desc("Show this help and exit").get());
-        options.addOption(Option.builder().longOpt("version").desc("Print version and exit").get());
+        options.addOption(
+                Option.builder("V").longOpt("version").desc("Print version and exit").get());
+        CliDocs.options(options);
         return options;
     }
 
@@ -267,9 +318,10 @@ public final class SpreadCommand {
                                               'left' (RTL) leads with a blank, 'cover' stands page 1 alone
                       --pdf-a                 Emit PDF/A-2b for archiving (best-effort; see docs)
                       --low-memory            Spill page streams to a temp file to bound heap on huge scans
+                      --force                 Overwrite an existing output (batch: regenerate, don't skip)
                   -v, --verbose               Enable verbose (DEBUG) logging
                   -h, --help                  Show this help and exit
-                      --version               Print version and exit
+                  -V, --version               Print version and exit
 
                 Examples:
                   tate-yoko-pdf novel.pdf                       -> novel_spread.pdf (RTL)
@@ -277,16 +329,5 @@ public final class SpreadCommand {
                   tate-yoko-pdf scans/ -o out/                  batch a directory
                   cat in.pdf | tate-yoko-pdf - -o - > out.pdf   stdin -> stdout
                 """);
-    }
-
-    private static void configureVerboseLogging() {
-        // slf4j-simple reads each logger's threshold live from the
-        // `org.slf4j.simpleLogger.log.<name>` system property when that logger is first constructed
-        // (walking up the dotted name). `defaultLogLevel` is cached at first-init, so setting it
-        // here is a dead write: FatalUncaughtHandler's static logger already initialized
-        // slf4j-simple in Main. Scope DEBUG to the app's own + shared loggers via the per-logger
-        // key; every io.github.p4suta.* logger is built later (during execute()), after this set.
-        // Third-party loggers (PDFBox etc.) stay at their default level.
-        System.setProperty("org.slf4j.simpleLogger.log.io.github.p4suta", "debug");
     }
 }

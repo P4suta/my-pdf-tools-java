@@ -9,16 +9,15 @@ import org.junit.jupiter.api.Test;
 /**
  * Exercises {@link DespeckleException}'s {@code of(kind)} / {@code of(kind, cause)} / {@code
  * withDetail(kind, detail, cause)} factories over the shared {@link BaseAppException} base. Works
- * with both an app kind ({@link DespeckleErrorKind}) and a reused {@link CommonErrorKind}.
+ * with both an app kind ({@link DespeckleErrorKind}) and a reused {@link CommonErrorKind}. The
+ * exception is presentation-free: it carries a kind and an optional technical detail only.
  */
 final class DespeckleExceptionTest {
 
     @Test
-    void ofExposesKindAndDefaultMessageWithNoDetailOrCause() {
+    void ofExposesKindWithNoDetailOrCause() {
         DespeckleException ex = DespeckleException.of(DespeckleErrorKind.IMAGE_UNREADABLE);
         assertThat(ex.kind()).isEqualTo(DespeckleErrorKind.IMAGE_UNREADABLE);
-        assertThat(ex.userMessage())
-                .isEqualTo(DespeckleErrorKind.IMAGE_UNREADABLE.defaultUserMessage());
         assertThat(ex.technicalDetail()).isNull();
         assertThat(ex.getCause()).isNull();
         assertThat(ex).isInstanceOf(BaseAppException.class).isInstanceOf(RuntimeException.class);
@@ -34,27 +33,18 @@ final class DespeckleExceptionTest {
     }
 
     @Test
-    void withDetailKeepsDetailOutOfTheUserMessageButInTheThrowableMessage() {
+    void withDetailKeepsDetailAndPutsItInTheThrowableMessage() {
         DespeckleException ex =
                 DespeckleException.withDetail(
                         DespeckleErrorKind.OUTPUT_CONFLICT, "out.pdf already exists", null);
-        assertThat(ex.userMessage())
-                .isEqualTo(DespeckleErrorKind.OUTPUT_CONFLICT.defaultUserMessage());
         assertThat(ex.technicalDetail()).isEqualTo("out.pdf already exists");
-        assertThat(ex.getMessage())
-                .isEqualTo(
-                        "[OUTPUT_CONFLICT] "
-                                + DespeckleErrorKind.OUTPUT_CONFLICT.defaultUserMessage()
-                                + " (out.pdf already exists)");
+        assertThat(ex.getMessage()).isEqualTo("[OUTPUT_CONFLICT] out.pdf already exists");
     }
 
     @Test
-    void throwableMessageOmitsParensWhenNoDetail() {
+    void throwableMessageIsJustTheKindWhenNoDetail() {
         DespeckleException ex = DespeckleException.of(DespeckleErrorKind.INPUT_NOT_FOUND);
-        assertThat(ex.getMessage())
-                .isEqualTo(
-                        "[INPUT_NOT_FOUND] "
-                                + DespeckleErrorKind.INPUT_NOT_FOUND.defaultUserMessage());
+        assertThat(ex.getMessage()).isEqualTo("[INPUT_NOT_FOUND]");
     }
 
     @Test
@@ -63,8 +53,6 @@ final class DespeckleExceptionTest {
                 DespeckleException.withDetail(
                         CommonErrorKind.INVALID_PARAMETER, "dpi=-1", new RuntimeException("x"));
         assertThat(ex.kind()).isEqualTo(CommonErrorKind.INVALID_PARAMETER);
-        assertThat(ex.userMessage())
-                .isEqualTo(CommonErrorKind.INVALID_PARAMETER.defaultUserMessage());
-        assertThat(ex.getMessage()).isEqualTo("[INVALID_PARAMETER] 入力値が不正です。 (dpi=-1)");
+        assertThat(ex.getMessage()).isEqualTo("[INVALID_PARAMETER] dpi=-1");
     }
 }

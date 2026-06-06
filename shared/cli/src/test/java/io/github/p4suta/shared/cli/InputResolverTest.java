@@ -81,6 +81,20 @@ final class InputResolverTest {
     }
 
     @Test
+    void globMatchesUppercaseExtensionsCaseInsensitively(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("SCAN.PDF"), "u");
+        Files.writeString(dir.resolve("doc.Pdf"), "m");
+        Files.writeString(dir.resolve("plain.pdf"), "l");
+        Files.writeString(dir.resolve("note.txt"), "skip");
+
+        InputResolver.Resolved resolved = InputResolver.resolve(List.of(dir.toString()), PDF);
+
+        assertThat(resolved.files())
+                .containsExactly(
+                        dir.resolve("SCAN.PDF"), dir.resolve("doc.Pdf"), dir.resolve("plain.pdf"));
+    }
+
+    @Test
     void unreadableDirectoryArgRaisesParseException(@TempDir Path dir) throws Exception {
         Path unreadable = Files.createDirectory(dir.resolve("locked"));
         Set<PosixFilePermission> none = PosixFilePermissions.fromString("---------");

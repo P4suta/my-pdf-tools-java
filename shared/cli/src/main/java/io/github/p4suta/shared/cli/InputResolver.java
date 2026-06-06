@@ -8,6 +8,7 @@ import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -90,14 +91,21 @@ public final class InputResolver {
      * *.pdf} or {@code *.{pbm,png,tiff,tif}}). Glob matching is applied to the file name only, so
      * it is independent of the directory the entry lives in.
      *
+     * <p>Matching is case-insensitive: both the pattern and each file name are lower-cased before
+     * comparison, so {@code *.pdf} also matches {@code SCAN.PDF} and {@code page.TIF} on
+     * case-sensitive file systems (Linux) where the glob would otherwise drop them.
+     *
      * @param glob the glob pattern to match against each entry's file name
      * @return a predicate suitable for {@link #resolve(List, Predicate)}
      */
     public static Predicate<Path> globFilter(String glob) {
-        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+        PathMatcher matcher =
+                FileSystems.getDefault().getPathMatcher("glob:" + glob.toLowerCase(Locale.ROOT));
         return path -> {
             Path name = path.getFileName();
-            return Files.isRegularFile(path) && name != null && matcher.matches(name);
+            return Files.isRegularFile(path)
+                    && name != null
+                    && matcher.matches(Path.of(name.toString().toLowerCase(Locale.ROOT)));
         };
     }
 

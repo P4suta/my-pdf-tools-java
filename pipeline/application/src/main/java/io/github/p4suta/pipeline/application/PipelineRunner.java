@@ -4,6 +4,7 @@ import io.github.p4suta.pipeline.domain.Corpus;
 import io.github.p4suta.pipeline.port.Sink;
 import io.github.p4suta.pipeline.port.Source;
 import io.github.p4suta.pipeline.port.Stage;
+import io.github.p4suta.shared.observability.ExceptionMapper;
 import io.github.p4suta.shared.progress.ProgressEvent;
 import io.github.p4suta.shared.progress.ProgressSink;
 import java.io.IOException;
@@ -90,7 +91,10 @@ public final class PipelineRunner {
 
             progress.emit(new ProgressEvent.RunCompleted());
         } catch (IOException | RuntimeException e) {
-            progress.emit(new ProgressEvent.RunFailed(e.getClass().getSimpleName(), message(e)));
+            // Emit the stable ErrorCategory kind token (e.g. OUTPUT_CONFLICT) front ends localize
+            // from — not the Java class name — with the throwable message as the developer detail.
+            progress.emit(
+                    new ProgressEvent.RunFailed(ExceptionMapper.map(e).kind().name(), message(e)));
             throw e;
         } finally {
             deleteRecursively(work);

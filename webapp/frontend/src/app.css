@@ -673,6 +673,15 @@
     color: var(--color-ink);
     overflow-wrap: anywhere;
   }
+
+  /* The stable error-kind token, shown small and muted under the localized message for support
+     reference (the user reads the message above; this is the code to quote in a bug report). */
+  .errbox .errkind {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+  }
 }
 
 /* ---------- animations ---------- */

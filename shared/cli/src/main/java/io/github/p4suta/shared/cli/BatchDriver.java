@@ -87,14 +87,9 @@ public final class BatchDriver<T> {
                 if (failures == 1) {
                     firstFailureExit = mapping.exitCode();
                 }
-                err.println(
-                        "Error["
-                                + mapping.kind().name()
-                                + "] "
-                                + label
-                                + ": "
-                                + mapping.safeUserMessage());
-                log.atLevel(mapping.level()).log("{} failed: {}", label, mapping.safeUserMessage());
+                String message = CliErrorMessages.of(mapping.kind());
+                err.println("Error[" + mapping.kind().name() + "] " + label + ": " + message);
+                log.atLevel(mapping.level()).log("{} failed: {}", label, message);
             }
         }
         if (failures > 0) {

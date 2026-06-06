@@ -7,8 +7,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * Asserts {@link CommonErrorKind}'s exit code, severity, client-fault flag, and message per
- * constant, plus the invariant (clientFault &hArr; WARN).
+ * Asserts {@link CommonErrorKind}'s exit code, severity, and client-fault flag per constant, plus
+ * the invariant (clientFault &hArr; WARN). The category is presentation-free, so there is no
+ * message to assert here — user text lives in each surface's catalog.
  */
 final class CommonErrorKindTest {
 
@@ -18,8 +19,16 @@ final class CommonErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(64);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage()).isEqualTo("入力値が不正です。");
         assertThat(k.name()).isEqualTo("INVALID_PARAMETER");
+    }
+
+    @Test
+    void outputConflictMatchesSpec() {
+        CommonErrorKind k = CommonErrorKind.OUTPUT_CONFLICT;
+        assertThat(k.exitCode()).isEqualTo(73);
+        assertThat(k.severity()).isEqualTo(Severity.WARN);
+        assertThat(k.isClientFault()).isTrue();
+        assertThat(k.name()).isEqualTo("OUTPUT_CONFLICT");
     }
 
     @Test
@@ -28,8 +37,6 @@ final class CommonErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(137);
         assertThat(k.severity()).isEqualTo(Severity.ERROR);
         assertThat(k.isClientFault()).isFalse();
-        assertThat(k.defaultUserMessage())
-                .isEqualTo("メモリが不足しました。-Xmx を増やすか、ページ数の少ない PDF で試してください。");
         assertThat(k.name()).isEqualTo("OUT_OF_MEMORY");
     }
 
@@ -39,7 +46,6 @@ final class CommonErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(70);
         assertThat(k.severity()).isEqualTo(Severity.ERROR);
         assertThat(k.isClientFault()).isFalse();
-        assertThat(k.defaultUserMessage()).isEqualTo("予期しないエラーが発生しました。");
         assertThat(k.name()).isEqualTo("INTERNAL");
     }
 
@@ -59,9 +65,8 @@ final class CommonErrorKindTest {
     }
 
     @Test
-    void everyKindHasANonBlankMessageAndName() {
+    void everyKindHasANonBlankName() {
         for (CommonErrorKind k : CommonErrorKind.values()) {
-            assertThat(k.defaultUserMessage()).isNotBlank();
             assertThat(k.name()).isNotBlank();
         }
     }

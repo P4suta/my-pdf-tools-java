@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
  * <p>A writer that needs a real, seekable path (a PDF assembler, an image encoder) cannot write to
  * stdout directly. {@link #write} bridges that: it hands the supplied action a real path — the
  * destination file, or a fresh temp file for stdout — then, for stdout, streams the result to
- * {@code System.out} and removes the temp (always, even on failure).
+ * {@code System.out} and removes the temp — always, even on failure or an interrupting signal (the
+ * temp is created via {@link TempFiles}).
  *
  * @param toStdout whether the result is to be streamed to {@code System.out}
  * @param file the destination file when {@link #toStdout()} is {@code false}, otherwise {@code
@@ -63,7 +64,7 @@ public record OutputTarget(
      * {@code sink}, so a test can capture it without mutating {@code System.out}.
      */
     void write(IoPathAction action, OutputStream sink) throws IOException {
-        Path realOut = toStdout ? Files.createTempFile(tempPrefix, tempSuffix) : requireFile();
+        Path realOut = toStdout ? TempFiles.createTempFile(tempPrefix, tempSuffix) : requireFile();
         try {
             action.accept(realOut);
             if (toStdout) {
@@ -73,7 +74,7 @@ public record OutputTarget(
             }
         } finally {
             if (toStdout) {
-                Files.deleteIfExists(realOut);
+                TempFiles.delete(realOut);
             }
         }
     }

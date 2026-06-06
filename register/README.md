@@ -50,8 +50,8 @@ just run scans/book out/book --no-scale --no-deskew --format png
 | --- | --- | --- |
 | `--paper` | `auto` | `auto`, a standard name (`shiroku/a4/a5/a6/b5/b6/shinsho`), or a custom `WxH` mm (e.g. `127x188`). `auto` snaps the median scanned page to the nearest standard book size — robust to a book scanned a little under nominal (binding trim / paper shrink) *and* over nominal (loose crop / scan margin, which it treats as croppable and so does not let pull the choice up a size) — falling back to the exact measured size when no standard is close |
 | `--dpi` | inherit scan | output resolution; fixes the canvas pixel size. Default: inherit the input scan's own resolution (falls back to `400` for untagged inputs such as raw PBM) |
-| `--format` | `same` | `same/pbm/png/tiff` |
-| `--glob` | `*.{pbm,png,tiff,tif}` | input file-name glob |
+| `--format` | `same` | `same/pbm/png/tiff/webp` |
+| `--glob` | `*.{pbm,png,tiff,tif}` | input file-name glob (matched case-insensitively) |
 | `-j`/`--jobs` | CPUs | worker threads |
 | `--no-deskew` | off | turn off straightening each page before detection (on by default) |
 | `--no-scale` | off | turn off scaling each column to the reference height (on by default) |
@@ -60,8 +60,30 @@ just run scans/book out/book --no-scale --no-deskew --format png
 | `--force` | off | overwrite a non-empty output directory |
 | `--diag` | off | write diagnostic artifacts to this directory (see below) |
 | `--flipbook` | off | with `--diag`, also assemble an animated WebP flip-book of the registered pages (needs libwebp's `img2webp`) |
+| `-v`/`--verbose` | off | enable verbose (DEBUG) logging |
+| `-h`/`--help` | — | show help and exit |
+| `-V`/`--version` | — | print version and exit |
+| `--completion <bash\|zsh\|fish>` | — | print a shell completion script and exit |
+| `--man` | — | print a man page (troff) and exit |
 
-Enum values (`--format`, `--anchor`) are case-insensitive.
+Enum values (`--format`, `--anchor`) are case-insensitive. A bare `register` prints
+help and exits 0.
+
+### PDF-to-PDF pipeline
+
+`register pipeline <in.pdf> <out.pdf>` registers a scanned PDF onto a fixed canvas
+and repacks it as lossless-JBIG2 in one step (a directory batches every top-level
+`*.pdf`). Pass `-` for `<in.pdf>` to read one PDF from stdin and/or `-` for
+`<out.pdf>` to write it to stdout.
+
+### Exit codes
+
+CLI exit codes follow [the shared error model](../shared/observability/): `0`
+success, `2` usage/parse error, `64` bad value, `65` unreadable image, `66` input
+not found, `70` internal / native-tool failure, `73` output exists (pass
+`--force`), `137` out of memory. Errors print as `Error[KIND]: …`; the `KIND` token
+is the language-neutral error vocabulary — the CLI renders it in English, the web
+UI in Japanese, neither sharing a message string.
 
 ### Diagnostics (`--diag <dir>`)
 

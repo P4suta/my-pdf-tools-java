@@ -144,7 +144,10 @@ class PipelineRunnerTest {
                         new ProgressEvent.StageStarted("source", 0, 3),
                         new ProgressEvent.StageCompleted("source"),
                         new ProgressEvent.StageStarted("boom", 1, 3),
-                        new ProgressEvent.RunFailed("IOException", "kaboom"));
+                        // A plain IOException resolves to the stable INTERNAL kind token (front
+                        // ends
+                        // localize from it), with the throwable message as the developer detail.
+                        new ProgressEvent.RunFailed("INTERNAL", "kaboom"));
         assertThat(output).doesNotExist();
     }
 

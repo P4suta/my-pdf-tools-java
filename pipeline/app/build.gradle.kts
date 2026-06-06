@@ -42,3 +42,121 @@ application {
     applicationName = "pdfbook"
     applicationDefaultJvmArgs = nativeAccessArgs
 }
+
+base {
+    // Pin the jar name to pdfbook-<version>.jar so jpackage's --main-jar below can find it.
+    archivesName = "pdfbook"
+}
+
+// ---- Distribution: jlink + jpackage app-image ------------------------------
+// Mirrors :despeckle:app — build/dist-jpackage/pdfbook/ with a launcher and a trimmed JRE (jlink),
+// the app-image's --input being installDist's lib/. Native tools (pdfimages / pdfinfo / jbig2 / qpdf
+// + libleptonica) are a documented PATH runtime dependency, NOT bundled (the dev container supplies
+// them); the image is self-contained for the JVM side only.
+
+val jpackageAppName = "pdfbook"
+
+// Minimal module set (verify with `jdeps --print-module-deps`); identical needs to despeckle:
+// FFM/NIO (java.base), ImageIO (java.desktop), PDFBox/xmpbox (java.xml), slf4j-simple over j.u.l
+// (java.logging), PDFBox Unsafe (jdk.unsupported) and zip-style stream filters (jdk.zipfs).
+val bundledModules =
+    listOf(
+        "java.base",
+        "java.desktop",
+        "java.xml",
+        "java.logging",
+        "jdk.unsupported",
+        "jdk.zipfs",
+    )
+
+// CC-safe tool resolution: capture java.home (or JAVA_HOME) as a Provider at configuration time.
+val javaHomeProvider: Provider<String> =
+    providers.systemProperty("java.home").orElse(providers.environmentVariable("JAVA_HOME"))
+
+fun toolPath(tool: String): Provider<String> =
+    javaHomeProvider.map { home ->
+        val exe =
+            if (org.gradle.internal.os.OperatingSystem
+                    .current()
+                    .isWindows
+            ) {
+                "$tool.exe"
+            } else {
+                tool
+            }
+        "$home/bin/$exe"
+    }
+
+// jlink/jpackage refuse a pre-existing output dir; declare each tool's parent as the output and
+// reset the fixed child with a Delete task, config-cache-safely.
+val jreOutputParent = layout.buildDirectory.dir("dist-jre")
+val jreImageDir = jreOutputParent.map { it.dir("runtime") }
+val jpackageOutputParent = layout.buildDirectory.dir("dist-jpackage")
+val installInputDir = layout.buildDirectory.dir("install/$jpackageAppName/lib")
+
+val cleanJreImage =
+    tasks.register<Delete>("cleanJreImage") {
+        delete(jreImageDir)
+    }
+
+val cleanJpackageImage =
+    tasks.register<Delete>("cleanJpackageImage") {
+        delete(jpackageOutputParent.map { it.dir(jpackageAppName) })
+    }
+
+val jreImage =
+    tasks.register<Exec>("jreImage") {
+        group = "distribution"
+        description = "Run jlink to build a trimmed JRE under build/dist-jre/runtime/"
+        dependsOn(cleanJreImage)
+
+        commandLine =
+            listOf(
+                toolPath("jlink").get(),
+                "--add-modules",
+                bundledModules.joinToString(","),
+                "--strip-debug",
+                "--no-header-files",
+                "--no-man-pages",
+                "--compress=zip-9",
+                "--output",
+                jreImageDir.get().asFile.absolutePath,
+            )
+        inputs.property("modules", bundledModules.joinToString(","))
+        outputs.dir(jreOutputParent)
+    }
+
+tasks.register<Exec>("jpackageImage") {
+    group = "distribution"
+    description = "Run jpackage to build the pdfbook app-image under build/dist-jpackage/"
+    dependsOn(jreImage, tasks.named("installDist"), cleanJpackageImage)
+
+    val mainJarName = "$jpackageAppName-${project.version}.jar"
+
+    commandLine =
+        listOf(
+            toolPath("jpackage").get(),
+            "--type",
+            "app-image",
+            "--name",
+            jpackageAppName,
+            "--input",
+            installInputDir.get().asFile.absolutePath,
+            "--main-jar",
+            mainJarName,
+            "--main-class",
+            "io.github.p4suta.pipeline.Main",
+            "--runtime-image",
+            jreImageDir.get().asFile.absolutePath,
+            "--dest",
+            jpackageOutputParent.get().asFile.absolutePath,
+            "--java-options",
+            "--enable-native-access=ALL-UNNAMED",
+            "--java-options",
+            "-XX:MaxRAMPercentage=75.0",
+        )
+
+    inputs.dir(jreImageDir)
+    inputs.dir(installInputDir)
+    outputs.dir(jpackageOutputParent)
+}

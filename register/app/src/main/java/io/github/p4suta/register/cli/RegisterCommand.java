@@ -5,8 +5,11 @@ import io.github.p4suta.register.domain.model.OutputFormat;
 import io.github.p4suta.register.domain.model.RegisterOptions;
 import io.github.p4suta.register.infrastructure.diag.DiagnosticsReporterFactory;
 import io.github.p4suta.register.infrastructure.registrar.LeptonicaPageRegistrar;
+import io.github.p4suta.shared.cli.CliDocs;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
 import io.github.p4suta.shared.cli.CliOptionSupport;
+import io.github.p4suta.shared.cli.CliVersion;
 import io.github.p4suta.shared.observability.ExitCodes;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -49,6 +52,11 @@ public final class RegisterCommand {
                 Option.builder("V")
                         .longOpt("version")
                         .desc("Print version information and exit.")
+                        .get());
+        options.addOption(
+                Option.builder("v")
+                        .longOpt("verbose")
+                        .desc("Enable verbose (DEBUG) logging.")
                         .get());
         options.addOption(
                 Option.builder()
@@ -156,6 +164,7 @@ public final class RegisterCommand {
                                     + " visible; needs libwebp's img2webp on the PATH (or"
                                     + " -Dregister.img2webp.path). Off by default.")
                         .get());
+        CliDocs.options(options);
         return options;
     }
 
@@ -172,19 +181,40 @@ public final class RegisterCommand {
         if (args.length > 0 && "pipeline".equals(args[0])) {
             return new PipelineCommand().execute(Arrays.copyOfRange(args, 1, args.length));
         }
+        // A bare invocation prints help and succeeds, so newcomers see usage rather than an error.
+        if (args.length == 0) {
+            printHelp();
+            return ExitCodes.OK;
+        }
         CommandLine cmd;
         try {
             cmd = new DefaultParser().parse(OPTIONS, args);
         } catch (ParseException e) {
             return usageError(e);
         }
+        boolean verbose = cmd.hasOption("verbose");
+        if (verbose) {
+            CliLogging.enableDebug();
+        }
         if (cmd.hasOption("help")) {
             printHelp();
             return ExitCodes.OK;
         }
         if (cmd.hasOption("version")) {
-            printOut(versionLine());
+            printOut(CliVersion.line("register", RegisterCommand.class));
             return ExitCodes.OK;
+        }
+        int docs =
+                CliDocs.handle(
+                        cmd,
+                        "register",
+                        RegisterCommand.class,
+                        SYNTAX,
+                        HEADER,
+                        OPTIONS,
+                        List.of("pipeline"));
+        if (docs >= 0) {
+            return docs;
         }
         RegistrationService.Config config;
         try {
@@ -196,7 +226,7 @@ public final class RegisterCommand {
             registrationService().run(config);
             return ExitCodes.OK;
         } catch (IOException | RuntimeException e) {
-            return new CliExceptionHandler(() -> false).handle(e);
+            return new CliExceptionHandler(() -> verbose).handle(e);
         }
     }
 
@@ -255,11 +285,6 @@ public final class RegisterCommand {
 
     private void printHelp() {
         CliOptionSupport.printHelp("register", SYNTAX, HEADER, OPTIONS);
-    }
-
-    private static String versionLine() {
-        String version = RegisterCommand.class.getPackage().getImplementationVersion();
-        return "register " + (version == null ? "(dev)" : version);
     }
 
     private void printOut(String line) {

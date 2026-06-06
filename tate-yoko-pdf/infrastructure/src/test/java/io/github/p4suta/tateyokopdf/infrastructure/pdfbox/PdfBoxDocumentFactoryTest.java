@@ -58,15 +58,15 @@ final class PdfBoxDocumentFactoryTest {
     }
 
     @Test
-    void userMessageDoesNotLeakAbsolutePath(@TempDir Path tmp) throws Exception {
+    void recordsThePathAsTechnicalDetail(@TempDir Path tmp) throws Exception {
+        // The exception carries no user-facing message (surfaces localize from the kind); the path
+        // is captured as the technical detail, which the shared ExceptionMapper masks before
+        // display.
         Path encrypted = PdfFixtures.passwordProtected(tmp, "secrets.pdf", "x");
         assertThatThrownBy(() -> factory.openSource(encrypted))
                 .isInstanceOfSatisfying(
                         SpreadException.class,
-                        ex -> {
-                            assertThat(ex.userMessage()).doesNotContain(tmp.toString());
-                            assertThat(ex.technicalDetail()).contains("path=");
-                        });
+                        ex -> assertThat(ex.technicalDetail()).contains("path="));
     }
 
     @Test

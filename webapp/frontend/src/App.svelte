@@ -33,6 +33,33 @@
     spread: "製本",
   };
 
+  // Error-kind → Japanese. The backend and shared kernel are presentation-free: they send only the
+  // stable kind token (e.g. "OUTPUT_CONFLICT"); the web UI owns its Japanese text here, exactly as
+  // the CLI owns its English catalog. An unknown kind falls back to the backend detail, then a
+  // generic line — so a newly added kind degrades gracefully rather than showing a raw token.
+  const ERROR_KIND_JA: Record<string, string> = {
+    INVALID_PARAMETER: "入力値が不正です。",
+    OUTPUT_CONFLICT: "出力先が既に存在します。",
+    OUT_OF_MEMORY: "メモリが不足しました。ページ数の少ない PDF でお試しください。",
+    INTERNAL: "予期しないエラーが発生しました。",
+    INPUT_NOT_FOUND: "入力ファイルが見つかりません。",
+    IMAGE_UNREADABLE:
+      "画像を読み込めませんでした。対応していない形式か、ファイルが破損している可能性があります。",
+    NATIVE_TOOL_FAILED: "内部ツールの実行に失敗しました。しばらくして再度お試しください。",
+    PDF_CORRUPTED: "PDF を読み込めませんでした。ファイルが破損している可能性があります。",
+    PDF_PASSWORD_PROTECTED: "PDF がパスワードで保護されているため処理できません。",
+    PDF_NOT_FOUND: "PDF ファイルが見つかりません。",
+    PDF_INVALID_PAGE: "PDF のページ指定が不正です。",
+    PDF_WRITE_FAILED: "出力 PDF の書き出しに失敗しました。",
+  };
+
+  function errorMessageJa(kind: string | null, detail: string | null): string {
+    if (kind && ERROR_KIND_JA[kind]) {
+      return ERROR_KIND_JA[kind];
+    }
+    return detail ?? "変換に失敗しました";
+  }
+
   let file = $state<File | null>(null);
   let fileNote = $state<string | null>(null);
   let dragging = $state(false);
@@ -575,10 +602,8 @@
 
         {#if phase === "failed"}
           <div class="errbox">
-            <strong
-              >変換に失敗しました{#if errorKind}（{errorKind}）{/if}</strong
-            >
-            <p>{error}</p>
+            <strong>{errorMessageJa(errorKind, error)}</strong>
+            {#if errorKind}<p class="errkind">{errorKind}</p>{/if}
             <button class="ghost" type="button" onclick={reset}>戻る</button>
           </div>
         {/if}

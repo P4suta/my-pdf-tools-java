@@ -4,7 +4,9 @@ import io.github.p4suta.despeckle.application.Jbig2PackService;
 import io.github.p4suta.despeckle.infrastructure.pdf.PdfBoxJbig2Assembler;
 import io.github.p4suta.despeckle.infrastructure.pdf.QpdfLinearizer;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
 import io.github.p4suta.shared.cli.CliOptionSupport;
+import io.github.p4suta.shared.cli.CliVersion;
 import io.github.p4suta.shared.observability.ExitCodes;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,11 +38,7 @@ final class TopdfCli {
 
     private static Options buildOptions() {
         Options options = new Options();
-        options.addOption(
-                Option.builder("h")
-                        .longOpt(DespeckleOptions.HELP)
-                        .desc("Show this help and exit.")
-                        .get());
+        DespeckleOptions.addStandardFlags(options);
         options.addOption(
                 Option.builder()
                         .longOpt(DespeckleOptions.DPI)
@@ -74,14 +72,27 @@ final class TopdfCli {
 
     /** Parse {@code args} (everything after {@code topdf}), run, and return the exit code. */
     int run(String[] args) {
+        // A bare `despeckle topdf` prints help and succeeds rather than erroring on missing args.
+        if (args.length == 0) {
+            CliOptionSupport.printHelp("despeckle topdf", SYNTAX, DESCRIPTION, options);
+            return ExitCodes.OK;
+        }
         CommandLine cmd;
         try {
             cmd = new DefaultParser().parse(options, args);
         } catch (ParseException e) {
             return usageError(e);
         }
+        boolean verbose = cmd.hasOption(DespeckleOptions.VERBOSE);
+        if (verbose) {
+            CliLogging.enableDebug();
+        }
         if (cmd.hasOption(DespeckleOptions.HELP)) {
             CliOptionSupport.printHelp("despeckle topdf", SYNTAX, DESCRIPTION, options);
+            return ExitCodes.OK;
+        }
+        if (cmd.hasOption(DespeckleOptions.VERSION)) {
+            System.out.println(CliVersion.line("despeckle", TopdfCli.class));
             return ExitCodes.OK;
         }
         try {
@@ -91,7 +102,7 @@ final class TopdfCli {
         } catch (ParseException e) {
             return usageError(e);
         } catch (IOException | RuntimeException e) {
-            return new CliExceptionHandler(() -> false).handle(e);
+            return new CliExceptionHandler(() -> verbose).handle(e);
         }
     }
 

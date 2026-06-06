@@ -34,6 +34,23 @@ out-of-process, so it has **zero** compile dependency on `pipeline`; a Svelte SP
 (`webapp/frontend/`) drives the API. See ADR
 [0009](docs/adr/0009-spring-boot-web-layer-and-deployment.md).
 
+## CLI conventions
+
+Every tool shares the same front-end contract (shared `:shared:cli` scaffolding):
+
+- **Common flags** — `-h/--help`, `-V/--version`, `-v/--verbose`, and self-doc
+  `--completion <bash|zsh|fish>` / `--man` (both generated from the command's own
+  option model, so they never drift from `--help`). A bare invocation prints help
+  and exits 0.
+- **Overwrite safety** — an existing output is refused by default (exit 73);
+  `--force` overwrites (batch modes skip-existing-unless-`--force`). Interrupting a
+  run (Ctrl-C) leaves no temp files behind.
+- **Exit codes** — sysexits-flavored (`0/2/64/65/66/70/73/137`), read off a shared
+  error model.
+- **Errors are presentation-free at the core** — a failure carries only a stable
+  `KIND` token; the CLI resolves it to **English** (`Error[KIND]: …`) and the web UI
+  to **Japanese** in its frontend, neither surface sharing a message string.
+
 ## Layout
 
 Each feature — the three tools, the `pipeline`, and the `webapp` — is a hexagonal

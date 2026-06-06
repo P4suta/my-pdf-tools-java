@@ -19,36 +19,31 @@ public final class SpreadException extends BaseAppException {
     private static final long serialVersionUID = 1L;
 
     /**
-     * @param technicalDetail an optional diagnostic detail kept out of the user message
+     * @param technicalDetail an optional diagnostic detail
      * @param cause the underlying cause, if any
      */
     public SpreadException(
-            ErrorKind kind,
-            String userMessage,
-            @Nullable String technicalDetail,
-            @Nullable Throwable cause) {
-        super(kind, userMessage, technicalDetail, cause);
+            ErrorKind kind, @Nullable String technicalDetail, @Nullable Throwable cause) {
+        super(kind, technicalDetail, cause);
     }
 
-    /** {@return an exception of {@code kind} with its default user message and no cause} */
+    /** {@return an exception of {@code kind} with no detail or cause} */
     public static SpreadException of(ErrorKind kind) {
-        return new SpreadException(kind, kind.defaultUserMessage(), null, null);
+        return new SpreadException(kind, null, null);
     }
 
-    /**
-     * {@return an exception of {@code kind} with its default user message, wrapping {@code cause}}
-     */
+    /** {@return an exception of {@code kind} wrapping {@code cause}} */
     public static SpreadException of(ErrorKind kind, Throwable cause) {
-        return new SpreadException(kind, kind.defaultUserMessage(), null, cause);
+        return new SpreadException(kind, null, cause);
     }
 
     /**
-     * {@return an exception of {@code kind} with its default user message plus a diagnostic {@code
-     * technicalDetail}, optionally wrapping {@code cause}}
+     * {@return an exception of {@code kind} with a diagnostic {@code technicalDetail}, optionally
+     * wrapping {@code cause}}
      */
     public static SpreadException withDetail(
             ErrorKind kind, String technicalDetail, @Nullable Throwable cause) {
-        return new SpreadException(kind, kind.defaultUserMessage(), technicalDetail, cause);
+        return new SpreadException(kind, technicalDetail, cause);
     }
 
     /**

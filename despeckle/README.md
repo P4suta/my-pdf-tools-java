@@ -69,10 +69,10 @@ just to-pdf out/mybook out/mybook.pdf mybook.pdf  # JBIG2; mirrors source metada
 
 ```
 despeckle <INPUT_DIR> <OUTPUT_DIR>
-  [--report <DIR>]         # before/overlay/after ONGs + index.html
+  [--report <DIR>]         # before/overlay/after PNG images + index.html
   [--jobs <N>]             # worker threads (default: CPUs)
-  [--format pbm|png|same]  # output format (default: same as input)
-  [--glob <PATTERN>]       # default: "*.{pbm,png,tiff,tif}"
+  [--format pbm|png|tiff|webp|same]  # output format (default: same as input)
+  [--glob <PATTERN>]       # default: "*.{pbm,png,tiff,tif}" (matched case-insensitively)
   [--force]                # overwrite a non-empty output directory
   [--dpi <N>]              # scan resolution, sizes the filter
                            #   (default: each page's embedded resolution, else 300)
@@ -81,10 +81,31 @@ despeckle <INPUT_DIR> <OUTPUT_DIR>
   [--[no-]remove-isolated-dust] # drop isolated specks on clean bg (default: on)
   [--isolated-dust-size <PX>] # max isolated-speck size; implies the above
                            #   (default: dpi/40, ~15 px at 600 dpi)
+  [-v|--verbose]           # verbose (DEBUG) logging
+  [-h|--help] [-V|--version]
+  [--completion <bash|zsh|fish>]  # print a shell completion script and exit
+  [--man]                  # print a man page (troff) and exit
 ```
 
 The report's overlay paints every removed pixel red over the original
-page, so you can confirm at a glance that only dust was taken.
+page, so you can confirm at a glance that only dust was taken. A bare
+`despeckle` prints help and exits 0.
+
+### Subcommands
+
+- `despeckle pipeline <in.pdf> <out.pdf>` — clean a scanned PDF end-to-end
+  (pdfimages → despeckle → lossless JBIG2) in one step; a directory batches every
+  top-level `*.pdf`. Pass `-` for `<in.pdf>`/`<out.pdf>` to stream via stdin/stdout.
+- `despeckle topdf <image-dir> <out.pdf>` — pack already-cleaned pages into a
+  lossless-JBIG2 PDF.
+
+### Exit codes
+
+CLI exit codes follow [the shared error model](../shared/observability/): `0`
+success, `2` usage/parse error, `64` bad value, `65` unreadable image, `66` input
+not found, `70` internal / native-tool failure, `73` output exists (pass
+`--force`), `137` out of memory. Errors print as `Error[KIND]: …`; the `KIND` is
+the language-neutral error vocabulary — English on the CLI, Japanese in the web UI.
 
 ### Isolated-dust pass
 

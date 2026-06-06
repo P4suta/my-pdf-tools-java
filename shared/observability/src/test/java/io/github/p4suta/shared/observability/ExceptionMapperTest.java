@@ -18,8 +18,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.event.Level;
 
 /**
- * Table-driven cases pin exit code + slf4j level + client-fault + masked message per {@link
- * CommonErrorKind}; the fallback cases pin the throwable&rarr;kind table.
+ * Table-driven cases pin exit code + slf4j level + client-fault per {@link CommonErrorKind}; the
+ * fallback cases pin the throwable&rarr;kind table. The mapping is presentation-free — it carries
+ * no user message — so the only string asserted is the (path-masked) technical detail.
  */
 final class ExceptionMapperTest {
 
@@ -27,32 +28,25 @@ final class ExceptionMapperTest {
     private static final class FakeAppException extends BaseAppException {
         private static final long serialVersionUID = 1L;
 
-        FakeAppException(ErrorCategory kind, String userMessage, @Nullable String technicalDetail) {
-            super(kind, userMessage, technicalDetail, null);
+        FakeAppException(ErrorCategory kind, @Nullable String technicalDetail) {
+            super(kind, technicalDetail, null);
         }
     }
 
     /** An app-specific {@link ErrorCategory} not in {@link CommonErrorKind}, for the extra-rule. */
     private enum AppKind implements ErrorCategory {
-        IMAGE_UNREADABLE(65, Severity.WARN, true, "画像を読み込めませんでした。"),
+        IMAGE_UNREADABLE(65, Severity.WARN, true),
         // No shared kind uses Severity.INFO; this fixture exercises the INFO -> Level.INFO arm.
-        INFO_NOTICE(0, Severity.INFO, false, "情報。");
+        INFO_NOTICE(0, Severity.INFO, false);
 
         private final int exitCode;
         private final Severity severity;
         private final boolean clientFault;
-        private final String message;
 
-        AppKind(int exitCode, Severity severity, boolean clientFault, String message) {
+        AppKind(int exitCode, Severity severity, boolean clientFault) {
             this.exitCode = exitCode;
             this.severity = severity;
             this.clientFault = clientFault;
-            this.message = message;
-        }
-
-        @Override
-        public String defaultUserMessage() {
-            return message;
         }
 
         @Override
@@ -74,16 +68,12 @@ final class ExceptionMapperTest {
     // every CommonErrorKind, carried by a domain exception, maps to its own row
 
     static Stream<Arguments> commonKindRows() {
-        // kind, expected exitCode, expected level, expected clientFault, expected message
+        // kind, expected exitCode, expected level, expected clientFault
         return Stream.of(
-                Arguments.of(CommonErrorKind.INVALID_PARAMETER, 64, Level.WARN, true, "入力値が不正です。"),
-                Arguments.of(
-                        CommonErrorKind.OUT_OF_MEMORY,
-                        137,
-                        Level.ERROR,
-                        false,
-                        "メモリが不足しました。-Xmx を増やすか、ページ数の少ない PDF で試してください。"),
-                Arguments.of(CommonErrorKind.INTERNAL, 70, Level.ERROR, false, "予期しないエラーが発生しました。"));
+                Arguments.of(CommonErrorKind.INVALID_PARAMETER, 64, Level.WARN, true),
+                Arguments.of(CommonErrorKind.OUTPUT_CONFLICT, 73, Level.WARN, true),
+                Arguments.of(CommonErrorKind.OUT_OF_MEMORY, 137, Level.ERROR, false),
+                Arguments.of(CommonErrorKind.INTERNAL, 70, Level.ERROR, false));
     }
 
     @ParameterizedTest
@@ -92,24 +82,20 @@ final class ExceptionMapperTest {
             CommonErrorKind kind,
             int expectedExit,
             Level expectedLevel,
-            boolean expectedClientFault,
-            String expectedMessage) {
-        var ex = new FakeAppException(kind, kind.defaultUserMessage(), null);
-        var mapping = ExceptionMapper.map(ex);
+            boolean expectedClientFault) {
+        var mapping = ExceptionMapper.map(new FakeAppException(kind, null));
 
         assertThat(mapping.kind()).isEqualTo(kind);
         assertThat(mapping.exitCode()).isEqualTo(expectedExit);
         assertThat(mapping.level()).isEqualTo(expectedLevel);
         assertThat(mapping.kind().isClientFault()).isEqualTo(expectedClientFault);
-        assertThat(mapping.safeUserMessage()).isEqualTo(expectedMessage);
     }
 
     /** The mapping reads exitCode()/severity() straight off the ErrorCategory, for every kind. */
     @ParameterizedTest
     @EnumSource(CommonErrorKind.class)
     void mappingReadsExitCodeAndSeverityOffTheCategory(CommonErrorKind kind) {
-        var mapping =
-                ExceptionMapper.map(new FakeAppException(kind, kind.defaultUserMessage(), null));
+        var mapping = ExceptionMapper.map(new FakeAppException(kind, null));
         assertThat(mapping.exitCode()).isEqualTo(kind.exitCode());
         Level expected =
                 switch (kind.severity()) {
@@ -122,10 +108,7 @@ final class ExceptionMapperTest {
 
     @Test
     void infoSeverityTranslatesToSlf4jInfoLevel() {
-        var ex =
-                new FakeAppException(
-                        AppKind.INFO_NOTICE, AppKind.INFO_NOTICE.defaultUserMessage(), null);
-        var mapping = ExceptionMapper.map(ex);
+        var mapping = ExceptionMapper.map(new FakeAppException(AppKind.INFO_NOTICE, null));
         assertThat(mapping.level()).isEqualTo(Level.INFO);
     }
 
@@ -176,12 +159,7 @@ final class ExceptionMapperTest {
     void domainExceptionKindWinsEvenWhenItIsAnIllegalArgumentSubclass() {
         // A FakeAppException is a RuntimeException; its IMAGE_UNREADABLE kind must survive, not be
         // re-derived to INTERNAL by the fallback.
-        var ex =
-                new FakeAppException(
-                        AppKind.IMAGE_UNREADABLE,
-                        AppKind.IMAGE_UNREADABLE.defaultUserMessage(),
-                        "x");
-        var mapping = ExceptionMapper.map(ex);
+        var mapping = ExceptionMapper.map(new FakeAppException(AppKind.IMAGE_UNREADABLE, "x"));
         assertThat(mapping.kind()).isEqualTo(AppKind.IMAGE_UNREADABLE);
         assertThat(mapping.exitCode()).isEqualTo(65);
         assertThat(mapping.level()).isEqualTo(Level.WARN);
@@ -200,7 +178,6 @@ final class ExceptionMapperTest {
                         t -> t instanceof UncheckedIOException ? AppKind.IMAGE_UNREADABLE : null);
         assertThat(mapping.kind()).isEqualTo(AppKind.IMAGE_UNREADABLE);
         assertThat(mapping.exitCode()).isEqualTo(65);
-        assertThat(mapping.safeUserMessage()).isEqualTo("画像を読み込めませんでした。");
     }
 
     @Test
@@ -212,28 +189,25 @@ final class ExceptionMapperTest {
 
     @Test
     void domainExceptionShortCircuitsBeforeExtraRule() {
-        var ex = new FakeAppException(CommonErrorKind.INTERNAL, "internal", null);
+        var ex = new FakeAppException(CommonErrorKind.INTERNAL, null);
         var mapping = ExceptionMapper.map(ex, t -> AppKind.IMAGE_UNREADABLE);
         assertThat(mapping.kind()).isEqualTo(CommonErrorKind.INTERNAL);
     }
 
-    // PII masking of the user message
+    // PII masking of the technical detail
 
     @Test
-    void maskAbsolutePathsInUserMessage() {
+    void maskAbsolutePathsInTechnicalDetail() {
         var ex =
                 new FakeAppException(
-                        CommonErrorKind.INTERNAL,
-                        "Failed to load /tmp/secret/path/to/file.pdf",
-                        null);
+                        CommonErrorKind.INTERNAL, "Failed to load /tmp/secret/path/to/file.pdf");
         var mapping = ExceptionMapper.map(ex);
-        assertThat(mapping.safeUserMessage()).doesNotContain("/tmp/secret").contains("<path>");
+        assertThat(mapping.technicalDetail()).doesNotContain("/tmp/secret").contains("<path>");
     }
 
     @Test
-    void carriesTechnicalDetailFromDomainExceptionThrough() {
-        var ex = new FakeAppException(CommonErrorKind.INTERNAL, "msg", "path=/some/file.pdf");
-        var mapping = ExceptionMapper.map(ex);
-        assertThat(mapping.technicalDetail()).isEqualTo("path=/some/file.pdf");
+    void nullTechnicalDetailStaysNull() {
+        var mapping = ExceptionMapper.map(new FakeAppException(CommonErrorKind.INTERNAL, null));
+        assertThat(mapping.technicalDetail()).isNull();
     }
 }

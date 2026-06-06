@@ -25,11 +25,6 @@ final class DespeckleCliTest {
     // ---- exit 2: usage / parse / type errors (never reach the service) ----
 
     @Test
-    void noArgumentsIsUsageError() {
-        assertEquals(2, new DespeckleCli().run(new String[] {}));
-    }
-
-    @Test
     void onePositionalIsUsageError() {
         assertEquals(2, new DespeckleCli().run(new String[] {"in"}));
     }
@@ -82,6 +77,11 @@ final class DespeckleCliTest {
     }
 
     // ---- exit 0: help / version short-circuit before the service ----
+
+    @Test
+    void noArgumentsPrintsHelpAndExitsZero() {
+        assertEquals(0, new DespeckleCli().run(new String[] {}));
+    }
 
     @Test
     void helpExitsZero() {

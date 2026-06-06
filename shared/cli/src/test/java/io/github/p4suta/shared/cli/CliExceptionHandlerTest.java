@@ -40,7 +40,7 @@ final class CliExceptionHandlerTest {
         int code = new CliExceptionHandler(() -> false, err).handle(new OutOfMemoryError("heap"));
 
         assertThat(code).isEqualTo(ExitCodes.OOM);
-        assertThat(err()).contains("Error[OUT_OF_MEMORY]:").contains("ヒント");
+        assertThat(err()).contains("Error[OUT_OF_MEMORY]:").contains("hint");
     }
 
     @Test
@@ -49,7 +49,7 @@ final class CliExceptionHandlerTest {
 
         assertThat(code).isEqualTo(ExitCodes.OOM);
         // Verbose path shows the detail + stack trace, NOT the heap hint.
-        assertThat(err()).contains("detail:").contains("OutOfMemoryError").doesNotContain("ヒント");
+        assertThat(err()).contains("detail:").contains("OutOfMemoryError").doesNotContain("hint");
     }
 
     @Test

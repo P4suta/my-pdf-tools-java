@@ -15,6 +15,11 @@ dependencies {
     implementation(project(":pipeline:port"))
     // The shared progress/lifecycle event vocabulary the runner emits into its ProgressSink.
     implementation(project(":shared:progress"))
+    // Resolves a throwable to its stable ErrorCategory kind so RunFailed carries the kind token
+    // (e.g. OUTPUT_CONFLICT) front ends localize from, not a Java class name.
+    implementation(project(":shared:observability"))
+    // ExceptionMapper.Mapping.kind() returns the kernel's ErrorCategory, dereferenced for name().
+    implementation(project(":shared:kernel"))
     implementation(libs.slf4j.api)
 }
 

@@ -10,9 +10,13 @@ import io.github.p4suta.pipeline.port.Sink;
 import io.github.p4suta.pipeline.port.Source;
 import io.github.p4suta.pipeline.port.Stage;
 import io.github.p4suta.shared.cli.BatchDriver;
+import io.github.p4suta.shared.cli.CliDocs;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
 import io.github.p4suta.shared.cli.CliOptionSupport;
+import io.github.p4suta.shared.cli.CliVersion;
 import io.github.p4suta.shared.cli.InputResolver;
+import io.github.p4suta.shared.cli.OutputGuard;
 import io.github.p4suta.shared.observability.ExitCodes;
 import io.github.p4suta.shared.progress.ProgressSink;
 import io.github.p4suta.tateyokopdf.domain.model.DocumentMetadata;
@@ -61,6 +65,16 @@ public final class PipelineCommand {
         Options options = new Options();
         options.addOption(
                 Option.builder("h").longOpt("help").desc("Show this help and exit.").get());
+        options.addOption(
+                Option.builder("V")
+                        .longOpt("version")
+                        .desc("Print version information and exit.")
+                        .get());
+        options.addOption(
+                Option.builder("v")
+                        .longOpt("verbose")
+                        .desc("Enable verbose (DEBUG) logging.")
+                        .get());
         options.addOption(
                 Option.builder("o")
                         .longOpt("output")
@@ -117,6 +131,13 @@ public final class PipelineCommand {
                 Option.builder().longOpt("pdf-a").desc("Emit PDF/A-2b conformance.").get());
         options.addOption(
                 Option.builder()
+                        .longOpt("force")
+                        .desc(
+                                "Overwrite an existing output PDF; in batch, regenerate outputs"
+                                        + " that already exist instead of skipping them.")
+                        .get());
+        options.addOption(
+                Option.builder()
                         .longOpt("progress-file")
                         .hasArg()
                         .argName("path")
@@ -124,6 +145,7 @@ public final class PipelineCommand {
                                 "Write machine-readable JSONL progress events to this file (single"
                                         + " input only); used by front ends to report progress.")
                         .get());
+        CliDocs.options(options);
         return options;
     }
 
@@ -135,22 +157,41 @@ public final class PipelineCommand {
      * @return the exit code
      */
     public int run(String[] args) {
+        // A bare invocation prints help and succeeds, so newcomers see usage rather than an error.
+        if (args.length == 0) {
+            CliOptionSupport.printHelp("pdfbook", SYNTAX, HEADER, OPTIONS);
+            return ExitCodes.OK;
+        }
         CommandLine cmd;
         try {
             cmd = new DefaultParser().parse(OPTIONS, args);
         } catch (ParseException e) {
             return usageError(e);
         }
+        boolean verbose = cmd.hasOption("verbose");
+        if (verbose) {
+            CliLogging.enableDebug();
+        }
         if (cmd.hasOption("help")) {
             CliOptionSupport.printHelp("pdfbook", SYNTAX, HEADER, OPTIONS);
             return ExitCodes.OK;
+        }
+        if (cmd.hasOption("version")) {
+            System.out.println(CliVersion.line("pdfbook", PipelineCommand.class));
+            return ExitCodes.OK;
+        }
+        int docs =
+                CliDocs.handle(
+                        cmd, "pdfbook", PipelineCommand.class, SYNTAX, HEADER, OPTIONS, List.of());
+        if (docs >= 0) {
+            return docs;
         }
         try {
             return dispatch(cmd);
         } catch (ParseException e) {
             return usageError(e);
         } catch (IOException | RuntimeException e) {
-            return new CliExceptionHandler(() -> false).handle(e);
+            return new CliExceptionHandler(() -> verbose).handle(e);
         }
     }
 
@@ -177,6 +218,7 @@ public final class PipelineCommand {
         Config config = parseConfig(cmd);
 
         if (inputs.size() == 1) {
+            OutputGuard.refuseIfExists(output, config.force());
             Path progressFile =
                     cmd.hasOption("progress-file")
                             ? Path.of(cmd.getOptionValue("progress-file"))
@@ -188,9 +230,19 @@ public final class PipelineCommand {
         // Batch: -o is a directory; each book is written to <output>/<same-name>,
         // continue-on-error. --progress-file is single-input only, so it is ignored here.
         Files.createDirectories(output);
+        // Skip a book whose output already exists unless --force, mirroring the register/despeckle
+        // batch convention (single inputs refuse; batch keeps going past what is already done).
+        List<Path> pending = new ArrayList<>();
+        for (Path in : inputs) {
+            if (!config.force() && Files.exists(output.resolve(outputName(in)))) {
+                System.err.println(in.getFileName() + ": skipped (exists; use --force)");
+            } else {
+                pending.add(in);
+            }
+        }
         return new BatchDriver<Path>()
                 .run(
-                        inputs,
+                        pending,
                         (in, index, total) ->
                                 String.format(
                                         Locale.ROOT, "[%d/%d] %s", index, total, in.getFileName()),
@@ -260,7 +312,8 @@ public final class PipelineCommand {
                 !cmd.hasOption("no-register"),
                 !cmd.hasOption("no-deskew"),
                 !cmd.hasOption("no-scale"),
-                cmd.hasOption("pdf-a"));
+                cmd.hasOption("pdf-a"),
+                cmd.hasOption("force"));
     }
 
     private static FirstPageMode firstPageMode(String value) throws ParseException {
@@ -287,5 +340,6 @@ public final class PipelineCommand {
             boolean register,
             boolean deskew,
             boolean scale,
-            boolean pdfA) {}
+            boolean pdfA,
+            boolean force) {}
 }

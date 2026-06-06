@@ -1,6 +1,7 @@
 package io.github.p4suta.despeckle.cli;
 
 import io.github.p4suta.despeckle.domain.model.ProcessOptions;
+import io.github.p4suta.shared.cli.CliDocs;
 import io.github.p4suta.shared.cli.CliOptionSupport;
 import java.util.OptionalInt;
 import org.apache.commons.cli.CommandLine;
@@ -19,6 +20,7 @@ final class DespeckleOptions {
 
     static final String HELP = "help";
     static final String VERSION = "version";
+    static final String VERBOSE = "verbose";
     static final String REPORT = "report";
     static final String FLIPBOOK = "flipbook";
     static final String SUFFIX = "suffix";
@@ -40,15 +42,26 @@ final class DespeckleOptions {
 
     private DespeckleOptions() {}
 
-    /** Builds the option model parsed by {@link DespeckleCli}. */
-    static Options build() {
-        Options options = new Options();
+    /**
+     * Adds the control flags every despeckle front end shares: {@code -h/--help}, {@code
+     * -V/--version} and {@code -v/--verbose}. Centralized so the main command and the {@code
+     * pipeline}/{@code topdf} subcommands cannot drift.
+     */
+    static void addStandardFlags(Options options) {
         options.addOption(Option.builder("h").longOpt(HELP).desc("Show this help and exit.").get());
         options.addOption(
                 Option.builder("V")
                         .longOpt(VERSION)
                         .desc("Print version information and exit.")
                         .get());
+        options.addOption(
+                Option.builder("v").longOpt(VERBOSE).desc("Enable verbose (DEBUG) logging.").get());
+    }
+
+    /** Builds the option model parsed by {@link DespeckleCli}. */
+    static Options build() {
+        Options options = new Options();
+        addStandardFlags(options);
         options.addOption(
                 Option.builder()
                         .longOpt(REPORT)
@@ -90,6 +103,7 @@ final class DespeckleOptions {
                         .desc("Overwrite a non-empty output directory.")
                         .get());
         addCleanKnobs(options);
+        CliDocs.options(options);
         return options;
     }
 

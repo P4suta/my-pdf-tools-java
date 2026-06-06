@@ -34,7 +34,9 @@ final class SpreadCommandTest {
     void versionReturnsZero() {
         Captured c = run("--version");
         assertThat(c.code()).isZero();
-        assertThat(c.outText()).contains("tate-yoko-pdf 0.1.0");
+        // The version comes from the jar manifest; tests run from an exploded build, so it is the
+        // dev fallback. Assert the tool name prefix, not a pinned number.
+        assertThat(c.outText()).contains("tate-yoko-pdf");
     }
 
     @Test
