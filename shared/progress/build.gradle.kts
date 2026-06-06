@@ -15,7 +15,7 @@ plugins {
 // Pure, framework-free value types + a dependency-free codec — the same baseline as :shared:kernel,
 // on which it leans only for the exception-neutral precondition checks (Validators). No third-party
 // runtime library, no I/O: the file/stream plumbing lives with each caller (the CLI's file sink, the
-// web layer's WatchService tail). Gradle maps :shared:progress -> shared/progress/ automatically.
+// web layer's byte-offset polling tail). Gradle maps :shared:progress -> shared/progress/ automatically.
 dependencies {
     // Validators only; no public signature leaks a kernel type, so `implementation` is enough.
     implementation(project(":shared:kernel"))

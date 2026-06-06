@@ -109,20 +109,17 @@ pending pre-decided items; R8 and the `MJ*`/`O1` items are the newly-verified ad
   both the diagnostic and the gate" invariant (one `findSkew` now literally feeds both).
 - **behaviorNeutral:** true. Gate: existing register infrastructure tests.
 
-### MJ1 — REGISTER: `toObservations` Optional-accumulate → `flatMap` (two modules) — **MEDIUM / Neutral**
-- **Location:** `register/application/.../RegistrationService.java:232-244` **AND**
-  `register/runner/.../Runner.java:194-206` — the helper is byte-identical in **both modules**.
-- **What:** two byte-identical Optional-accumulate loops
-  (`for(page) page.analysis().detection().ifPresent(det -> observations.add(new
-  PageObservation(page.index(), page.parity(), det.column())))`). Textbook
-  `Optional.stream()`/`flatMap` site; encounter order preserved by `flatMap`, result
-  read-only downstream, so `ArrayList -> toList()` is safe.
-- **Fix:**
-  `pages.stream().flatMap(p -> p.analysis().detection().stream().map(det -> new
-  PageObservation(p.index(), p.parity(), det.column()))).toList()`.
-- **NOTE:** if a later DS-phase dedup lifts the duplicated `toObservations` into ONE shared
-  helper, this rewrite should ride that move rather than land twice in two files.
-- **behaviorNeutral:** true. Gate: existing application + runner tests.
+### MJ1 — REGISTER: `toObservations` Optional-accumulate → `flatMap` — **MEDIUM / Neutral** — **DONE**
+- **Location:** `register/application/.../RegistrationService.java` (`toObservations`).
+- **What:** an Optional-accumulate loop replaced by a textbook `Optional.stream()`/`flatMap`;
+  encounter order preserved by `flatMap`, result read-only downstream, so `ArrayList -> toList()`
+  is safe.
+- **Status:** already in the target `flatMap` form in current code
+  (`pages.stream().flatMap(p -> p.analysis().detection().stream().map(det -> new
+  PageObservation(p.index(), p.parity(), det.column()))).toList()`). The previously byte-identical
+  copy in `:register:runner` is gone — that orphan module (never built, depended on non-existent
+  modules) was removed as dead code.
+- **behaviorNeutral:** true. Gate: existing application tests.
 
 ### MJ8 — REGISTER: `DiagnosticReport` nullable-accumulate → `filter`→`toList` — **MEDIUM / Neutral**
 - **Location:** `register/infrastructure/.../diag/DiagnosticReport.java:147-153`.
@@ -298,11 +295,9 @@ behavior-CHANGING ones.** Order is free except where noted.
   `!options.deskew()` branch. Exactly one `findSkew` on the deskew+diagnostic path afterward.
   *Gate:* existing register-infrastructure tests (bit-identical output).
 
-- **G2 — register: `toObservations` → `flatMap` (MJ1).** Spans **two modules** —
-  `RegistrationService` (`:application`) and `Runner` (`:runner`) — the helper is byte-identical
-  in both. Either land as one logical change touching both files, or, if a future dedup lifts
-  `toObservations` into a single shared helper, ride that move instead of editing two copies.
-  *Gate:* existing application + runner tests.
+- **G2 — register: `toObservations` → `flatMap` (MJ1).** DONE — `RegistrationService`
+  (`:application`) is already in `flatMap` form; the byte-identical `:register:runner` copy was
+  removed along with that orphan module. *Gate:* existing application tests.
 
 - **G3 — register/infrastructure: `DiagnosticReport` filter→toList (MJ8).** Collapse the
   nullable-accumulate `cols` loop; leave the dual-accumulate rotated/found loop (163-173) untouched.

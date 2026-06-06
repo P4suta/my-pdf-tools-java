@@ -14,9 +14,6 @@ rootProject.name = "my-pdf-tools-java"
 // module's build script enforce the layering at compile time; ArchUnit (in each :app) pins the
 // intra-module rules the module graph cannot express.
 //
-// :register:runner is intentionally omitted: it is an orphan that was never built and depends on
-// modules that do not exist.
-//
 // :pipeline is the unified single-pass pipeline (pipes-and-filters): it extracts a scan PDF once,
 // runs despeckle -> register as filters over a shared image working-set, and composes the RTL
 // spread as the only repack — no intermediate PDFs. A full hexagon like the three apps; its
