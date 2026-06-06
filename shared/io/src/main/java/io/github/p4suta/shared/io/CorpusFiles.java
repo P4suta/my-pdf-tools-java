@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
@@ -55,6 +56,30 @@ public final class CorpusFiles {
                     .sorted(Comparator.comparing(Path::toString))
                     .toList();
         }
+    }
+
+    /**
+     * The top-level {@code *.pdf} files directly under {@code dir} (case-insensitive on the
+     * extension), in file-name order. Unlike {@link #collect}, the directory is NOT walked
+     * recursively — this discovers the inputs of a batch run, where only the directory's own PDFs
+     * count, and the sort (by full path string) keeps the batch order deterministic.
+     *
+     * @param dir the directory to list (not recursed)
+     * @return the top-level {@code *.pdf} files, sorted by full path string
+     * @throws IOException if listing {@code dir} fails
+     */
+    public static List<Path> listTopLevelPdfs(Path dir) throws IOException {
+        try (Stream<Path> entries = Files.list(dir)) {
+            return entries.filter(Files::isRegularFile)
+                    .filter(CorpusFiles::isPdf)
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList();
+        }
+    }
+
+    private static boolean isPdf(Path p) {
+        Path name = p.getFileName();
+        return name != null && name.toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
     }
 
     /**

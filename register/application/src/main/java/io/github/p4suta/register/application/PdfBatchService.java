@@ -2,13 +2,11 @@ package io.github.p4suta.register.application;
 
 import io.github.p4suta.register.domain.model.RegisterOptions;
 import io.github.p4suta.register.domain.service.PdfOutputNaming;
+import io.github.p4suta.shared.io.CorpusFiles;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,20 +133,12 @@ public final class PdfBatchService {
         return PdfOutputNaming.outputName(input, suffix);
     }
 
-    /** Top-level {@code *.pdf} files under {@code dir} (case-insensitive), in file-name order. */
+    /**
+     * Top-level {@code *.pdf} files under {@code dir} (case-insensitive), in file-name order.
+     * Package-private for unit testing; delegates to the shared {@link
+     * CorpusFiles#listTopLevelPdfs} so the listing logic lives in one place.
+     */
     static List<Path> listPdfs(Path dir) throws IOException {
-        try (Stream<Path> entries = Files.list(dir)) {
-            return entries.filter(Files::isRegularFile)
-                    .filter(
-                            p -> {
-                                Path name = p.getFileName();
-                                return name != null
-                                        && name.toString()
-                                                .toLowerCase(Locale.ROOT)
-                                                .endsWith(".pdf");
-                            })
-                    .sorted(Comparator.comparing(Path::toString))
-                    .toList();
-        }
+        return CorpusFiles.listTopLevelPdfs(dir);
     }
 }
