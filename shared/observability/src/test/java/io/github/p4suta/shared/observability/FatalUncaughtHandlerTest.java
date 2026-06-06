@@ -6,7 +6,7 @@ import io.github.p4suta.shared.kernel.error.CommonErrorKind;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
-/** Ported and generalized from tate-yoko-pdf's {@code FatalUncaughtHandlerTest}. */
+/** Coverage for {@link FatalUncaughtHandler}. */
 final class FatalUncaughtHandlerTest {
 
     @Test

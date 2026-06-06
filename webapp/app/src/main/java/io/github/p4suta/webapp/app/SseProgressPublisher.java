@@ -20,11 +20,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * Fans each job's progress events out to its SSE subscribers, with replay-on-subscribe so a client
  * that connects after some (or all) events were emitted still sees them. Each job has a {@link
- * JobStream} holding the events published so far, the live emitters, and whether the run finished;
- * because {@link #publish} and {@link #openStream} both reach the same {@code JobStream} through
- * {@code computeIfAbsent} and every operation is synchronized on it, a fast job that completes
- * before the client subscribes cannot lose events — the subscriber simply replays the buffer and,
- * if the run already completed, the stream closes immediately.
+ * JobStream} holding the events published so far, the live emitters, and whether the run finished.
+ * {@link #publish} and {@link #openStream} reach the same {@code JobStream} through {@code
+ * computeIfAbsent} and synchronize on it, so a job that completes before the client subscribes does
+ * not lose events: the subscriber replays the buffer and, if the run already completed, the stream
+ * closes immediately.
  */
 public final class SseProgressPublisher implements ProgressPublisher {
 
@@ -104,10 +104,9 @@ public final class SseProgressPublisher implements ProgressPublisher {
 
         synchronized void subscribe(SseEmitter emitter, Job job) {
             if (buffer.isEmpty() && !completed && job.state().isTerminal()) {
-                // The buffer was never populated (a forgotten job, or a restart) but the job
-                // already
-                // finished — synthesize a terminal event from the stored job so the client is not
-                // left hanging.
+                // Buffer empty (forgotten job or restart) but the job already finished: synthesize
+                // a
+                // terminal event from the stored job so the client is not left hanging.
                 send(emitter, terminalEventFor(job));
                 completeQuietly(emitter);
                 return;
@@ -131,7 +130,7 @@ public final class SseProgressPublisher implements ProgressPublisher {
 
         private static void send(SseEmitter emitter, ProgressEvent event) {
             try {
-                // A default "message" event whose data is the shared JSONL line — the SPA parses it
+                // A default "message" event whose data is the shared JSONL line; the SPA parses it
                 // with JSON.parse on EventSource.onmessage.
                 emitter.send(JsonlProgressCodec.write(event));
             } catch (IOException | IllegalStateException e) {

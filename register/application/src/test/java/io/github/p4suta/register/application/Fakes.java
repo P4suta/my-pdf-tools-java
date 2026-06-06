@@ -32,7 +32,6 @@ import org.jspecify.annotations.Nullable;
  * this module's classpath). Each fake produces just enough on-disk output for the next
  * orchestration stage to find, and records what it was asked to do, so {@link RegistrationService}
  * and {@link PdfPipelineService} can be unit-tested in isolation from {@code :infrastructure}.
- * Mirrors despeckle's {@code Fakes} so the three apps share one application-test shape.
  */
 final class Fakes {
 

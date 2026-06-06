@@ -42,7 +42,6 @@ final class ResidualChartRenderer {
      * Render the residual scatter for a whole run.
      *
      * @param pages every page's recorded diagnostic, in any order
-     * @return the chart image
      */
     static BufferedImage render(List<PageDiagnostic> pages) {
         List<PageDiagnostic> reg = new ArrayList<>();

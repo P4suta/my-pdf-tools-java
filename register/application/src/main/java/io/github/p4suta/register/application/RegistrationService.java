@@ -47,9 +47,8 @@ import org.slf4j.LoggerFactory;
  * are held between passes (the deskewed pages live on scratch), so deskew and detection run once
  * and memory stays flat.
  *
- * <p>The only place that touches the filesystem and threads — the registrar and the reporter
- * factory are injected ports, so this service depends only on {@code :port} and {@code :domain},
- * keeping registration a pure operation a future GUI could reuse unchanged.
+ * <p>The registrar and the reporter factory are injected ports, so this service depends only on
+ * {@code :port} and {@code :domain}, never {@code :infrastructure}.
  */
 public final class RegistrationService {
 
@@ -60,12 +59,6 @@ public final class RegistrationService {
     private final PageRegistrar pageRegistrar;
     private final ReporterFactory reporterFactory;
 
-    /**
-     * Create a registration service over the injected adapters.
-     *
-     * @param pageRegistrar the per-page registration port
-     * @param reporterFactory the factory for the per-run diagnostics reporter
-     */
     public RegistrationService(PageRegistrar pageRegistrar, ReporterFactory reporterFactory) {
         this.pageRegistrar = pageRegistrar;
         this.reporterFactory = reporterFactory;
@@ -75,12 +68,7 @@ public final class RegistrationService {
      * Configuration for one registration run.
      *
      * @param inputDir directory of source pages (walked recursively)
-     * @param outputDir directory to mirror registered pages into
-     * @param format output format
-     * @param glob file-name glob for input selection
-     * @param jobs worker thread count
      * @param force whether to overwrite a non-empty output directory
-     * @param options registration knobs
      * @param diagDir diagnostics output directory, or null to disable diagnostics
      * @param flipbook whether diagnostics also assemble an animated WebP flip-book (needs {@code
      *     --diag} and libwebp's {@code img2webp})
@@ -99,7 +87,6 @@ public final class RegistrationService {
     /**
      * Aggregate outcome of a run.
      *
-     * @param pages number of pages rendered
      * @param analyzed number of pages whose main column was detected (the rest were centered)
      */
     public record Summary(int pages, int analyzed) {}
@@ -107,9 +94,6 @@ public final class RegistrationService {
     /**
      * Execute a run, reporting no per-page progress.
      *
-     * @param requested run configuration as given on the command line (its empty {@code --dpi} is
-     *     resolved from the inputs before rendering)
-     * @return the aggregate summary
      * @throws IOException on filesystem failure
      */
     public Summary run(Config requested) throws IOException {
@@ -123,11 +107,10 @@ public final class RegistrationService {
      * reports {@code 1..N} and the render pass {@code N+1..2N}. The bar therefore advances through
      * the costly analyze pass instead of sitting idle until rendering begins.
      *
-     * @param requested run configuration as given on the command line (its empty {@code --dpi} is
-     *     resolved from the inputs before rendering)
-     * @param progress called once per finished page in each pass (1-based count over {@code 2N},
-     *     total {@code 2N}); invoked from the worker threads, so it must be thread-safe
-     * @return the aggregate summary
+     * @param requested run configuration (its empty {@code --dpi} is resolved from the inputs
+     *     before rendering)
+     * @param progress called once per finished page in each pass (1-based count over {@code 2N});
+     *     invoked from the worker threads, so it must be thread-safe
      * @throws IOException on filesystem failure
      */
     public Summary run(Config requested, PageProgressListener progress) throws IOException {
@@ -144,9 +127,8 @@ public final class RegistrationService {
         Config config = inheritScanDpi(requested, files);
         LOG.info("registering {} page(s) with {} thread(s)", files.size(), config.jobs());
 
-        // Per-page progress spans both passes: analyze reports 1..N, render reports N+1..2N, so the
-        // bar advances across the whole stage rather than sitting idle through the costly analyze
-        // pass. Each PageProcessed the composing stage emits carries this 2N denominator.
+        // Per-page progress spans both passes (analyze 1..N, render N+1..2N), so each PageProcessed
+        // the composing stage emits carries this 2N denominator.
         int progressTotal = files.size() * 2;
         AtomicInteger pageProgress = new AtomicInteger();
 
@@ -162,7 +144,7 @@ public final class RegistrationService {
         Path scratchDir = createBeside(config.outputDir(), ".register-deskewed-");
         ExecutorService pool = Executors.newFixedThreadPool(config.jobs());
         try {
-            // ----- Pass 1: deskew once, detect, cache the deskewed page for pass two -----
+            // Pass 1: deskew once, detect, cache the deskewed page for pass two
             List<AnalyzedPage> pages =
                     analyzePass(
                             files,
@@ -183,7 +165,7 @@ public final class RegistrationService {
                     resolvePaper(config.options().paper(), pages, config.options().canvasDpi());
             Canvas canvas = Canvas.of(paper, config.options().canvasDpi());
 
-            // ----- Reduce: per-parity reference layout -----
+            // Reduce: per-parity reference layout
             Reference reference =
                     observations.isEmpty()
                             ? null
@@ -198,7 +180,7 @@ public final class RegistrationService {
                         files.size());
             }
 
-            // ----- Pass 2: place every (already deskewed) page against the reference -----
+            // Pass 2: place every (already deskewed) page against the reference
             List<Path> outputs =
                     renderPass(
                             pages,

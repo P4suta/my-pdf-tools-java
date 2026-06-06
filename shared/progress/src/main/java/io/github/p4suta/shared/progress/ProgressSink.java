@@ -11,7 +11,7 @@ package io.github.p4suta.shared.progress;
 @FunctionalInterface
 public interface ProgressSink {
 
-    /** A sink that silently discards every event — the default when no progress is requested. */
+    /** A sink that discards every event; the default when no progress is requested. */
     ProgressSink NO_OP = event -> {};
 
     /**

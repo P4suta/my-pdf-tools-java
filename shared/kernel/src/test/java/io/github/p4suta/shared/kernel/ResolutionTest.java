@@ -32,9 +32,7 @@ class ResolutionTest {
 
     @Test
     void pxFromMmMatchesRegistersPaperSizeWidthPxExactly() {
-        // Parity anchor: this is exactly register's PaperSizeTest assertion
-        // (SHIROKU.widthPx(254) == 1270, .heightPx(254) == 1880). The migration substitution must
-        // produce the identical value.
+        // A 127x188 mm paper at 254 dpi is 1270x1880 px.
         Resolution r = Resolution.of(254);
         assertEquals(1270, r.pxFromMm(127.0));
         assertEquals(1880, r.pxFromMm(188.0));

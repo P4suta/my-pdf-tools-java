@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* Design system — the single source of truth. Every value below is a rational scale token (also a
-   Tailwind @theme value, so utilities like bg-bg / text-sm / rounded-md / p-md / gap-gap are
-   generated for new work). Components consume only these tokens — no scattered magic numbers. */
+/* Design system — the single source of truth. Every value below is a scale token (also a Tailwind
+   @theme value, so utilities like bg-bg / text-sm / rounded-md / p-md / gap-gap are generated for
+   new work). Components consume only these tokens. */
 @theme {
   /* ----- color ----- */
   --color-bg: #eef1f5;
@@ -124,7 +124,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    /* Horizontal gutter MUST match .view's so the logo/title left edge lines up with the content
+    /* Horizontal gutter must match .view's so the logo/title left edge lines up with the content
        column below it (both use --spacing-gap, including the safe-area fallback). */
     padding: var(--spacing-sm) var(--spacing-gap);
     padding-top: max(var(--spacing-sm), env(safe-area-inset-top));
@@ -161,10 +161,10 @@
     display: grid;
   }
 
-  /* Shared frame for every phase: one consistent page gutter, full-bleed (stretched) children, and
-     top-anchored content that scrolls when tall. It's a flex column, so children stack from the top
-     (no vertical jump between phases) and the done view's preview — the only flex:1 child — is what
-     grows to fill the height; every other phase keeps its natural height at the top. */
+  /* Shared frame for every phase: one consistent page gutter, full-bleed children, and top-anchored
+     content that scrolls when tall. A flex column, so children stack from the top (no vertical jump
+     between phases) and the done view's preview — the only flex:1 child — grows to fill the height;
+     every other phase keeps its natural height at the top. */
   .view {
     grid-area: 1 / 1;
     min-height: 0;
@@ -183,10 +183,10 @@
 
   .panel {
     width: 100%;
-    /* Fill the screen height (like the done view): the card grows to the full .view height, and its
-       grid row stretches (grid-template-rows: 1fr) so the drop area + controls fill it instead of
-       leaving an empty bottom. On narrow 1-col the controls row stays auto (always visible) and the
-       drop area takes the slack; min-height:0 lets the card shrink and .view scroll on short screens. */
+    /* Fill the .view height: the grid row stretches (grid-template-rows: 1fr) so the drop area +
+       controls fill it instead of leaving an empty bottom. On narrow 1-col the controls row stays
+       auto and the drop area takes the slack; min-height:0 lets the card shrink and .view scroll on
+       short screens. */
     flex: 1;
     min-height: 0;
     display: grid;
@@ -200,8 +200,7 @@
     box-shadow: var(--shadow-card);
   }
 
-  /* Wide screens: a generous two-column setup — the large drop area beside the options + submit —
-     so the screen is used with room to breathe instead of a small centered card. */
+  /* Wide screens: a two-column setup — the drop area beside the options + submit. */
   @media (min-width: 52rem) {
     .panel {
       grid-template-columns: 1.2fr 1fr;
@@ -449,7 +448,7 @@
     transition: width var(--duration-base) ease;
   }
 
-  /* Nothing determinate yet (e.g. the silent extract step): sweep the bar so it reads as working. */
+  /* Nothing determinate yet (e.g. the silent extract step): sweep the bar to show activity. */
   .overall.indeterminate .overall-fill {
     width: 35% !important;
     animation: sweep var(--duration-sweep) ease-in-out infinite;
@@ -488,9 +487,8 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    /* Fill the remaining height and distribute the pipeline steps down the screen so the running
-       view uses the full height instead of clustering at the top. (Distribution tuned live — this
-       spreads compact step cards; switch to `.step { flex: 1 }` if equal-height cards read better.) */
+    /* Fill the remaining height and distribute the steps down the screen so the running view uses
+       the full height instead of clustering at the top. */
     flex: 1;
     min-height: 0;
     display: flex;
@@ -641,8 +639,8 @@
   .errbox {
     width: 100%;
     max-width: 36rem;
-    /* Keep a readable measure (don't stretch error prose full-bleed) but center it in the .view
-       column instead of letting flex stretch leave it left-aligned. */
+    /* Keep a readable measure (don't stretch error prose full-bleed) and center it in the .view
+       column rather than let flex leave it left-aligned. */
     align-self: center;
     background: color-mix(in srgb, var(--color-error) var(--tint-surface), var(--color-panel));
     border: var(--border) solid color-mix(in srgb, var(--color-error) var(--tint-border-soft), var(--color-line));

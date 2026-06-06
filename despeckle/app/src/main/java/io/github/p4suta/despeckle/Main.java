@@ -8,11 +8,7 @@ public final class Main {
 
     private Main() {}
 
-    /**
-     * CLI entry point.
-     *
-     * @param args command-line arguments
-     */
+    /** CLI entry point. */
     public static void main(String[] args) {
         Thread.setDefaultUncaughtExceptionHandler(new FatalUncaughtHandler());
         System.exit(new DespeckleCli().run(args));

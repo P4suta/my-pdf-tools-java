@@ -3,9 +3,8 @@ package io.github.p4suta.webapp.port;
 /**
  * A read-only snapshot of the conversion executor's queue and worker state, for telemetry. Kept
  * separate from {@link ConversionExecutor} (which only submits work) so a reader that just wants
- * the numbers — the web layer's metrics binder and health checks — does not depend on the
- * executor's behavioral contract. Every value is a plain primitive; no framework type crosses this
- * boundary.
+ * the numbers — the web layer's metrics binder and health checks — does not depend on the executor.
+ * Every value is a plain primitive; no framework type crosses this boundary.
  */
 public interface QueueStats {
 

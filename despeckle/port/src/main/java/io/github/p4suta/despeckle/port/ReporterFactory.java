@@ -14,17 +14,10 @@ public interface ReporterFactory {
     /**
      * Create a reporter rooted at {@code reportDir}.
      *
-     * @param reportDir the report root
      * @param flipbook whether to assemble the animated-WebP overlay flip-book at finish
-     * @return a ready reporter
-     * @throws IOException if the report directory tree cannot be created
      */
     Reporter create(Path reportDir, boolean flipbook) throws IOException;
 
-    /**
-     * A pass-through reporter for when reporting is disabled.
-     *
-     * @return a no-op reporter
-     */
+    /** A pass-through reporter for when reporting is disabled. */
     Reporter noOp();
 }

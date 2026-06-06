@@ -9,16 +9,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Adds defensive HTTP response headers to every response. Registered automatically because it is a
- * {@code Filter} {@code @Component}. No Spring Security on the classpath (auth is a separate
- * concern), so these are set by hand.
+ * Adds defensive HTTP response headers to every response. Registered automatically as a {@code
+ * Filter} {@code @Component}. No Spring Security on the classpath, so these are set by hand.
  *
- * <p>The CSP is tuned to the self-hosted SPA and verified against it: everything is same-origin
- * except the {@code data:} favicon, and the done view previews the result by embedding {@code
- * /api/.../result} in a same-origin {@code <iframe>} (hence {@code frame-src 'self'} and {@code
- * X-Frame-Options: SAMEORIGIN}, NOT {@code DENY}). {@code style-src 'unsafe-inline'} is
- * load-bearing: the progress bars set their width with an inline style ({@code style:width={...}}
- * in App.svelte), so removing it silently breaks the progress animation.
+ * <p>The CSP fits the self-hosted SPA: everything is same-origin except the {@code data:} favicon.
+ * The done view previews the result in a same-origin {@code <iframe>}, so {@code frame-src 'self'}
+ * and {@code X-Frame-Options: SAMEORIGIN} (not {@code DENY}). {@code style-src 'unsafe-inline'} is
+ * required because the progress bars set their width with an inline style ({@code
+ * style:width={...}} in App.svelte).
  */
 @Component
 public class SecurityHeadersFilter extends OncePerRequestFilter {

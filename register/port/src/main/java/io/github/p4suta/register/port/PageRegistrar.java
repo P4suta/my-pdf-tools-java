@@ -24,10 +24,7 @@ import org.jspecify.annotations.Nullable;
 public interface PageRegistrar {
 
     /**
-     * The horizontal scan resolution recorded in {@code file}, or {@code 0} if it carries none.
-     *
-     * @param file the image to probe
-     * @return the resolution in DPI, or 0
+     * The horizontal scan resolution in DPI recorded in {@code file}, or {@code 0} if it has none.
      */
     int readScanResolution(Path file);
 
@@ -35,9 +32,6 @@ public interface PageRegistrar {
      * Analyze one page: deskew (per {@code options}), detect the main column, and write the
      * deskewed image to {@code deskewedScratch} for {@link #renderPlaced} to read back.
      *
-     * @param source the source page image
-     * @param deskewedScratch where to write the deskewed page for the render pass
-     * @param options the registration knobs (deskew flag, resolution)
      * @param recordSkew whether to also measure the skew for diagnostics (an extra pass; off on a
      *     normal run)
      * @return the page's Pix-free analysis (size, detection, optional skew, source-format token)
@@ -50,16 +44,8 @@ public interface PageRegistrar {
      * canvas and write it to {@code dest}, reusing the analysis the analysis pass produced.
      *
      * @param deskewedScratch the deskewed page written by {@link #analyze}
-     * @param analysis that page's analysis result
-     * @param index the 0-based page index (for diagnostics)
-     * @param parity which side of the spread the page is
-     * @param source the source file name (for diagnostics labels)
      * @param reference the corpus reference, or null when none could be derived (every page
      *     centered)
-     * @param canvas the fixed output canvas
-     * @param dest the file to write the registered page to
-     * @param format the output format
-     * @param options the registration knobs (anchor, scale, outlier ratio, canvas DPI)
      * @return the page's recorded diagnostic state (its skew is null unless {@code analyze}
      *     recorded it); the caller passes it to a {@code Reporter} only on a diagnostics run
      */

@@ -16,8 +16,8 @@ class CorpusFilesTest {
     @Test
     void collectFiltersByGlobAndSortsByFullPathString(@TempDir Path tmp) throws IOException {
         // A nested corpus with mixed extensions. The glob matches names only; the sort is by the
-        // FULL walked path's string, so a deep path under a directory that sorts early comes before
-        // a shallow sibling — exactly what register/despeckle E2E pins.
+        // full walked path's string, so a deep path under a directory that sorts early comes before
+        // a shallow sibling.
         Path sub = Files.createDirectories(tmp.resolve("aaa").resolve("deep"));
         Path b = Files.createFile(tmp.resolve("b.png"));
         Path deep = Files.createFile(sub.resolve("z.png"));

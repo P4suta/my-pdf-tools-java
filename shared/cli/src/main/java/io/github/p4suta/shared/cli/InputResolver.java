@@ -26,9 +26,8 @@ import org.apache.commons.cli.ParseException;
  *       resolver error.
  * </ul>
  *
- * <p>The directory filter is a parameter rather than a hardcoded {@code *.pdf} test, so each app
- * (register / despeckle on images or PDFs, tate-yoko-pdf on PDFs) supplies its own — see {@link
- * #globFilter(String)} for the common case of a single glob pattern.
+ * <p>The directory filter is a parameter rather than a hardcoded test, so each app supplies its own
+ * — see {@link #globFilter(String)} for the common case of a single glob pattern.
  */
 public final class InputResolver {
 

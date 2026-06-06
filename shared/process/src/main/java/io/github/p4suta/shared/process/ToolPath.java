@@ -6,19 +6,15 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Locates an external command-line tool the same way across the I/O layers: an explicit {@code
- * -D<property>} override wins (this is how the packaged app-image points at its bundled binaries),
- * otherwise the first executable of that name on {@code PATH}. Returns an {@link Optional} so each
- * caller picks its own policy for "not found" — register's PDF pipeline treats a missing tool as
- * fatal, while its diagnostics flip-book treats it as an optional skip.
+ * Locates an external command-line tool: an explicit {@code -D<property>} override wins, otherwise
+ * the first executable of that name on {@code PATH}. Returns an {@link Optional} so each caller
+ * picks its own "not found" policy.
  *
- * <p>The override property KEY is a parameter, deliberately not a unified constant: each app passes
- * its own ({@code register.jbig2.path}, {@code despeckle.qpdf.path}, …) so a packaged app-image
- * keeps resolving its bundled binaries through the {@code -D} key its launcher already sets.
+ * <p>The override property key is a parameter, not a unified constant: each app passes its own
+ * ({@code register.jbig2.path}, {@code despeckle.qpdf.path}, …).
  *
- * <p>Native-library loading (resolving an absolute {@code .so} for {@code System.load}) is a
- * different concern and is deliberately NOT routed through here — it lives in the {@code
- * io.github.p4suta.shared.imaging} FFM island.
+ * <p>Native-library loading (resolving an absolute {@code .so} for {@code System.load}) is not
+ * routed through here; it lives in {@code io.github.p4suta.shared.imaging}.
  */
 public final class ToolPath {
 
@@ -31,7 +27,7 @@ public final class ToolPath {
      *
      * @param tool the executable's name (e.g. {@code jbig2})
      * @param propertyKey the system-property override to consult first (e.g. {@code
-     *     register.jbig2.path}); each app passes its own, so the keys are never unified
+     *     register.jbig2.path})
      * @return the resolved path, or empty when neither the override nor {@code PATH} yields one
      */
     public static Optional<Path> resolve(String tool, String propertyKey) {

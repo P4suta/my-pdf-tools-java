@@ -187,7 +187,7 @@ final class SpreadCommandTest {
         assertThat(c.code()).isEqualTo(CliExitCodes.USAGE);
     }
 
-    // ---- harness ------------------------------------------------------------
+    // Harness
 
     private static final class Captured {
         private final int code;

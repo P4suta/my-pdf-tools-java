@@ -25,7 +25,7 @@ class PdfbookMetricsTest {
         store.save(Job.queued(new JobId("b"), REQUEST, "b.pdf", Instant.EPOCH));
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-        // Micrometer gauges keep only a WEAK reference to their source, so the binder and the job
+        // Micrometer gauges keep only a weak reference to their source, so the binder and the job
         // store must stay strongly reachable through the assertions or a GC turns the gauges to
         // NaN.
         // (In production the binder is a long-lived Spring bean; the keep-alive assertions at the

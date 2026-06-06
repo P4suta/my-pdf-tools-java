@@ -114,7 +114,7 @@ class PdfBatchE2eTest {
         assertFalse(Files.exists(out.resolve("book.pdf")), "no un-suffixed output");
     }
 
-    // ---- helpers (mirror PdfPipelineE2eTest's synthetic scan) ----
+    // helpers (mirror PdfPipelineE2eTest's synthetic scan)
 
     private static void makeScanPdf(Path target, int pages) throws IOException {
         int width = 413; // ~A6 width at 100 dpi (105 mm)

@@ -8,9 +8,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Exercises {@link DespeckleException}'s {@code of(kind)} / {@code of(kind, cause)} / {@code
- * withDetail(kind, detail, cause)} factories — the despeckle analogue of tate-yoko-pdf's {@code
- * SpreadException}, over the shared {@link BaseAppException} base. Works with both an app kind
- * ({@link DespeckleErrorKind}) and a reused {@link CommonErrorKind}.
+ * withDetail(kind, detail, cause)} factories over the shared {@link BaseAppException} base. Works
+ * with both an app kind ({@link DespeckleErrorKind}) and a reused {@link CommonErrorKind}.
  */
 final class DespeckleExceptionTest {
 

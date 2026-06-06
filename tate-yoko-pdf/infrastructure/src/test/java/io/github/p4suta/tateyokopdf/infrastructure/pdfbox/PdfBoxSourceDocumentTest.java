@@ -76,9 +76,7 @@ final class PdfBoxSourceDocumentTest {
                         "in.pdf",
                         info -> {
                             // Japanese strings exercise PDFBox's auto-switch from PDFDocEncoding to
-                            // UTF-16BE —
-                            // an ASCII-only fixture would not catch a future regression in that
-                            // path.
+                            // UTF-16BE, which an ASCII-only fixture would not catch.
                             info.setTitle("見開き化テスト");
                             info.setAuthor("テスト著者");
                             info.setSubject("subject");

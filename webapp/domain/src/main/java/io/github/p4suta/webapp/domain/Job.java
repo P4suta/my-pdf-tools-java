@@ -5,10 +5,10 @@ import java.time.Instant;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One conversion job and its lifecycle. Immutable: each transition returns a new instance and the
- * legal transitions ({@code QUEUED -> RUNNING -> DONE | FAILED}) are enforced, so an illegal
- * transition throws rather than corrupting state. The error fields are populated only in {@link
- * JobState#FAILED}; {@code finishedAt} only once terminal.
+ * One conversion job and its lifecycle. Immutable: each transition returns a new instance, and only
+ * the legal transitions ({@code QUEUED -> RUNNING -> DONE | FAILED}) are allowed; an illegal one
+ * throws. The error fields are populated only in {@link JobState#FAILED}; {@code finishedAt} only
+ * once terminal.
  *
  * @param id the job's identity
  * @param state the current lifecycle state
@@ -29,7 +29,6 @@ public record Job(
         @Nullable String errorKind,
         @Nullable String errorMessage) {
 
-    /** Validates the always-present components. */
     public Job {
         Validators.requireNonNull(id, "id");
         Validators.requireNonNull(state, "state");

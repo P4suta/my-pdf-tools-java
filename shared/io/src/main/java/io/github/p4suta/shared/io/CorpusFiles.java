@@ -12,18 +12,15 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Corpus discovery and output-path mirroring shared by every directory-walking pipeline: collect
- * the matching input pages in a deterministic order, and map each input to its mirrored output path
- * under a separate output root.
+ * Corpus discovery and output-path mirroring: collect the matching input pages in a deterministic
+ * order, and map each input to its mirrored output path under a separate output root.
  *
- * <p>Two contracts are load-bearing and reproduced exactly from the apps:
+ * <p>Two load-bearing contracts:
  *
  * <ul>
  *   <li>the sort order is by the full walked path's string ({@code
- *       Comparator.comparing(Path::toString)}), so the pages are processed in the same order every
- *       run — register's and despeckle's end-to-end tests pin this;
- *   <li>the selection filter is a caller-supplied glob, never a hardcoded extension set, so each
- *       app keeps its own input pattern.
+ *       Comparator.comparing(Path::toString)}), so pages are processed in the same order every run;
+ *   <li>the selection filter is a caller-supplied glob, not a hardcoded extension set.
  * </ul>
  */
 public final class CorpusFiles {
@@ -88,8 +85,8 @@ public final class CorpusFiles {
      * {@code extension} is {@code null} (the {@code --format same} case) or {@code src} has no file
      * name.
      *
-     * <p>The replacement extension is supplied as a plain string so this helper stays free of any
-     * app's output-format enum: each app passes its own {@code OutputFormat.extension()}.
+     * <p>The replacement extension is a plain string so this helper imports no app's output-format
+     * enum.
      *
      * @param src the source page path (must be under {@code inputDir})
      * @param inputDir the input root the mirroring is relative to

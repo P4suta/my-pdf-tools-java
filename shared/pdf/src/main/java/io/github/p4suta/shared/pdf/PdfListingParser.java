@@ -4,13 +4,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Pure parsers for the textual reports {@code pdfinfo} and {@code pdfimages -list} emit — the
- * resolution and page-count logic lifted out of the extraction adapter so it can be unit-tested
- * without driving any external process or touching the filesystem.
+ * Pure parsers for the textual reports {@code pdfinfo} and {@code pdfimages -list} emit, with no
+ * external process or filesystem dependency.
  */
 public final class PdfListingParser {
 
-    /** Fallback when the listing carries no usable resolution (matches {@code stamp-dpi.py}). */
+    /** Fallback when the listing carries no usable resolution. */
     public static final int DEFAULT_DPI = 300;
 
     private PdfListingParser() {}
@@ -39,8 +38,7 @@ public final class PdfListingParser {
     /**
      * The most common rounded x-ppi (column 13, 0-based 12) across the {@code image} rows of a
      * {@code pdfimages -list} report, skipping the two header rows. Ties resolve to the first value
-     * seen and a non-positive winner falls back to {@link #DEFAULT_DPI} — matching {@code
-     * stamp-dpi.py}'s {@code Counter.most_common}.
+     * seen and a non-positive winner falls back to {@link #DEFAULT_DPI}.
      *
      * @param listOutput the full text {@code pdfimages -list} printed
      * @return the dominant rounded x-ppi, or {@link #DEFAULT_DPI} when none is usable
@@ -57,7 +55,7 @@ public final class PdfListingParser {
                 int ppi = (int) Math.round(Double.parseDouble(fields[12]));
                 counts.merge(ppi, 1, Integer::sum);
             } catch (NumberFormatException ignored) {
-                // Non-numeric x-ppi cell: skip this row, as stamp-dpi.py does.
+                // Non-numeric x-ppi cell: skip this row.
             }
         }
         if (counts.isEmpty()) {

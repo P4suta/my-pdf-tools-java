@@ -15,7 +15,7 @@ import org.slf4j.event.Level;
  * severity are read OFF the {@code ErrorCategory} (no side table). This layer owns only the {@code
  * Severity -> Level} translation and the throwable&rarr;kind fallback.
  *
- * <p>The throwable&rarr;kind fallback (section&nbsp;5 of the error-model spec), first match wins:
+ * <p>The throwable&rarr;kind fallback, first match wins:
  *
  * <ol>
  *   <li>a {@link BaseAppException} carries its own kind;
@@ -25,10 +25,10 @@ import org.slf4j.event.Level;
  *   <li>anything else &rarr; {@link CommonErrorKind#INTERNAL} (70).
  * </ol>
  *
- * <p>An app may supply an extra {@code throwable -> ErrorCategory} rule (e.g. a future {@code
- * UncheckedIOException} unwrap); it is consulted BEFORE the shared baseline (but after the {@link
- * BaseAppException} short-circuit, which always wins because the exception already carries its
- * kind). Returning {@code null} from the rule falls through to the baseline.
+ * <p>An app may supply an extra {@code throwable -> ErrorCategory} rule; it is consulted before the
+ * shared baseline but after the {@link BaseAppException} short-circuit (which always wins, as the
+ * exception already carries its kind). Returning {@code null} from the rule falls through to the
+ * baseline.
  */
 public final class ExceptionMapper {
 

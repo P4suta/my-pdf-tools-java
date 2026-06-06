@@ -8,16 +8,10 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * Encodes an in-memory {@link BufferedImage} — the AWT charts and overlays the reports and
- * diagnostics draw — to a file, in the same raster-I/O family as {@link Pix}'s writes. WebP is the
- * standard for these human-facing artifacts (lossless, smaller than PNG, exact on line art); PNG is
- * the fallback.
- *
- * <p>WebP is produced by bridging through Leptonica: write a temporary PNG, read it back as a
- * {@link Pix}, and emit lossless WebP via {@link Pix#writeWebp}. So every still-image encode in the
- * monorepo — page rasters and BufferedImage charts alike — goes through this one imaging island,
- * and no second (shell-out) WebP encoder is needed. AWT lives behind this class; the FFM stays in
- * {@link Pix}/{@link Leptonica}.
+ * Encodes an in-memory {@link BufferedImage} to a file as PNG or lossless WebP. WebP is produced by
+ * bridging through Leptonica: write a temporary PNG, read it back as a {@link Pix}, and emit
+ * lossless WebP via {@link Pix#writeWebp}. AWT lives behind this class; the FFM stays in {@link
+ * Pix}/{@link Leptonica}.
  */
 public final class ImageEncoder {
 
@@ -57,13 +51,9 @@ public final class ImageEncoder {
     }
 
     /**
-     * Read {@code pix} into an AWT {@link BufferedImage} (RGB) — the bridge for code that draws
-     * overlays/charts with {@code Graphics2D} or compares pixels. Goes through a temporary PNG so
-     * any Pix depth (1 bpp bilevel, 8 bpp grey, …) lands as a standard RGB raster, and the FFM
-     * stays behind {@link Pix}.
+     * Read {@code pix} into an RGB AWT {@link BufferedImage}. Goes through a temporary PNG so any
+     * Pix depth (1 bpp bilevel, 8 bpp grey, …) lands as a standard RGB raster.
      *
-     * @param pix the image to read
-     * @return an RGB {@link BufferedImage} copy
      * @throws IOException if the intermediate PNG cannot be written/read
      */
     public static BufferedImage toBufferedImage(Pix pix) throws IOException {

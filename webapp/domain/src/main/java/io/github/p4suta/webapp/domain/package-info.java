@@ -5,8 +5,8 @@
  * io.github.p4suta.webapp.domain.ConversionRequest} with {@link
  * io.github.p4suta.webapp.domain.Direction} / {@link io.github.p4suta.webapp.domain.FirstPage}),
  * and the typed {@link io.github.p4suta.webapp.domain.JobNotFoundException}. Framework-free and
- * I/O-free — no Spring, no {@code java.nio.file}, no pipeline or tate types — so the web layer's
- * business rules are unit-tested in isolation.
+ * I/O-free (no Spring, no {@code java.nio.file}, no pipeline types), so the web layer's business
+ * rules are unit-tested in isolation.
  */
 @NullMarked
 package io.github.p4suta.webapp.domain;

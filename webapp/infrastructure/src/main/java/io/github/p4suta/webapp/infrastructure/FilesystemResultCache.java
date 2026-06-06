@@ -15,13 +15,12 @@ import java.util.stream.Stream;
 /**
  * A {@link ResultCache} on the local filesystem: each entry is {@code <root>/<key>/output.pdf}.
  *
- * <p>An entry is published atomically — the result is linked (or copied) to a temp name in the same
- * directory, then {@link StandardCopyOption#ATOMIC_MOVE atomically moved} into place — so a
+ * <p>An entry is published atomically: the result is linked (or copied) to a temp name in the same
+ * directory, then {@link StandardCopyOption#ATOMIC_MOVE atomically moved} into place, so a
  * concurrent {@link #find} only ever sees a complete file. The result is shared with the job
  * workspace through a {@linkplain Files#createLink hard link} when both live on the same filesystem
- * (the common case: the cache root is a sibling of the job work dir): the data is stored once and
- * refcounting lets either side be deleted without harming the other. Across devices it falls back
- * to a copy.
+ * (the cache root is a sibling of the job work dir): the data is stored once and refcounting lets
+ * either side be deleted without harming the other. Across devices it falls back to a copy.
  */
 public final class FilesystemResultCache implements ResultCache {
 

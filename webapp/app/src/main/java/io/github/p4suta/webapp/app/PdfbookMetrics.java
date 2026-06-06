@@ -8,10 +8,10 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
 
 /**
- * Registers the pdfbook gauges. Two complementary lenses, not duplicates: {@code queued}/{@code
- * active}/{@code saturation} read the executor's {@link QueueStats} (the queue-depth view), while
- * {@code jobs.by_state} reads the {@link JobStore} (the domain-state view, which also counts
- * finished-but-not-yet-reaped jobs). Lives in the app layer so Micrometer stays out of the core.
+ * Registers the pdfbook gauges from two sources: {@code queued}/{@code active}/{@code saturation}
+ * read the executor's {@link QueueStats} (queue depth), while {@code jobs.by_state} reads the
+ * {@link JobStore} (domain state, which also counts finished-but-not-yet-reaped jobs). Lives in the
+ * app layer so Micrometer stays out of the core.
  */
 final class PdfbookMetrics implements MeterBinder {
 

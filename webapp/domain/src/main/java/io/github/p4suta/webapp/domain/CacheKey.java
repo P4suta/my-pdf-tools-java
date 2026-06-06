@@ -9,15 +9,14 @@ import java.util.HexFormat;
 /**
  * A content-addressed key identifying a conversion's output: the SHA-256 of the input PDF combined
  * with the options that affect the produced book. Two submissions with the same input bytes and the
- * same options share a key — and therefore a cached result. The worker-thread count ({@link
- * ConversionRequest#jobs}) is deliberately excluded: it changes only how fast pdfbook runs, not
- * what it produces, so a {@code -j 4} and a {@code -j 8} run reuse the same cache entry.
+ * same options share a key, and therefore a cached result. The worker-thread count ({@link
+ * ConversionRequest#jobs}) is excluded: it changes only how fast pdfbook runs, not what it
+ * produces, so a {@code -j 4} and a {@code -j 8} run reuse the same cache entry.
  *
  * @param value a lowercase-hex SHA-256 token, safe to use directly as a directory name
  */
 public record CacheKey(String value) {
 
-    /** Validates the component. */
     public CacheKey {
         Validators.requireNonNull(value, "value");
         if (!value.matches("[0-9a-f]{64}")) {
@@ -35,9 +34,8 @@ public record CacheKey(String value) {
     public static CacheKey of(String inputSha256, ConversionRequest request) {
         Validators.requireNonNull(inputSha256, "inputSha256");
         Validators.requireNonNull(request, "request");
-        // A canonical, unambiguous encoding of everything that affects the output, hashed to a
-        // fixed
-        // token. Field order and names are stable; `jobs` is omitted on purpose (see class doc).
+        // Canonical encoding of everything that affects the output, hashed to a fixed token. Field
+        // order and names are stable; `jobs` is omitted (see class doc).
         String canonical =
                 String.join(
                         "\n",

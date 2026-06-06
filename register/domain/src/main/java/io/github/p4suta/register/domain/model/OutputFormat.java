@@ -15,9 +15,8 @@ public enum OutputFormat {
     /** Write every page as lossless WebP. */
     WEBP;
 
-    // The Leptonica IFF_* mapping lives with the binding in :infrastructure (the page registrar
-    // calls Pix's named write wrappers per this enum), so this domain enum carries no Leptonica
-    // coupling.
+    // The Leptonica IFF_* mapping lives with the binding in :infrastructure, so this domain enum
+    // carries no Leptonica coupling.
 
     /** The output file extension, or {@code null} to keep the input's. */
     public @Nullable String extension() {
@@ -25,10 +24,9 @@ public enum OutputFormat {
             case SAME -> null;
             case PBM -> "pbm";
             case PNG -> "png";
-            // ".tiff" (not ".tif") is deliberate: the unified pipeline tells register's stage
-            // output
-            // apart from despeckle's by extension, so this MUST stay distinct from despeckle's
-            // OutputFormat.TIFF -> "tif". Unifying the two enums would silently break the pipeline.
+            // ".tiff" (not ".tif") must stay distinct from despeckle's OutputFormat.TIFF -> "tif":
+            // the unified pipeline tells register's stage output apart from despeckle's by
+            // extension.
             case TIFF -> "tiff";
             case WEBP -> "webp";
         };

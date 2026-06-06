@@ -2,7 +2,7 @@ package io.github.p4suta.webapp.port;
 
 /**
  * Thrown by {@link ConversionExecutor#submit(Runnable)} when the executor is at capacity, so the
- * web layer can answer "server busy" (HTTP 429) rather than queue work without bound.
+ * web layer answers "server busy" (HTTP 429) rather than queue work without bound.
  */
 public final class QueueFullException extends RuntimeException {
 

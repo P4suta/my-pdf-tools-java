@@ -3,9 +3,9 @@ package io.github.p4suta.webapp.domain;
 import io.github.p4suta.shared.kernel.Validators;
 
 /**
- * The validated options for one pdfbook conversion. A web-owned value type (its own {@link
- * Direction} / {@link FirstPage} enums, not tate's) so the web feature stays decoupled from the
- * pipeline's internals; the infrastructure adapter maps it to pdfbook command-line flags.
+ * The validated options for one pdfbook conversion. A web-owned value type with its own {@link
+ * Direction} / {@link FirstPage} enums, so the web feature stays decoupled from the pipeline's
+ * internals; the infrastructure adapter maps it to pdfbook command-line flags.
  *
  * @param direction reading direction of the spreads
  * @param firstPage which side page one opens on
@@ -26,7 +26,6 @@ public record ConversionRequest(
         boolean pdfA,
         int jobs) {
 
-    /** Validates the request. */
     public ConversionRequest {
         Validators.requireNonNull(direction, "direction");
         Validators.requireNonNull(firstPage, "firstPage");

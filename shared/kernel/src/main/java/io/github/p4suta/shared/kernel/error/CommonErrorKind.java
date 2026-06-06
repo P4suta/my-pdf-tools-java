@@ -1,20 +1,16 @@
 package io.github.p4suta.shared.kernel.error;
 
 /**
- * The generic failure categories every p4suta app reuses, each carrying its sysexits exit code,
- * {@link Severity}, client-fault flag, and default Japanese message ON the constant (per
- * section&nbsp;2 of the error-model spec). An app adds an app-specific {@code ErrorKind} only where
- * a failure carries a genuinely distinct exit code or user message; otherwise it reuses one of
- * these.
+ * The generic failure categories, each carrying its sysexits exit code, {@link Severity},
+ * client-fault flag, and default Japanese message on the constant. An app adds an app-specific
+ * {@code ErrorKind} only where a failure carries a distinct exit code or user message; otherwise it
+ * reuses one of these.
  *
  * <ul>
  *   <li>{@code 64} = {@code EX_USAGE}-family data error (bad CLI value / precondition).
  *   <li>{@code 137} = {@code 128 + SIGKILL}, the conventional OOM exit.
  *   <li>{@code 70} = {@code EX_SOFTWARE}, internal/unexpected.
  * </ul>
- *
- * <p>These three coincide exactly (code + severity + fault + message) with three of tate-yoko-pdf's
- * eight kinds, validating the chosen values.
  */
 public enum CommonErrorKind implements ErrorCategory {
 

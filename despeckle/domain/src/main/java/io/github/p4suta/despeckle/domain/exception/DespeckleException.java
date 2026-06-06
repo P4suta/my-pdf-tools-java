@@ -7,8 +7,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * The despeckle domain exception: tags every failure the tool raises with an {@link ErrorCategory}
  * (a {@link DespeckleErrorKind} or a {@code CommonErrorKind}) plus a user-facing message and an
- * optional technical detail. Mirrors tate-yoko-pdf's {@code SpreadException} over the shared {@link
- * BaseAppException} base.
+ * optional technical detail, over the shared {@link BaseAppException} base.
  *
  * <p>Unchecked: it propagates to the CLI boundary, where the shared {@code ExceptionMapper} maps
  * the kind to an exit code and log level. Prefer the {@link #of} / {@link #withDetail} factories

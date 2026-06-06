@@ -9,12 +9,8 @@ import java.util.Arrays;
 
 /**
  * Builds tiny synthetic bitonal pages as binary PBM (P4) files so the FFM tests drive a real
- * Leptonica {@code PIX} with zero external (copyrighted) input. {@code true} means a black
- * (foreground) pixel; bits are packed MSB-first with each row padded to a byte, matching the PBM P4
- * specification and Leptonica's 1 bpp layout.
- *
- * <p>This is a copy of the per-app {@code TestImages} fixtures, kept in this module's test sources
- * (no {@code java-test-fixtures}) so the shared module's tests are self-contained.
+ * Leptonica {@code PIX}. {@code true} means a black (foreground) pixel; bits are packed MSB-first
+ * with each row padded to a byte, matching the PBM P4 specification and Leptonica's 1 bpp layout.
  */
 final class TestImages {
 

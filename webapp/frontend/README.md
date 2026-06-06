@@ -5,8 +5,8 @@ choose options, watch progress over Server-Sent Events, download the composed bo
 **pnpm**; formatted and linted with **Biome** (the repo-root `biome.json` covers this `.ts`/`.svelte`
 code — run `just fmt` / `just fmt-check`, or `pnpm run check` here).
 
-It is deliberately **not** wired into the Gradle build (`./gradlew check` stays Java-only and fast).
-Build it with pnpm and either run the dev server or hand the static bundle to the Spring Boot server.
+It is **not** wired into the Gradle build (`./gradlew check` stays Java-only). Build it with pnpm
+and either run the dev server or hand the static bundle to the Spring Boot server.
 
 ## Develop
 
@@ -36,8 +36,8 @@ pnpm run build         # type-check + emit dist/
 ## Production bundle
 
 The runtime Docker image builds this SPA in a dedicated node stage and embeds `dist/` into the
-bootJar's static resources, so the server serves the UI at its own origin — one artifact, no separate
-static host:
+bootJar's static resources, so the server serves the UI at its own origin (one artifact, no separate
+static host):
 
 ```bash
 just web-image                                  # docker build -f webapp/app/Dockerfile -t pdfbook-web .

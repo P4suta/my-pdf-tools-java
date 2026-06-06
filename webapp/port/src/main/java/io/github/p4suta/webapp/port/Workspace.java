@@ -7,9 +7,9 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Owns each job's private working directory — where the upload is stored and the result is written
- * — with a lifecycle independent of the pipeline's own per-run temp area: these files persist until
- * the result is downloaded or the reaper removes them.
+ * Owns each job's private working directory, where the upload is stored and the result is written.
+ * Independent of the pipeline's own per-run temp area: these files persist until the result is
+ * downloaded or the reaper removes them.
  */
 public interface Workspace {
 
@@ -24,8 +24,8 @@ public interface Workspace {
     /**
      * Stores the uploaded PDF for {@code id}, consuming {@code pdf}, and returns its content hash.
      * The bytes are verified to begin with the PDF magic ({@code %PDF-}) and digested as they are
-     * written, so a single streaming pass both validates and hashes a multi-hundred-megabyte upload
-     * without buffering it in memory.
+     * written, so one streaming pass validates and hashes a large upload without buffering it in
+     * memory.
      *
      * @param id the job id
      * @param pdf the uploaded bytes

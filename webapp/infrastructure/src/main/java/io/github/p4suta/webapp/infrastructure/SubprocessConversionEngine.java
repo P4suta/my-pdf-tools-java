@@ -21,17 +21,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Runs pdfbook as a child process — process isolation, so a native crash inside Leptonica or a
+ * Runs pdfbook as a child process for isolation, so a native crash inside Leptonica or a
  * shelled-out tool cannot take the server JVM down. The child writes its result to {@code -o} and a
  * stream of JSONL progress events to a private {@code --progress-file}; this engine tails that file
  * by byte offset while the child runs and drains it once more after exit, decoding each complete
  * line into a {@link io.github.p4suta.shared.progress.ProgressEvent} for the supplied sink.
  *
- * <p>The tail tracks an offset and only ever decodes whole lines (split on the {@code \n} byte,
- * which never falls inside a UTF-8 sequence), so a half-written line or a multi-byte character
- * straddling two polls is handled correctly rather than corrupted. The OS-level {@code
- * WatchService} is deliberately avoided: append notifications coalesce and the final lines often
- * land after the last wake, so polling-plus-final-drain is the correct mechanism.
+ * <p>The tail tracks an offset and decodes only whole lines (split on the {@code \n} byte, which
+ * never falls inside a UTF-8 sequence), so a half-written line or a multi-byte character straddling
+ * two polls is decoded correctly rather than corrupted. The OS-level {@code WatchService} is
+ * avoided: append notifications coalesce and the final lines often land after the last wake, so
+ * polling plus a final drain is needed.
  */
 public final class SubprocessConversionEngine implements ConversionEngine {
 
@@ -81,8 +81,9 @@ public final class SubprocessConversionEngine implements ConversionEngine {
                     throw new IOException("pdfbook timed out after " + timeout);
                 }
             }
-            // Final drain: the last lines the child writes before exiting can land after the last
-            // poll, so read once more to EOF now that the process is gone.
+            // Final drain: the last lines can land after the last poll, so read once more to EOF
+            // now
+            // that the process has exited.
             tail.drainTo(progress);
             int exit = process.exitValue();
             if (exit != 0) {

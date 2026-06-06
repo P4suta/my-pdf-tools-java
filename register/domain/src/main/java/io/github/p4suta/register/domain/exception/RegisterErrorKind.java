@@ -6,24 +6,12 @@ import io.github.p4suta.shared.kernel.error.Severity;
 
 /**
  * The register-specific failure categories, each carrying its sysexits exit code, {@link Severity},
- * client-fault flag, and default Japanese message ON the constant (per section&nbsp;3.2 of the
- * error-model spec). Generic failures (bad value / OOM / internal) reuse {@link CommonErrorKind}
- * instead; only the four kinds with a genuinely distinct exit code or user message live here.
+ * client-fault flag, and default Japanese message on the constant. Generic failures (bad value /
+ * OOM / internal) reuse {@link CommonErrorKind} instead; only the four kinds with a distinct exit
+ * code or user message live here.
  *
- * <ul>
- *   <li>{@link #INPUT_NOT_FOUND} ({@code 66}, {@code EX_NOINPUT}) — a required input file or
- *       directory is missing; split out of {@link #IMAGE_UNREADABLE} to mirror tate's
- *       NOT_FOUND/CORRUPTED distinction.
- *   <li>{@link #IMAGE_UNREADABLE} ({@code 65}, {@code EX_DATAERR}) — an image could not be read
- *       (unsupported format, corrupt, or unreadable).
- *   <li>{@link #OUTPUT_CONFLICT} ({@code 73}, {@code EX_CANTCREAT}) — the output already exists and
- *       {@code --force} was not given.
- *   <li>{@link #NATIVE_TOOL_FAILED} ({@code 70}, {@code EX_SOFTWARE}) — an external tool ({@code
- *       pdfimages}/{@code pdfinfo}/{@code jbig2}) was missing, failed, or timed out.
- * </ul>
- *
- * <p>Per the section&nbsp;1.3 invariant, {@code clientFault=true} pairs with {@link Severity#WARN}
- * and {@code clientFault=false} with {@link Severity#ERROR}.
+ * <p>Invariant: {@code clientFault=true} pairs with {@link Severity#WARN}, {@code
+ * clientFault=false} with {@link Severity#ERROR}.
  */
 public enum RegisterErrorKind implements ErrorCategory {
 

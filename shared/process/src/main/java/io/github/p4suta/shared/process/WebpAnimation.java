@@ -12,16 +12,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Assembles an animated, looping, lossless WebP from a sequence of frames via libwebp's {@code
- * img2webp} — the single cross-app home for the "flip-book" both register (registered pages) and
- * despeckle (removed-pixel overlays) build. Neither the JDK nor Leptonica writes animated WebP, so
- * this shells out; but unlike the per-app copies it replaced, it runs through the shared {@link
- * ToolPath} + {@link ProcessRunner} (so the timeout/kill and exit handling are the already-tested
- * ones, not hand-rolled).
+ * img2webp}. Neither the JDK nor Leptonica writes animated WebP, so this shells out through {@link
+ * ToolPath} + {@link ProcessRunner}.
  *
- * <p>If {@code img2webp} is missing or fails the flip-book is skipped (returns {@code false}) and
- * the caller's other artifacts are unaffected. The binary is resolved from the caller-supplied
- * {@code -D<propertyKey>} override (e.g. {@code register.img2webp.path}) else {@code img2webp} on
- * {@code PATH} — the key stays a per-app parameter so packaged app-images keep resolving.
+ * <p>If {@code img2webp} is missing or fails the assembly is skipped (returns {@code false}). The
+ * binary is resolved from the caller-supplied {@code -D<propertyKey>} override (e.g. {@code
+ * register.img2webp.path}) else {@code img2webp} on {@code PATH}; the key is a per-app parameter.
  */
 public final class WebpAnimation {
 

@@ -18,12 +18,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * Parity tests for the consolidated {@link Pagination#paginate(FirstPageMode, int)} entry point.
- *
- * <p>Folds in the former {@code StandardPaginationTest}, {@code CoverSinglePaginationTest}, {@code
- * LeadingBlankPaginationTest}, and {@code PaginationStrategyFactoryTest} (whose mode-selection
- * intent is now the per-mode first-element distinctions in {@link Standard}, {@link Cover}, and
- * {@link LeadingBlank}). Expected outputs are unchanged — they are the parity gate.
+ * Tests for {@link Pagination#paginate(FirstPageMode, int)}, with the per-mode first-element
+ * distinctions covered in {@link Standard}, {@link Cover}, and {@link LeadingBlank}.
  */
 final class PaginationTest {
 

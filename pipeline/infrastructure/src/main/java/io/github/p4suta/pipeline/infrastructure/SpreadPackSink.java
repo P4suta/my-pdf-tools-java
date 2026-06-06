@@ -39,13 +39,7 @@ public final class SpreadPackSink implements Sink {
     private final ProgressSink progress;
     private final PdfPostProcessor postProcessor;
 
-    /**
-     * @param direction RTL (right-to-left) or LTR reading order
-     * @param firstPageMode which side page one opens on
-     * @param pdfA whether to emit PDF/A-2b conformance
-     * @param memoryMode whether PDFBox caches output streams on the heap or in a temp file
-     * @param metadata document metadata to carry onto the output (empty if none)
-     */
+    /** {@link ProgressSink#NO_OP} variant of the six-arg constructor. */
     public SpreadPackSink(
             ReadingDirection direction,
             FirstPageMode firstPageMode,

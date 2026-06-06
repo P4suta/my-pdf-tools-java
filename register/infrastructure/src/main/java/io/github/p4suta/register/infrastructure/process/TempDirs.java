@@ -26,9 +26,6 @@ public final class TempDirs {
      * is cleaned up in the same tree. Falls back to the working directory when {@code sibling} has
      * no usable parent.
      *
-     * @param sibling the output path the scratch directory should sit next to (a file or directory)
-     * @param prefix the temp-directory name prefix
-     * @return the created directory
      * @throws IOException if the directory cannot be created
      */
     public static Path createBeside(Path sibling, String prefix) throws IOException {
@@ -44,8 +41,6 @@ public final class TempDirs {
      * parents) so directories are empty when removed. A failure to delete any single entry is
      * logged and skipped rather than thrown — cleanup must never mask the run's real outcome; the
      * caller's surrounding log lines supply the context.
-     *
-     * @param dir the directory tree to remove
      */
     public static void deleteRecursively(Path dir) {
         try (Stream<Path> walk = Files.walk(dir)) {

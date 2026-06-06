@@ -7,9 +7,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * Pins {@link CommonErrorKind} to section&nbsp;2 of the error-model spec — the spec table is the
- * oracle, not the enum's own code. Exit code, severity, client-fault flag, and message are asserted
- * per constant, plus the section&nbsp;1.3 invariant (clientFault &hArr; WARN).
+ * Asserts {@link CommonErrorKind}'s exit code, severity, client-fault flag, and message per
+ * constant, plus the invariant (clientFault &hArr; WARN).
  */
 final class CommonErrorKindTest {
 
@@ -45,8 +44,8 @@ final class CommonErrorKindTest {
     }
 
     /**
-     * Section&nbsp;1.3 invariant: {@code isClientFault() == true} ⟹ {@code severity() == WARN}, and
-     * {@code isClientFault() == false} ⟹ {@code severity() == ERROR}. No constant may use INFO.
+     * Invariant: {@code isClientFault() == true} ⟹ {@code severity() == WARN}, and {@code
+     * isClientFault() == false} ⟹ {@code severity() == ERROR}. No constant may use INFO.
      */
     @ParameterizedTest
     @EnumSource(CommonErrorKind.class)

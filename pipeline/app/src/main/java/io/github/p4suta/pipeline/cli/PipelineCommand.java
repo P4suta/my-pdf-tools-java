@@ -208,10 +208,9 @@ public final class PipelineCommand {
         }
     }
 
-    // Builds the source/stages/sink with the progress sink resolved first, so the stages and the
-    // sink report page-level PageProcessed events into the same sink that PipelineRunner reports
-    // the
-    // stage boundaries into. With no --progress-file the sink is NO_OP and every emit is a no-op.
+    // Resolves the progress sink first so the stages and sink report page-level PageProcessed
+    // events into the same sink PipelineRunner reports stage boundaries into. With no
+    // --progress-file the sink is NO_OP and every emit is a no-op.
     private static void runWith(Path input, Path output, Config config, ProgressSink progress)
             throws IOException {
         List<Stage> stages = new ArrayList<>();

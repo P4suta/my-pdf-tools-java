@@ -24,11 +24,6 @@ public final class PdfBatchService {
 
     private final PdfPipelineService pipeline;
 
-    /**
-     * Create a batch service over the injected single-PDF pipeline.
-     *
-     * @param pipeline the per-book PDF -> PDF pipeline
-     */
     public PdfBatchService(PdfPipelineService pipeline) {
         this.pipeline = pipeline;
     }
@@ -40,7 +35,6 @@ public final class PdfBatchService {
      * @param outputDir where each registered PDF is written (created if absent)
      * @param options registration knobs shared by every book (its empty {@code --dpi}/{@code
      *     --paper} are resolved per file)
-     * @param jobs worker threads per file
      * @param force regenerate outputs that already exist instead of skipping them
      * @param suffix inserted before each output's {@code .pdf} extension (e.g. {@code _registered}
      *     turns {@code book.pdf} into {@code book_registered.pdf}); empty keeps the input name
@@ -66,9 +60,6 @@ public final class PdfBatchService {
      * Whether {@code input} should be processed as a batch — i.e. it is a directory of PDFs rather
      * than a single PDF. The filesystem probe lives in this orchestration class so the CLI can
      * route on it without touching {@code java.nio.file.Files} itself.
-     *
-     * @param input the CLI's first positional
-     * @return true if {@code input} is a directory
      */
     public static boolean isBatchInput(Path input) {
         return Files.isDirectory(input);
@@ -77,8 +68,6 @@ public final class PdfBatchService {
     /**
      * Register every top-level {@code *.pdf} under {@code inputDir} into {@code outputDir}.
      *
-     * @param config the batch configuration
-     * @return a count of registered / skipped / failed books
      * @throws IOException if the input cannot be listed or the output directory cannot be created
      */
     public Summary run(Config config) throws IOException {
@@ -120,14 +109,9 @@ public final class PdfBatchService {
     }
 
     /**
-     * The output file name for {@code input}: its stem plus {@code suffix} plus {@code .pdf}. An
-     * empty suffix keeps the original name (extension case included); a non-empty suffix normalizes
-     * the extension to lower-case {@code .pdf}. {@code input} is known to end in {@code .pdf}
-     * (case-insensitive) because {@link #listPdfs} selected it. Package-private for unit testing.
-     *
-     * @param input a source PDF path
-     * @param suffix the batch-mode output-name suffix ({@code ""} when none)
-     * @return the output file name
+     * The output file name for {@code input} (via {@link PdfOutputNaming#outputName}). {@code
+     * input} is known to end in {@code .pdf} (case-insensitive) because {@link #listPdfs} selected
+     * it. Package-private for unit testing.
      */
     static String outputName(Path input, String suffix) {
         return PdfOutputNaming.outputName(input, suffix);

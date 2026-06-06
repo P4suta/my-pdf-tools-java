@@ -9,8 +9,7 @@ import org.jspecify.annotations.Nullable;
  * -o -} (write the PDF to stdout) stays a clean binary stream — diagnostics never mix with data.
  *
  * <p>An optional {@code label} is prefixed to each line so batch runs can show which file is being
- * processed (e.g. {@code [2/5] novel.pdf}). With no label the output is identical to the original
- * single-file format.
+ * processed (e.g. {@code [2/5] novel.pdf}). With no label the lines carry no prefix.
  */
 public class ConsoleProgressListener implements ProgressListener {
 

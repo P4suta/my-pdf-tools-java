@@ -6,12 +6,11 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 
 /**
- * Output-directory preparation shared by every corpus-walking pipeline: create the directory when
- * absent, but refuse to scribble over a non-empty one unless the caller passed {@code force}.
+ * Output-directory preparation: create the directory when absent, but refuse a non-empty one unless
+ * the caller passed {@code force}.
  *
- * <p>The "is not empty; pass {@code --force}" message is part of the apps' observable contract —
- * register's and despeckle's end-to-end and unit tests assert it verbatim — so it is reproduced
- * here character-for-character and must not be reworded.
+ * <p>The "is not empty; pass {@code --force}" message is asserted verbatim by app tests; do not
+ * reword it.
  */
 public final class OutputDirs {
 

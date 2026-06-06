@@ -4,16 +4,14 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The abstract base each app's domain exception (tate's {@code SpreadException}, register's {@code
- * RegisterException}, despeckle's {@code DespeckleException}) extends: an unchecked exception
- * tagging every failure with an {@link ErrorCategory} kind plus a user-facing message and an
- * optional technical detail.
+ * The abstract base each app's domain exception extends: an unchecked exception tagging every
+ * failure with an {@link ErrorCategory} kind plus a user-facing message and an optional technical
+ * detail.
  *
- * <p>Unchecked: it propagates to the CLI boundary, where the shared mapper turns the kind into an
- * exit code and log level. Subclasses expose the {@code of(kind)} / {@code of(kind, cause)} /
- * {@code withDetail(kind, detail, cause)} factory shape over the protected constructor (a base
- * class cannot return the subclass type from a static factory). Generalized from tate's {@code
- * SpreadException}.
+ * <p>Unchecked: it propagates to the CLI boundary, where the mapper turns the kind into an exit
+ * code and log level. Subclasses expose the {@code of(kind)} / {@code of(kind, cause)} / {@code
+ * withDetail(kind, detail, cause)} factory shape over the protected constructor, since a base class
+ * cannot return the subclass type from a static factory.
  */
 public abstract class BaseAppException extends RuntimeException {
 
@@ -57,7 +55,7 @@ public abstract class BaseAppException extends RuntimeException {
 
     /**
      * Builds the {@code [NAME] userMessage (detail)} throwable message subclasses pass to {@code
-     * super}; shared so every app exception renders identically.
+     * super}.
      *
      * @param kind the failure category
      * @param userMessage the user-facing message

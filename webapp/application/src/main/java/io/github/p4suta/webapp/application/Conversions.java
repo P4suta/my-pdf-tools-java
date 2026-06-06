@@ -36,8 +36,8 @@ import org.slf4j.MDC;
  * FAILED} state. {@link #get} and {@link #result} answer status and download lookups.
  *
  * <p>Framework-free and synchronous from this class's point of view: all asynchrony lives behind
- * the {@link ConversionExecutor} port, so a test with a synchronous executor exercises the whole
- * task inline.
+ * the {@link ConversionExecutor} port, so a test with a synchronous executor runs the whole task
+ * inline.
  */
 public final class Conversions {
 
@@ -179,10 +179,7 @@ public final class Conversions {
         // Bind the job id to the worker thread's MDC for the whole conversion so every log line
         // (the
         // engine's included) carries the correlation id. try-with-resources removes it on every
-        // exit,
-        // so the next job on this reused worker thread never inherits a stale id. (`_` is the
-        // unnamed
-        // resource — it is only held for its close().)
+        // exit, so the next job on this reused worker thread never inherits a stale id.
         try (var _ = MDC.putCloseable("jobId", id.value())) {
             @Nullable Job queued = store.find(id).orElse(null);
             if (queued == null) {
@@ -191,9 +188,10 @@ public final class Conversions {
             Job running = queued.toRunning();
             store.save(running);
 
-            // Dedup for free: an identical job that queued ahead of this one may have populated the
-            // cache while it waited (a single worker runs them sequentially), so reuse that output
-            // instead of invoking pdfbook again. completeFromCache also closes the SSE stream.
+            // Dedup: an identical job that queued ahead of this one may have populated the cache
+            // while it waited (a single worker runs them sequentially), so reuse that output
+            // instead
+            // of invoking pdfbook again. completeFromCache also closes the SSE stream.
             if (completeFromCache(id, key)) {
                 return;
             }

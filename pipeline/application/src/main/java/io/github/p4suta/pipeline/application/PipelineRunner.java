@@ -34,14 +34,9 @@ public final class PipelineRunner {
     private static final Logger log = LoggerFactory.getLogger(PipelineRunner.class);
 
     /**
-     * Runs {@code source -> stages -> sink}, writing the result to {@code output}, reporting no
-     * progress. Equivalent to {@link #run(Source, List, Sink, Path, ProgressSink)} with {@link
-     * ProgressSink#NO_OP}.
+     * Runs {@code source -> stages -> sink} writing to {@code output} with no progress reporting:
+     * {@link #run(Source, List, Sink, Path, ProgressSink)} with {@link ProgressSink#NO_OP}.
      *
-     * @param source produces the initial corpus
-     * @param stages the filters applied in order
-     * @param sink writes the final corpus to {@code output}
-     * @param output the single output file
      * @throws IOException if any step fails
      */
     public void run(Source source, List<Stage> stages, Sink sink, Path output) throws IOException {

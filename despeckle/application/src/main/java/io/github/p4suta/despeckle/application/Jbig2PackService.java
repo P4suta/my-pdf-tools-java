@@ -18,15 +18,13 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Packs a directory of already-cleaned bitonal pages into a lossless-JBIG2 PDF — the {@code
- * despeckle topdf} back end, and the pure-Java replacement for {@code just to-pdf} ({@code
- * jbig2-pdf.py}). It is the tail of the {@code despeckle <in> <out>} image-mode flow: clean a
- * directory of pages, then roll them into one PDF. Each page keeps its own resolution unless a
- * single {@code --dpi} is forced; a source scan can be supplied to inherit its metadata. Finished
- * with the {@link PdfLinearizer} pass.
+ * despeckle topdf} back end and the tail of the {@code despeckle <in> <out>} image-mode flow. Each
+ * page keeps its own resolution unless a single {@code --dpi} is forced; a source scan can be
+ * supplied to inherit its metadata. Finished with the {@link PdfLinearizer} pass.
  *
- * <p>(The full PDF &rarr; PDF path is {@link PdfPipelineService}; this is just its repack stage,
- * exposed for the image-mode flow.) The assembly and linearization steps are reached only through
- * injected ports, so this service stays free of {@code :infrastructure}.
+ * <p>The full PDF &rarr; PDF path is {@link PdfPipelineService}; this is its repack stage, exposed
+ * for the image-mode flow. The assembly and linearization steps are reached only through injected
+ * ports, so this service stays free of {@code :infrastructure}.
  */
 public final class Jbig2PackService {
 
@@ -35,12 +33,7 @@ public final class Jbig2PackService {
     private final Jbig2Assembler assembler;
     private final PdfLinearizer linearizer;
 
-    /**
-     * Create a JBIG2 pack service over the injected adapters.
-     *
-     * @param assembler the JBIG2 PDF-assembly port
-     * @param linearizer the PDF linearization port
-     */
+    /** Create a JBIG2 pack service over the injected adapters. */
     public Jbig2PackService(Jbig2Assembler assembler, PdfLinearizer linearizer) {
         this.assembler = assembler;
         this.linearizer = linearizer;
@@ -49,12 +42,8 @@ public final class Jbig2PackService {
     /**
      * One image-directory &rarr; PDF run.
      *
-     * @param imageDir the directory of cleaned bitonal pages
-     * @param outPdf the lossless-JBIG2 PDF to write
      * @param source a source scan whose metadata/version is inherited, or {@code null}
      * @param dpi a single DPI to size every page with, or empty to read each image's own
-     * @param jobs worker threads
-     * @param force whether to overwrite an existing output PDF
      */
     public record Config(
             Path imageDir,
@@ -67,7 +56,6 @@ public final class Jbig2PackService {
     /**
      * Pack the images.
      *
-     * @param config the run configuration
      * @throws IOException on a missing input, a failed external tool, or a write failure
      */
     public void run(Config config) throws IOException {

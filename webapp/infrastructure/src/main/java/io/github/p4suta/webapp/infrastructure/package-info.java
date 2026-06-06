@@ -6,7 +6,7 @@
  * io.github.p4suta.webapp.infrastructure.FilesystemWorkspace} (per-job directories), {@link
  * io.github.p4suta.webapp.infrastructure.BoundedConversionExecutor} (a single worker over a bounded
  * queue), and {@link io.github.p4suta.webapp.infrastructure.UuidJobIdGenerator}. No Spring and no
- * FFM — pdfbook runs out-of-process, so this layer never touches the pipeline's code.
+ * FFM: pdfbook runs out-of-process, so this layer never touches the pipeline's code.
  */
 @NullMarked
 package io.github.p4suta.webapp.infrastructure;

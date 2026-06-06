@@ -28,7 +28,7 @@ class SubprocessConversionEngineTest {
 
     // Writes runStarted + stageStarted, sleeps past one poll, then stageCompleted + runCompleted
     // and
-    // the result — so both the in-loop drain and the post-exit final drain are exercised.
+    // the result, so both the in-loop drain and the post-exit final drain are exercised.
     private static final String SLOW_SUCCESS =
             """
             #!/usr/bin/env bash

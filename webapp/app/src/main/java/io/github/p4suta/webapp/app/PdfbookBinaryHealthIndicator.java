@@ -6,9 +6,9 @@ import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 
 /**
- * Reports {@code DOWN} if the resolved pdfbook binary is no longer an executable file — the server
- * is up but cannot convert. (Resolution happened at startup; this catches a binary that vanished or
- * lost its executable bit while the server runs.)
+ * Reports {@code DOWN} if the resolved pdfbook binary is no longer an executable file: the server
+ * is up but cannot convert. Catches a binary that vanished or lost its executable bit after
+ * startup.
  */
 final class PdfbookBinaryHealthIndicator implements HealthIndicator {
 

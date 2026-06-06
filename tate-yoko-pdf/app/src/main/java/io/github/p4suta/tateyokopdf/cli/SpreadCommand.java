@@ -28,12 +28,11 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Accepts one or more inputs (files, directories, or {@code -} for stdin), resolves them to
  * concrete PDFs via the shared {@link InputResolver}, and runs {@link FileConversion} for each.
- * Diagnostics and progress go to stderr; with {@code -o -} the converted PDF is streamed to stdout
- * as a clean binary stream. The stdin/stdout temp-file bridge ({@link StdinSource}, {@link
- * OutputTarget}), the continue-on-error batch loop ({@link BatchDriver}), and the throwable&rarr;
- * exit-code handler ({@link CliExceptionHandler}) are the shared {@code
- * io.github.p4suta.shared.cli} scaffolding; tate keeps only its own option model, help text, {@code
- * --version} string, argument interpretation ({@link CliArguments}), and this composition root.
+ * Diagnostics and progress go to stderr; with {@code -o -} the converted PDF is streamed to stdout.
+ * The stdin/stdout temp-file bridge ({@link StdinSource}, {@link OutputTarget}), the
+ * continue-on-error batch loop ({@link BatchDriver}), and the throwable&rarr;exit-code handler
+ * ({@link CliExceptionHandler}) come from the shared {@code io.github.p4suta.shared.cli}
+ * scaffolding.
  */
 public final class SpreadCommand {
 
@@ -42,7 +41,7 @@ public final class SpreadCommand {
 
     private SpreadCommand() {}
 
-    // ---- entry points -------------------------------------------------------
+    // Entry points
 
     public static void main(String[] args) {
         runCli(args);
@@ -87,7 +86,7 @@ public final class SpreadCommand {
         }
     }
 
-    // ---- orchestration ------------------------------------------------------
+    // Orchestration
 
     private static int execute(CliArguments args) throws IOException, ParseException {
         // Composition root: assemble the pipeline once, then dispatch per input.
@@ -116,17 +115,17 @@ public final class SpreadCommand {
             throw new ParseException("no PDF files found in the given inputs");
         }
 
-        // Single input: fail-fast — let the exception bubble up to run()'s mapper.
+        // Single input: let the exception bubble up to run()'s mapper.
         if (files.size() == 1) {
             Path input = files.get(0);
             conversion.convert(input, singleOutput(input, outputOpt), null);
             return CliExitCodes.OK;
         }
 
-        // Batch: continue-on-error via the shared BatchDriver. It aggregates failures and reports
-        // one "Error[KIND] <path>: <message>" line per failure. The driver returns the first
-        // failure's sysexits-flavored exit code, but tate's CLI contract is a flat GENERIC_ERROR
-        // (1) on any batch failure, so we collapse the driver's non-zero aggregate back to 1 below.
+        // Batch: continue-on-error via the shared BatchDriver, which reports one
+        // "Error[KIND] <path>: <message>" line per failure and returns a sysexits-flavored code.
+        // tate's CLI contract is a flat GENERIC_ERROR (1) on any batch failure, so the driver's
+        // non-zero aggregate is collapsed to 1 below.
         if ("-".equals(outputOpt)) {
             throw new ParseException("cannot write multiple inputs to stdout ('-o -')");
         }
@@ -135,16 +134,13 @@ public final class SpreadCommand {
         List<BatchItem> items = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
             Path input = files.get(i);
-            // Precompute the "[i/n] filename" progress prefix here, since the BatchDriver processor
-            // (unlike its labeler) gets only the item — bundling it keeps the
-            // ConsoleProgressListener
-            // prefix that batch runs have always shown.
+            // Precompute the "[i/n] filename" progress prefix and bundle it into the item: the
+            // BatchDriver processor (unlike its labeler) gets only the item.
             String progress = "[" + (i + 1) + "/" + total + "] " + input.getFileName();
             items.add(new BatchItem(input, batchOutput(input, outDir), progress));
         }
-        // The labeler renders the raw path for the per-failure error line ("Error[KIND] <path>:
-        // <message>"), matching tate's prior batch reporting; the processor threads the precomputed
-        // progress prefix into the ConsoleProgressListener.
+        // The labeler renders the raw path for the per-failure error line; the processor threads
+        // the precomputed progress prefix into the ConsoleProgressListener.
         int code =
                 new BatchDriver<BatchItem>()
                         .run(
@@ -153,7 +149,6 @@ public final class SpreadCommand {
                                 item ->
                                         conversion.convert(
                                                 item.input(), item.target(), item.progressLabel()));
-        // Map any failure (the driver's sysexits aggregate) back to tate's flat GENERIC_ERROR (1).
         return code == CliExitCodes.OK ? CliExitCodes.OK : CliExitCodes.GENERIC_ERROR;
     }
 
@@ -163,7 +158,7 @@ public final class SpreadCommand {
      */
     private record BatchItem(Path input, OutputTarget target, String progressLabel) {}
 
-    // ---- output resolution --------------------------------------------------
+    // Output resolution
 
     private static OutputTarget singleOutput(Path input, @Nullable String outputOpt) {
         if (outputOpt == null) {
@@ -198,7 +193,7 @@ public final class SpreadCommand {
         return OutputTarget.file(outDir.resolve(name));
     }
 
-    // ---- options & help -----------------------------------------------------
+    // Options and help
 
     private static Options buildOptions() {
         Options options = new Options();
@@ -285,17 +280,13 @@ public final class SpreadCommand {
     }
 
     private static void configureVerboseLogging() {
-        // slf4j-simple is the binding (matching register/despeckle). Unlike Logback it has no
-        // mutable LoggerContext: its per-logger threshold is read live from the
-        // `org.slf4j.simpleLogger.log.<name>` system property the first time each logger is
-        // constructed (SimpleLogger's constructor calls recursivelyComputeLevelString(), which
-        // reads System.getProperty for that key, walking up the dotted name). The `defaultLogLevel`
-        // property is cached at first-init and would be a dead write here, because
-        // FatalUncaughtHandler's static logger already initialized slf4j-simple in Main before this
-        // runs. So we scope DEBUG to the app's own + shared loggers via the live per-logger key;
-        // every io.github.p4suta.* logger is built later (during execute()), after this set. This
-        // is a deliberate, minor delta from the old root-DEBUG behavior: third-party loggers
-        // (PDFBox etc.) stay at their default level instead of going DEBUG too.
+        // slf4j-simple reads each logger's threshold live from the
+        // `org.slf4j.simpleLogger.log.<name>` system property when that logger is first constructed
+        // (walking up the dotted name). `defaultLogLevel` is cached at first-init, so setting it
+        // here is a dead write: FatalUncaughtHandler's static logger already initialized
+        // slf4j-simple in Main. Scope DEBUG to the app's own + shared loggers via the per-logger
+        // key; every io.github.p4suta.* logger is built later (during execute()), after this set.
+        // Third-party loggers (PDFBox etc.) stay at their default level.
         System.setProperty("org.slf4j.simpleLogger.log.io.github.p4suta", "debug");
     }
 }

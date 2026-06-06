@@ -15,29 +15,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The single unsafe island: every Foreign Function &amp; Memory binding to the system Leptonica
- * library lives here. All other classes work in terms of {@link Pix} and never touch a raw {@link
- * MethodHandle} or {@link MemorySegment}.
+ * Every Foreign Function &amp; Memory binding to the system Leptonica library, behind one {@link
+ * MethodHandle} cache and one library loader. Other classes work in terms of {@link Pix} and never
+ * touch a raw {@link MethodHandle} or {@link MemorySegment}.
  *
- * <p>This is the UNION of the two formerly-separate per-app islands: register's projection-profile
- * / geometry / deskew / scale symbols and despeckle's size-select / morphology / boolean / counting
- * symbols, behind ONE {@link MethodHandle} cache and ONE library loader.
+ * <p>The constants below are the literal values from the Leptonica 1.82.0 headers ({@code
+ * imageio.h}, {@code environ.h}, {@code rasterop.h}, {@code rotate.h}, {@code pix.h}); re-confirm
+ * them if the pinned Leptonica version changes.
  *
- * <p>Verified against Leptonica 1.82.0 ({@code liblept.so.5}) on {@code eclipse-temurin:25-jdk}.
- * The constants below are the literal values from the shipped headers ({@code imageio.h}, {@code
- * environ.h}, {@code rasterop.h}, {@code rotate.h}, {@code pix.h}); they are NOT guessed and must
- * be re-confirmed if the pinned Leptonica version ever changes.
- *
- * <p>This is the one class permitted to call FFM's restricted methods ({@code System.load}, {@code
- * Linker.downcallHandle}); the class-level {@code @SuppressWarnings("restricted")} scopes that
- * exemption here, so a stray restricted call anywhere else still fails the {@code -Werror} build.
+ * <p>The class-level {@code @SuppressWarnings("restricted")} scopes the FFM restricted-method
+ * exemption ({@code System.load}, {@code Linker.downcallHandle}) here, so a restricted call
+ * elsewhere still fails the {@code -Werror} build.
  */
 @SuppressWarnings("restricted")
 final class Leptonica {
 
     private Leptonica() {}
 
-    // ----- image file formats (imageio.h) -----
+    // image file formats (imageio.h)
     /** PNG. */
     static final int IFF_PNG = 3;
 
@@ -51,12 +46,11 @@ final class Leptonica {
     static final int IFF_PNM = 11;
 
     /**
-     * WebP. Written via {@link #pixWriteWebP} (lossless) rather than the generic {@code pixWrite},
-     * whose WebP path defaults to lossy.
+     * WebP. Use {@link #pixWriteWebP} (lossless); the generic {@code pixWrite} defaults to lossy.
      */
     static final int IFF_WEBP = 15;
 
-    // ----- size-selection flags (pix.h) -----
+    // size-selection flags (pix.h)
     /** Select on width. */
     static final int L_SELECT_WIDTH = 1;
 
@@ -72,19 +66,19 @@ final class Leptonica {
     /** Relation: keep if value is greater than the threshold. */
     static final int L_SELECT_IF_GT = 2;
 
-    // ----- message severity (environ.h) -----
+    // message severity (environ.h)
     /** Highest severity: suppress all Leptonica diagnostics. */
     static final int L_SEVERITY_NONE = 6;
 
-    // ----- 8-connectivity for connected-component analysis -----
+    // connectivity
     /** 8-connectivity (diagonal neighbors count) for connected-component analysis. */
     static final int CONN_8 = 8;
 
-    // ----- rasterop op codes (rasterop.h) -----
+    // rasterop op codes (rasterop.h)
     /** Copy the source over the destination ({@code PIX_SRC == 0xc} in rasterop.h). */
     static final int PIX_SRC = 0xc;
 
-    // ----- rotation modes (rotate.h) -----
+    // rotation modes (rotate.h)
     /** Rotate by sampling — keeps a 1 bpp image 1 bpp (no greyscale area-map). */
     static final int L_ROTATE_SAMPLING = 3;
 
@@ -94,18 +88,15 @@ final class Leptonica {
     /** The primary system property to override the resolved Leptonica library path. */
     static final String LIB_PATH_PROPERTY = "p4suta.leptonica.path";
 
-    // Ordered library-path override fallback. The unified property is primary; the two legacy
-    // per-app properties are honored next so a packaged register / despeckle distribution that
-    // still sets `-Dregister.leptonica.path=...` / `-Ddespeckle.leptonica.path=...` keeps resolving
-    // after it migrates onto this shared island. After these, the standard multiarch locations are
-    // probed.
+    // Override properties in priority order: the unified property first, then the per-app
+    // `register.leptonica.path` / `despeckle.leptonica.path` so a packaged distribution that sets
+    // them keeps resolving. The standard multiarch locations are probed after these.
     private static final List<String> LIB_PATH_PROPERTIES =
             List.of(LIB_PATH_PROPERTY, "register.leptonica.path", "despeckle.leptonica.path");
 
-    // Load the library into this process, then look symbols up against the
-    // loader. This is the non-deprecated counterpart to libraryLookup, which
-    // JDK 25 marks for removal. System.load wants an absolute path, so we
-    // resolve the versioned soname across the standard multiarch locations.
+    // System.load + loaderLookup, the non-deprecated counterpart to libraryLookup (which JDK 25
+    // marks for removal). System.load wants an absolute path, so resolveLibraryPath resolves the
+    // versioned soname across the standard multiarch locations.
     private static final SymbolLookup LEPT = loadLeptonica();
     private static final Linker LINKER = Linker.nativeLinker();
 
@@ -143,9 +134,8 @@ final class Leptonica {
                     default -> null;
                 };
         List<String> candidates = new ArrayList<>();
-        // The runtime package ships the versioned soname; the -dev package adds
-        // the bare symlink. Prefer the versioned name so a runtime-only image
-        // (no -dev) still resolves.
+        // The runtime package ships the versioned soname; the bare symlink comes from the -dev
+        // package. Prefer the versioned name so a runtime-only image (no -dev) still resolves.
         for (String soname : List.of("liblept.so.5", "liblept.so")) {
             if (triplet != null) {
                 candidates.add("/usr/lib/" + triplet + "/" + soname);
@@ -167,7 +157,7 @@ final class Leptonica {
         return LINKER.downcallHandle(symbol, descriptor);
     }
 
-    // ----- pix lifecycle / metadata -----
+    // pix lifecycle / metadata
     private static final MethodHandle PIX_READ =
             handle("pixRead", FunctionDescriptor.of(ADDRESS, ADDRESS));
     private static final MethodHandle PIX_WRITE =
@@ -191,7 +181,7 @@ final class Leptonica {
                     "pixSetResolution",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
 
-    // ----- projection profiles (NUMA of per-row / per-column ink counts) -----
+    // projection profiles (NUMA of per-row / per-column ink counts)
     private static final MethodHandle PIX_COUNT_PIXELS_BY_ROW =
             handle("pixCountPixelsByRow", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
     private static final MethodHandle PIX_COUNT_PIXELS_BY_COLUMN =
@@ -203,7 +193,7 @@ final class Leptonica {
     private static final MethodHandle NUMA_DESTROY =
             handle("numaDestroy", FunctionDescriptor.ofVoid(ADDRESS));
 
-    // ----- geometry: crop, canvas, blit -----
+    // geometry: crop, canvas, blit
     private static final MethodHandle BOX_CREATE =
             handle(
                     "boxCreate",
@@ -221,7 +211,7 @@ final class Leptonica {
                             JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT,
                             ADDRESS, JAVA_INT, JAVA_INT));
 
-    // ----- deskew + scale -----
+    // deskew + scale
     private static final MethodHandle PIX_ROTATE_ORTH =
             handle("pixRotateOrth", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT));
     private static final MethodHandle PIX_DESKEW =
@@ -236,7 +226,7 @@ final class Leptonica {
                     FunctionDescriptor.of(
                             ADDRESS, ADDRESS, JAVA_FLOAT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
 
-    // ----- boolean / morphology / size-select / counting -----
+    // boolean / morphology / size-select / counting
     private static final MethodHandle PIX_INVERT =
             handle("pixInvert", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
     private static final MethodHandle PIX_SUBTRACT =
@@ -270,8 +260,8 @@ final class Leptonica {
             handle("setMsgSeverity", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
 
     static {
-        // Silence Leptonica's stderr chatter once, at class-load time. The
-        // previous severity it returns is irrelevant, so we discard it.
+        // Suppress Leptonica's stderr diagnostics once, at class load. The returned previous
+        // severity is discarded.
         try {
             SET_MSG_SEVERITY.invoke(L_SEVERITY_NONE);
         } catch (Throwable t) {
@@ -279,7 +269,7 @@ final class Leptonica {
         }
     }
 
-    // ----- pix lifecycle / metadata -----
+    // pix lifecycle / metadata
 
     /** Read an image file, returning the raw {@code PIX *} (0 on failure). */
     static MemorySegment pixRead(MemorySegment filename) {
@@ -301,9 +291,8 @@ final class Leptonica {
 
     /**
      * Write {@code pix} to {@code filename} as WebP; returns 0 on success. The dedicated WebP
-     * writer (not the generic {@link #pixWrite}, whose WebP path is lossy by default) so {@code
-     * lossless} is honored. With {@code lossless != 0}, {@code quality} is the libwebp lossless
-     * effort level.
+     * writer (not the generic {@link #pixWrite}, which is lossy by default), so {@code lossless} is
+     * honored. With {@code lossless != 0}, {@code quality} is the libwebp lossless effort level.
      */
     static int pixWriteWebP(MemorySegment filename, MemorySegment pix, int quality, int lossless) {
         try {
@@ -364,7 +353,7 @@ final class Leptonica {
         }
     }
 
-    // ----- projection profiles -----
+    // projection profiles
 
     /** A {@code NUMA *} of the per-row foreground-pixel counts ({@code tab8} may be NULL). */
     static MemorySegment pixCountPixelsByRow(MemorySegment pix) {
@@ -410,7 +399,7 @@ final class Leptonica {
         }
     }
 
-    // ----- geometry -----
+    // geometry
 
     /** Allocate a {@code BOX} with the given geometry. */
     static MemorySegment boxCreate(int x, int y, int w, int h) {
@@ -468,7 +457,7 @@ final class Leptonica {
         }
     }
 
-    // ----- deskew + scale -----
+    // deskew + scale
 
     /** Rotate {@code pixs} by {@code quads} 90-degree turns clockwise into a fresh {@code PIX}. */
     static MemorySegment pixRotateOrth(MemorySegment pixs, int quads) {
@@ -481,9 +470,8 @@ final class Leptonica {
 
     /**
      * Deskew {@code pixs} into a fresh {@code PIX}, or a clone if no reliable skew was found.
-     * {@code redsearch} of 0 selects Leptonica's default reduction. Retained as part of the union
-     * of all native symbols; the confidence-gated deskew <em>policy</em> that uses it lives
-     * app-side.
+     * {@code redsearch} of 0 selects Leptonica's default reduction. The confidence-gated deskew
+     * policy that uses it lives app-side.
      */
     static MemorySegment pixDeskew(MemorySegment pixs, int redsearch) {
         try {
@@ -527,7 +515,7 @@ final class Leptonica {
         }
     }
 
-    // ----- boolean / morphology / size-select / counting -----
+    // boolean / morphology / size-select / counting
 
     /** Invert {@code src} into a fresh {@code PIX} (the {@code pixd == NULL} path). */
     static MemorySegment pixInvert(MemorySegment src) {

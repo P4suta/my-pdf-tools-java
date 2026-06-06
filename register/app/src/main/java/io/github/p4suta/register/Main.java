@@ -12,8 +12,6 @@ public final class Main {
      * CLI entry point: install the fatal uncaught-exception handler, parse and run, then translate
      * the result into a process exit code. All argument parsing and terminal output live in {@link
      * RegisterCommand}.
-     *
-     * @param args command-line arguments
      */
     public static void main(String[] args) {
         Thread.setDefaultUncaughtExceptionHandler(new FatalUncaughtHandler());

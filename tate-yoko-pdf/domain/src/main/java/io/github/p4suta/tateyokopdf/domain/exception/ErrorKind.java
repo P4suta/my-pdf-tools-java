@@ -6,14 +6,13 @@ import io.github.p4suta.shared.kernel.error.Severity;
 /**
  * The taxonomy of failures the conversion can surface. Each kind carries a default Japanese
  * user-facing message, a {@code clientFault} flag (true = caused by the input or usage, false =
- * internal or environmental), a sysexits-flavored process exit code, and a {@link Severity} — the
- * exit code and severity that used to live in the observability mapper's {@code EnumMap} now sit ON
- * the constant, so this enum implements {@link ErrorCategory} directly. The shared {@code
+ * internal or environmental), a sysexits-flavored process exit code, and a {@link Severity}. The
+ * exit code and severity sit on the constant via {@link ErrorCategory}; the shared {@code
  * ExceptionMapper} reads {@link #exitCode()}/{@link #severity()} off the category. README's
  * troubleshooting table is keyed by these names.
  *
- * <p>Per the section&nbsp;1.3 invariant of the error-model spec, {@link Severity#WARN} pairs with a
- * client fault and {@link Severity#ERROR} with an internal/environmental one.
+ * <p>Invariant: {@link Severity#WARN} pairs with a client fault and {@link Severity#ERROR} with an
+ * internal/environmental one.
  */
 public enum ErrorKind implements ErrorCategory {
     PDF_CORRUPTED("PDFを読み込めませんでした。ファイルが破損している可能性があります。", true, 65, Severity.WARN),

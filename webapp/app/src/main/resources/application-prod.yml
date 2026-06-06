@@ -12,9 +12,8 @@ server:
     include-stacktrace: never
     include-binding-errors: never
 
-# Hide the API docs in production: the OpenAPI JSON and Swagger UI enumerate every endpoint and are a
-# free recon surface on an exposed instance. They stay on in dev (application.yml keeps the springdoc
-# defaults).
+# Hide the API docs in production: the OpenAPI JSON and Swagger UI enumerate every endpoint, a recon
+# surface on an exposed instance. They stay on in dev (application.yml keeps the springdoc defaults).
 springdoc:
   api-docs:
     enabled: false
@@ -26,16 +25,15 @@ management:
     web:
       exposure:
         # Only health is exposed in prod (dev also serves info/metrics/prometheus). Metrics and the
-        # Prometheus scrape are recon/abuse surface with no auth; serve them via a private management
-        # port or behind authentication before re-enabling on an exposed instance.
+        # Prometheus scrape are a recon/abuse surface with no auth; serve them via a private
+        # management port or behind authentication before re-enabling on an exposed instance.
         include: health
   endpoint:
     health:
       # The prod container binds 0.0.0.0 with no auth, so do not leak health details (binary paths,
-      # work dir, queue internals). With no Spring Security on the classpath, "when-authorized"
-      # resolves to never showing details (there is never an authenticated principal) — i.e. only
-      # UP/DOWN, the safe posture. Tighten further (separate loopback management port, real auth)
-      # before any LAN exposure.
+      # work dir, queue internals). With no Spring Security on the classpath there is never an
+      # authenticated principal, so "when-authorized" never shows details — only UP/DOWN. Tighten
+      # further (separate loopback management port, real auth) before any LAN exposure.
       show-details: when-authorized
 
 logging:

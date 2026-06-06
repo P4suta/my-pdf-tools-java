@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Exercises {@link BaseAppException} through a concrete test subclass that mirrors the {@code
  * of(kind)} / {@code of(kind, cause)} / {@code withDetail(kind, detail, cause)} factory shape each
- * app's domain exception (tate's {@code SpreadException} etc.) exposes over the protected
- * constructor. The base is abstract, so the factories live on the subclass.
+ * app's domain exception exposes over the protected constructor. The base is abstract, so the
+ * factories live on the subclass.
  */
 final class BaseAppExceptionTest {
 

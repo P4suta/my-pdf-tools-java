@@ -25,7 +25,6 @@ public interface Reporter {
      * Record one rendered page: draw its overlay from the deskewed page on disk and remember its
      * diagnostic for the end-of-run report.
      *
-     * @param diagnostic the page's recorded state
      * @param deskewedPage the deskewed page on disk (the scratch the render pass read back)
      * @throws IOException if the overlay cannot be written
      */
@@ -34,7 +33,6 @@ public interface Reporter {
     /**
      * Write the corpus artifacts tying the run's pages together.
      *
-     * @param info the run settings and the derived per-parity references
      * @param outputs the registered output image paths in reading order (flip-book frames)
      * @throws IOException if an artifact cannot be written
      */
@@ -43,8 +41,6 @@ public interface Reporter {
     /**
      * A pass-through reporter that records nothing and writes nothing — the {@code null}-object the
      * application uses when diagnostics are disabled.
-     *
-     * @return a no-op reporter
      */
     static Reporter noOp() {
         return new Reporter() {

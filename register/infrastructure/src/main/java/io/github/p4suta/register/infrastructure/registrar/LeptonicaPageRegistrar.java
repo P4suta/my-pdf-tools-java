@@ -49,9 +49,8 @@ public final class LeptonicaPageRegistrar implements PageRegistrar {
     public PageAnalysis analyze(
             Path source, Path deskewedScratch, RegisterOptions options, boolean recordSkew) {
         try (Pix page = Pix.read(source)) {
-            // Capture the format from the ORIGINAL page: deskew produces a fresh PIX that has lost
-            // it
-            // (SAME -> unknown), and so does the bitonal scratch we write below.
+            // Capture the format from the original page: deskew produces a fresh Pix that has lost
+            // it (SAME -> unknown), as does the bitonal scratch written below.
             int sourceFormat = page.inputFormat();
             int dpi = effectiveDpi(page.resolution(), options);
             if (!options.deskew()) {
@@ -134,11 +133,6 @@ public final class LeptonicaPageRegistrar implements PageRegistrar {
      * Write {@code pix} in the requested {@link OutputFormat} via {@link Pix}'s named writers, so
      * no Leptonica {@code IFF_*} code is named app-side. {@code SAME} threads the page's source
      * format (a derived Pix reports {@code inputFormat()==0}, so it is passed explicitly).
-     *
-     * @param pix the placed canvas
-     * @param output the destination path
-     * @param format the desired output format
-     * @param sourceFormat the {@code IFF_*} the page was read from (for {@link OutputFormat#SAME})
      */
     private static void writeIn(Pix pix, Path output, OutputFormat format, int sourceFormat) {
         switch (format) {

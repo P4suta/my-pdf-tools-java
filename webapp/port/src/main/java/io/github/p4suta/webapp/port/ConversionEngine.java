@@ -8,8 +8,7 @@ import java.nio.file.Path;
 /**
  * Runs one pdfbook conversion: reads {@code inputPdf}, writes the composed book to {@code
  * outputPdf}, and reports lifecycle/progress events into {@code progress}. The production adapter
- * shells out to the packaged pdfbook binary (process isolation), so a native crash cannot take down
- * the server.
+ * shells out to the packaged pdfbook binary, so a native crash cannot take down the server.
  */
 public interface ConversionEngine {
 

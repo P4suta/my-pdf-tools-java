@@ -6,16 +6,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Default {@link Thread.UncaughtExceptionHandler} for the whole JVM. Ensures any thread that dies
- * with an unhandled throwable still emits an ERROR log line (rather than vanishing into a bare
- * stderr stack trace) and, on {@link OutOfMemoryError}, exits {@code 137} via the injected {@code
- * exit} consumer so the process terminates with a meaningful code instead of limping on in a
- * corrupted state. The entry point installs this via {@link
- * Thread#setDefaultUncaughtExceptionHandler(Thread.UncaughtExceptionHandler)}.
+ * Default {@link Thread.UncaughtExceptionHandler} for the whole JVM. Any thread that dies with an
+ * unhandled throwable emits an ERROR log line and, on {@link OutOfMemoryError}, exits {@code 137}
+ * via the injected {@code exit} consumer rather than limping on in a corrupted state. Install via
+ * {@link Thread#setDefaultUncaughtExceptionHandler(Thread.UncaughtExceptionHandler)}.
  *
  * <p>The OOM exit code is sourced from {@link CommonErrorKind#OUT_OF_MEMORY} so it stays in
- * lockstep with the shared error model rather than a duplicated local constant. Generalized from
- * tate-yoko-pdf's handler (the deduplicated register/despeckle shape).
+ * lockstep with the shared error model rather than a duplicated local constant.
  */
 public final class FatalUncaughtHandler implements Thread.UncaughtExceptionHandler {
 

@@ -10,16 +10,13 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Runs a list of items continue-on-error: each item is processed independently, an item's failure
- * is classified through the shared {@link ExceptionMapper} and reported (one {@code Error[KIND]
- * <item>: <message>} line, paths already masked), and the loop carries on. The run as a whole then
- * returns the exit code carried by the FIRST failure's {@link
- * io.github.p4suta.shared.kernel.error.ErrorCategory} — a real sysexits code, since the flat {@code
- * GENERIC} (1) bucket is retired across these CLIs — or {@link ExitCodes#OK} when every item
- * succeeded.
+ * is classified through {@link ExceptionMapper} and reported (one {@code Error[KIND] <item>:
+ * <message>} line, paths already masked), and the loop carries on. The run returns the exit code
+ * carried by the first failure's {@link io.github.p4suta.shared.kernel.error.ErrorCategory}, or
+ * {@link ExitCodes#OK} when every item succeeded.
  *
- * <p>Generalizes tate-yoko-pdf's {@code SpreadCommand} batch loop. The item type {@code T} is the
- * app's unit of work (a {@link java.nio.file.Path}, a parsed job record, …); the caller supplies
- * how to label and how to process one item.
+ * <p>The item type {@code T} is the app's unit of work (a {@link java.nio.file.Path}, a parsed job
+ * record, …); the caller supplies how to label and how to process one item.
  *
  * @param <T> the per-item unit of work
  */

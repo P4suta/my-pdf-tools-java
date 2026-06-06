@@ -31,10 +31,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * The pdfbook web API. Thin: it parses and validates the request, hands the work to the
- * framework-free {@link Conversions} use cases, and shapes the response — all business rules live
- * below. Failures surface as the domain's typed exceptions, which {@link ApiExceptionHandler} maps
- * to status codes.
+ * The pdfbook web API. Parses and validates the request, hands the work to the framework-free
+ * {@link Conversions} use cases, and shapes the response; business rules live below. Failures
+ * surface as the domain's typed exceptions, which {@link ApiExceptionHandler} maps to status codes.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -108,7 +107,7 @@ public class JobController {
     /**
      * Probes the result cache so a client can skip uploading a file whose conversion is already
      * cached. Given the SHA-256 of the PDF and the same options it would submit, a hit mints a
-     * ready job and returns it; a miss returns 204 so the client uploads via {@link #submit}.
+     * ready job and returns it; a miss returns 204, and the client uploads via {@link #submit}.
      *
      * @param body the content hash and conversion options
      * @return the ready job on a hit, or {@code 204 No Content} on a miss
@@ -170,9 +169,8 @@ public class JobController {
 
     /**
      * Downloads job {@code id}'s finished book PDF. The optional trailing {@code filename} segment
-     * is ignored — it lets the SPA put the book's name at the end of the URL so a browser
-     * previewing the {@code inline} PDF downloads it as {@code <book>_book.pdf} rather than a
-     * generic name.
+     * is ignored; it lets the SPA put the book's name at the end of the URL so a browser previewing
+     * the {@code inline} PDF downloads it as {@code <book>_book.pdf} rather than a generic name.
      *
      * @param id the job id
      * @return the PDF, served inline with the book filename in the Content-Disposition
@@ -186,8 +184,8 @@ public class JobController {
         Job job = conversions.get(jobId);
         Path result = conversions.result(jobId);
         return ResponseEntity.ok()
-                // inline (not attachment) so a browser opens the book in a new tab to preview it;
-                // the viewer's own Save still uses the suggested filename.
+                // inline (not attachment) so a browser previews the book in a new tab; the viewer's
+                // Save uses the suggested filename.
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"" + downloadName(job.originalFilename()) + "\"")

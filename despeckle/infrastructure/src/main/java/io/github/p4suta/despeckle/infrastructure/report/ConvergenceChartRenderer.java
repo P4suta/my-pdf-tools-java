@@ -9,14 +9,10 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 
 /**
- * The corpus "did the noise collapse?" overlay. Every page's 8-connected component count is plotted
- * twice and joined: BEFORE on the left axis (the speck-inflated count) and AFTER on the right
- * (after the filter ran). A fan of lines sloping down and bunching together is the visible proof
- * that the dust went and the pages converged on their true glyph count, where the BEFORE column was
- * tall and scattered. Orange median ticks mark the center of each column. Pure rendering — no I/O.
- *
- * <p>This is the despeckle analogue of {@code register}'s corpus-overlay: there the before/after is
- * a column box in page vs canvas space; here it is a component count before vs after cleaning.
+ * The corpus before/after component-count overlay. Every page's 8-connected component count is
+ * plotted twice and joined: BEFORE on the left axis, AFTER on the right. Lines sloping down and
+ * bunching together show the dust went and the pages converged on their true glyph count. Orange
+ * median ticks mark the center of each column. Pure rendering — no I/O.
  */
 final class ConvergenceChartRenderer {
 
@@ -38,7 +34,6 @@ final class ConvergenceChartRenderer {
      * Render the before/after convergence chart for a whole run.
      *
      * @param pages every page's stat, in any order
-     * @return the chart image
      */
     static BufferedImage render(List<PageStat> pages) {
         BufferedImage img = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);

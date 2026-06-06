@@ -1,9 +1,7 @@
 package io.github.p4suta.despeckle.domain.model;
 
 /**
- * One book's line in the batch index — the domain value the batch reporter renders. Replaces the
- * prior {@code BatchIndex.Book} record, with the status carried as a {@link BookStatus} enum rather
- * than a free-form string.
+ * One book's line in the batch index — the domain value the batch reporter renders.
  *
  * @param name the source PDF's file name (display label)
  * @param stem the name without its {@code .pdf} extension (the per-book report sub-directory)

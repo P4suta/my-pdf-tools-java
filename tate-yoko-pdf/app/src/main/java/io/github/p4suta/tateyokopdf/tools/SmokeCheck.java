@@ -8,9 +8,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Smoke test for the built jpackage launcher: convert a sample PDF and assert the output really is
- * a PDF (starts with the {@code %PDF} magic). One cross-platform check replacing the former per-OS
- * shell / PowerShell CI steps — the Gradle task supplies the OS-specific launcher path. Exits
- * non-zero with a message on any failure.
+ * a PDF (starts with the {@code %PDF} magic). The Gradle task supplies the OS-specific launcher
+ * path. Exits non-zero with a message on any failure.
  *
  * <p>Usage: {@code SmokeCheck <launcher> <input.pdf> <output.pdf>}
  */

@@ -28,7 +28,6 @@ final class CliSupport {
      * Build the registration knobs common to both commands: {@code --dpi}, {@code --paper}, {@code
      * --no-deskew}, {@code --no-scale}, {@code --outlier-ratio} and {@code --anchor}.
      *
-     * @param cmd the parsed command line
      * @return the registration options (an absent {@code --dpi} stays empty for the runner to
      *     resolve)
      * @throws ParseException if {@code --dpi}, {@code --outlier-ratio} or {@code --anchor} is
@@ -62,7 +61,6 @@ final class CliSupport {
      * variant and {@code --dpi} must distinguish "absent" (inherit the scan's resolution) from a
      * value.
      *
-     * @param cmd the parsed command line
      * @param opt the option name (without the {@code --} prefix)
      * @return the parsed value, or {@code null} when the option is absent
      * @throws ParseException if the option is present but not an integer

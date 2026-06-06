@@ -3,13 +3,9 @@ package io.github.p4suta.register.infrastructure.registrar;
 import io.github.p4suta.shared.imaging.Pix;
 
 /**
- * The register-specific deskew POLICY, layered on the shared {@link Pix} PRIMITIVES.
- *
- * <p>The shared imaging island exposes only raw pixel operations — the orthogonal and arbitrary
- * rotations and the RAW {@link Pix#findSkew() skew estimate} — and deliberately keeps no project
- * policy. This class is the register side of that split: it reproduces, bit-for-bit, the
- * confidence-gated deskew the old register-local {@code Pix.deskew()} performed, and owns the
- * threshold constants that decide when a measured tilt is corrected.
+ * The register-specific deskew policy, layered on the shared {@link Pix} primitives (the shared
+ * imaging island exposes only raw rotations and the raw {@link Pix#findSkew() skew estimate}, no
+ * project policy). Owns the threshold constants that decide when a measured tilt is corrected.
  *
  * <p>The page is first rotated 90 degrees so the vertical text columns become the horizontal rows
  * Leptonica's row-projection skew finder expects, the skew is measured there, and — only if it is
@@ -36,30 +32,25 @@ public final class Deskewer {
     private Deskewer() {}
 
     /**
-     * Deskew {@code page}, returning a fresh {@link Pix}. Reproduces the old register {@code
-     * Pix.deskew()} exactly: rotate 90 degrees, measure the skew, and — only if the estimate is
-     * {@linkplain SkewEstimate#correctable() correctable} — rotate it straight before rotating
-     * back; otherwise just complete the 90-degree round trip. The caller owns the returned {@code
-     * Pix}.
+     * Deskew {@code page}, returning a fresh caller-owned {@link Pix}: rotate 90 degrees, measure
+     * the skew, and — only if the estimate is {@linkplain SkewEstimate#correctable() correctable} —
+     * rotate it straight before rotating back; otherwise just complete the 90-degree round trip.
      *
      * @param page the page to straighten (not modified; not closed)
-     * @return a new, owned {@code Pix} holding the deskewed page
      */
     public static Pix deskew(Pix page) {
         return deskewWithEstimate(page).page();
     }
 
     /**
-     * Deskew {@code page} AND return the single skew estimate that drove the decision, so a caller
-     * that also wants the diagnostic reading does not have to re-run {@link #measureSkew(Pix)}
-     * (which would repeat the same native 90-degree rotation and {@code pixFindSkew}). The page is
-     * rotated 90 degrees and measured ONCE: that one estimate both gates the straightening (via
-     * {@link SkewEstimate#correctable()}) and is handed back for the {@code Skew} diagnostic, so
-     * the rotation decision and the recorded reading literally come from the same measurement and
-     * cannot drift. The caller owns the returned {@code Pix}.
+     * Deskew {@code page} and return the single skew estimate that drove the decision, so a caller
+     * that also wants the diagnostic reading need not re-run {@link #measureSkew(Pix)} (a second
+     * 90-degree rotation and {@code pixFindSkew}). The page is measured once: that one estimate
+     * both gates the straightening (via {@link SkewEstimate#correctable()}) and is the {@code Skew}
+     * diagnostic, so the rotation decision and the recorded reading cannot drift. Caller-owned
+     * page.
      *
      * @param page the page to straighten (not modified; not closed)
-     * @return the deskewed page and the one skew estimate it was measured against
      */
     public static DeskewResult deskewWithEstimate(Pix page) {
         try (Pix rotated = page.rotateOrth(1)) {
@@ -74,25 +65,18 @@ public final class Deskewer {
     }
 
     /**
-     * A deskew outcome: the {@code page} straightened (the caller owns it) paired with the single
-     * {@code estimate} that {@link #deskewWithEstimate(Pix)} measured and gated the straightening
-     * on.
-     *
-     * @param page the deskewed page; caller-owned
-     * @param estimate the one skew reading that drove the deskew decision
+     * A deskew outcome: the straightened {@code page} (caller-owned) paired with the single {@code
+     * estimate} that {@link #deskewWithEstimate(Pix)} measured and gated the straightening on.
      */
     public record DeskewResult(Pix page, SkewEstimate estimate) {}
 
     /**
      * Estimate {@code page}'s skew the way {@link #deskew(Pix)} sees it: rotate 90 degrees so the
      * vertical columns become horizontal rows (what Leptonica's row-projection finder expects),
-     * then take the RAW shared skew estimate. The returned estimate's {@link
-     * SkewEstimate#correctable()} is the same predicate {@code deskew} gates the straightening on,
-     * so a diagnostic {@code Skew} and the actual rotation decision are driven by one measurement
-     * and cannot drift.
+     * then take the raw shared skew estimate. Its {@link SkewEstimate#correctable()} is the same
+     * predicate {@code deskew} gates straightening on.
      *
      * @param page the page to measure (not modified; not closed)
-     * @return the skew estimate, with the register deskew policy's correctable predicate
      */
     public static SkewEstimate measureSkew(Pix page) {
         try (Pix rotated = page.rotateOrth(1)) {
@@ -107,13 +91,9 @@ public final class Deskewer {
     }
 
     /**
-     * A register skew reading: {@code angleDeg} degrees, {@code conf} the confidence ratio, {@code
-     * found} whether Leptonica produced an estimate. Adds the register deskew policy's {@link
-     * #correctable()} gate to the raw shared estimate.
-     *
-     * @param angleDeg the estimated skew angle in degrees
-     * @param conf the confidence ratio Leptonica assigns the estimate
-     * @param found whether an estimate was produced
+     * A register skew reading (angle in degrees, confidence ratio, and whether Leptonica produced
+     * an estimate), adding the deskew policy's {@link #correctable()} gate to the raw shared
+     * estimate.
      */
     public record SkewEstimate(double angleDeg, double conf, boolean found) {
 

@@ -8,9 +8,9 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A concurrent in-memory {@link JobStore}. Jobs are mutated by the conversion worker thread while
- * request threads read them, so the backing map is a {@link ConcurrentHashMap}; jobs themselves are
- * immutable records, so a reader never sees a half-updated job.
+ * A concurrent in-memory {@link JobStore}. The conversion worker thread replaces jobs while request
+ * threads read them, so the backing map is a {@link ConcurrentHashMap}; jobs are immutable records,
+ * so a reader never sees a half-updated job.
  */
 public final class InMemoryJobStore implements JobStore {
 

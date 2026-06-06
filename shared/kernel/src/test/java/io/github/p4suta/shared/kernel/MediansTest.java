@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 class MediansTest {
 
-    // --- upperMedian(int[]) ---
+    // upperMedian(int[])
 
     @Test
     void upperMedianIntOddCountIsTheSingleMiddle() {
@@ -39,7 +39,7 @@ class MediansTest {
         assertArrayEquals(new int[] {3, 1, 2}, input);
     }
 
-    // --- upperMedian(long[]) ---
+    // upperMedian(long[])
 
     @Test
     void upperMedianLongOddCountIsTheSingleMiddle() {
@@ -64,7 +64,7 @@ class MediansTest {
         assertArrayEquals(new long[] {3L, 1L, 2L}, input);
     }
 
-    // --- the utility class itself ---
+    // the utility class itself
 
     @Test
     void isANonInstantiableUtilityClass() throws ReflectiveOperationException {

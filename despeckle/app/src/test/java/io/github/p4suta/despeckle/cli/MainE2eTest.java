@@ -17,7 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * End-to-end directory run driven through the public CLI ({@link DespeckleCli#run(String[])}):
  * every input page gets a same-named output, and {@code --report} writes the index plus the WebP
- * corpus panels. Mirrors the intent of the old Rust {@code e2e_dir.rs} integration test.
+ * corpus panels.
  */
 final class MainE2eTest {
 
@@ -34,8 +34,8 @@ final class MainE2eTest {
             TestImages.writePbm(input.resolve("page-%02d.pbm".formatted(i)), img);
         }
 
-        // Mirrors the old Runner.Config: SAME format, the default glob, dpi 300, speck 3, the
-        // isolated-dust pass off (--no-remove-isolated-dust), hole-filling left on by default.
+        // SAME format, the default glob, dpi 300, speck 3, the isolated-dust pass off
+        // (--no-remove-isolated-dust), hole-filling left on by default.
         int code =
                 new DespeckleCli()
                         .run(

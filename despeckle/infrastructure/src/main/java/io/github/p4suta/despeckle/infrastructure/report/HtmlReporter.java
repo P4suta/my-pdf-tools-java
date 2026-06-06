@@ -29,8 +29,7 @@ import org.jspecify.annotations.Nullable;
  * of the overlays. Every still image is lossless WebP, written through the shared imaging island
  * ({@link Pix#writeWebp} for the page rasters, {@link ImageEncoder} for the AWT charts/overlays);
  * the animated flip-book goes through {@link WebpAnimation}. It emits an {@code index.html} tying
- * them together. This is the human eyeballing surface; it is read-only with respect to the
- * pipeline.
+ * them together, and is read-only with respect to the pipeline.
  *
  * <p>Both {@code inputImage} and {@code outputImage} are file paths on disk; the Leptonica {@link
  * Pix} and the AWT images never leave a method body, keeping the image stack confined to {@code
@@ -68,10 +67,6 @@ public final class HtmlReporter implements Reporter {
      * heatmap as it goes. Thread-safe.
      *
      * @param relativeStem page path relative to the input root
-     * @param inputImage original page on disk
-     * @param outputImage cleaned page on disk
-     * @param result the per-page outcome
-     * @throws IOException if a panel cannot be written
      */
     @Override
     public void addPage(Path relativeStem, Path inputImage, Path outputImage, ProcessResult result)
@@ -101,11 +96,7 @@ public final class HtmlReporter implements Reporter {
                         result.removedBlackPixelRatio()));
     }
 
-    /**
-     * Write the corpus artifacts and {@code index.html} listing every page.
-     *
-     * @throws IOException if an artifact cannot be written
-     */
+    /** Write the corpus artifacts and {@code index.html} listing every page. */
     @Override
     public void finish() throws IOException {
         List<PageStat> sorted =

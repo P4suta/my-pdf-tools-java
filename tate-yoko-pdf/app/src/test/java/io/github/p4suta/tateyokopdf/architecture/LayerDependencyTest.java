@@ -20,24 +20,19 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 /**
- * Boundary rules that the Gradle module graph cannot already enforce.
+ * Boundary rules that the Gradle module graph cannot enforce.
  *
- * <p>Since the split into {@code :domain}, {@code :port}, {@code :application}, {@code
- * :infrastructure}, and {@code :app}, most of the original onion rules are guaranteed at compile
- * time by the absence of a {@code project()} dependency. What remains, and what this suite pins,
- * are the intra-graph, class-level conventions a missing dependency does not catch: the hexagonal
+ * <p>The inter-module dependency edges guarantee most onion layering at compile time. This suite
+ * pins the intra-graph, class-level conventions a missing dependency does not catch: the hexagonal
  * layering re-asserted within the single imported graph, the pure {@code domain}/{@code port}
  * staying free of filesystem I/O, PDFBox and {@code ProcessBuilder} pinned to their adapters,
  * Commons CLI pinned to the CLI shell, standard-stream access kept to the CLI/diagnostic front
  * ends, the cross-cutting coding rules, JSpecify-only nullness, and freedom from package cycles.
- * This suite is the harmonized counterpart of register's {@code ArchitectureTest} and despeckle's
- * {@code LayerDependencyTest}, parameterized for the {@code io.github.p4suta.tateyokopdf} package.
  *
- * <p>The Foreign Function &amp; Memory / method-handle confinement rules the sibling suites once
- * carried are absent here for the same reason they were dropped there: tate-yoko-pdf owns no FFM
- * island (no production class touches {@code java.lang.foreign} or {@code java.lang.invoke}), and
- * the shared unsafe binding lives in {@code :shared:imaging}, off this analyzed package set, where
- * {@code :shared:arch-rules} confines it.
+ * <p>No FFM/method-handle confinement rule: tate-yoko-pdf owns no FFM island (no production class
+ * touches {@code java.lang.foreign} or {@code java.lang.invoke}); the shared unsafe binding lives
+ * in {@code :shared:imaging}, off this analyzed package set, confined by {@code
+ * :shared:arch-rules}.
  *
  * <p>Analyzed from {@code :app}, whose test classpath sees every module. The {@code testFixtures}
  * sourceSet is excluded ({@link NoTestFixtures}) so fixtures may use PDFBox directly to build PDFs
@@ -75,10 +70,8 @@ final class LayerDependencyTest {
      * The hexagonal graph: {@code domain} is the pure center; {@code port} sees only it; {@code
      * application} and {@code infrastructure} are the adapters/orchestration around the ports;
      * {@code app} (the {@code Main} entry point, the {@code cli} shell and the {@code tools} dev
-     * utilities) is the composition root no layer may reach back into. The inter-module dependency
-     * edges enforce most of this at compile time; this rule pins it within the single imported
-     * graph and catches a violation the module classpaths cannot (e.g. {@code application} reaching
-     * {@code infrastructure}).
+     * utilities) is the composition root no layer may reach back into. Catches violations the
+     * module classpaths cannot (e.g. {@code application} reaching {@code infrastructure}).
      */
     @ArchTest
     static final ArchRule layeredArchitectureIsRespected =
@@ -131,15 +124,13 @@ final class LayerDependencyTest {
      * The pure layers stay free of filesystem I/O. {@code java.nio.file.Path} is a value they may
      * name (it appears in {@code port} signatures and the {@code domain} naming helpers), but
      * {@code java.nio.file.Files} — the read/write helper — belongs to the adapters and the
-     * orchestration. The module graph cannot enforce this (both live in {@code java.base}), so it
-     * is pinned here, keeping the {@code domain}/{@code port} part of the original {@code
-     * filesystemAccessConfined} guarantee alive now that the broad onion rule is gone.
+     * orchestration. The module graph cannot enforce this (both live in {@code java.base}).
      *
-     * <p>One documented carve-out: {@code domain.exception.Validators#requireExists} does a single
-     * {@code Files.exists} precondition check at the validation boundary (it converts a missing
-     * input path into a typed {@link io.github.p4suta.tateyokopdf.domain.exception.SpreadException}
-     * before any adapter runs). It is named explicitly so the rest of {@code domain}/{@code port}
-     * stays pinned filesystem-free; everything else routes real read/write through the adapters.
+     * <p>One carve-out: {@code domain.exception.Validators#requireExists} does a single {@code
+     * Files.exists} precondition check at the validation boundary, converting a missing input path
+     * into a typed {@link io.github.p4suta.tateyokopdf.domain.exception.SpreadException} before any
+     * adapter runs. It is named explicitly so the rest of {@code domain}/{@code port} stays pinned
+     * filesystem-free.
      */
     @ArchTest
     static final ArchRule domainAndPortDoNotTouchTheFilesystem =
@@ -249,8 +240,7 @@ final class LayerDependencyTest {
      * The pure hexagon center may consume only the shared kernel primitives (value types / error
      * model): {@code io.github.p4suta.shared.kernel}. The imaging, pdf, process, io, observability
      * and cli shared islands are adapter-side and must never be reached from {@code domain}/{@code
-     * port}. Phase 3 moved those islands cross-app; this rule re-pins the displaced invariant that
-     * they stay out of the pure center.
+     * port}.
      */
     @ArchTest
     static final ArchRule domainAndPortDependOnlyOnSharedKernel =

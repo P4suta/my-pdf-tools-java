@@ -9,8 +9,7 @@ import java.util.Optional;
 /**
  * A content-addressed store of finished result PDFs, keyed by {@link CacheKey}. An identical
  * conversion — same input bytes, same options — reuses a previous run's output instead of invoking
- * pdfbook again. Entries outlive the jobs that produced them (that is the point of the cache); a
- * scheduled sweep evicts old ones.
+ * pdfbook again. Entries outlive the jobs that produced them; a scheduled sweep evicts old ones.
  */
 public interface ResultCache {
 
@@ -22,8 +21,8 @@ public interface ResultCache {
     Optional<Path> find(CacheKey key);
 
     /**
-     * Publishes {@code outputPdf} as the cached result for {@code key}, atomically — a concurrent
-     * {@link #find} never observes a half-written entry — and idempotently (a second store for an
+     * Publishes {@code outputPdf} as the cached result for {@code key}, atomically (a concurrent
+     * {@link #find} never observes a half-written entry) and idempotently (a second store for an
      * existing key is a no-op).
      *
      * @param key the content-addressed key

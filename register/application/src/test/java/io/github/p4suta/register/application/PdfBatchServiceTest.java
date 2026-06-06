@@ -81,7 +81,7 @@ class PdfBatchTest {
         assertFalse(PdfBatchService.isBatchInput(file));
     }
 
-    // ---- run(): the batch loop (continue-on-error, skip-on-exists, force) over fake ports -------
+    // run(): the batch loop (continue-on-error, skip-on-exists, force) over fake ports
 
     private static PdfBatchService batchService(@Nullable String failOn) {
         FakePdfImageExtractor extractor = new FakePdfImageExtractor(2, 600, failOn);

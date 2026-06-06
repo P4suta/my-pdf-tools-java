@@ -55,10 +55,9 @@ final class PdfBoxSpreadDocumentTest {
             assertThat(mediaBox.getWidth()).isEqualTo(1190f, within(0.5f));
             assertThat(mediaBox.getHeight()).isEqualTo(842f, within(0.5f));
             // PDFBox 3.0.7 setVersion(>=1.4) only updates the catalog /Version entry; getVersion()
-            // returns the higher of (header byte, catalog /Version), so the catalog bump alone is
-            // enough to surface here. The %PDF-x.x header byte assertion lives in
-            // QpdfLinearizerTest
-            // because only qpdf can rewrite that byte.
+            // returns the higher of (header byte, catalog /Version), so the catalog bump alone
+            // surfaces here. The %PDF-x.x header byte assertion lives in QpdfLinearizerTest because
+            // only qpdf can rewrite that byte.
             assertThat(doc.getVersion()).isEqualTo(PdfOutputPolicy.TARGET.headerValue());
         }
     }
@@ -121,8 +120,7 @@ final class PdfBoxSpreadDocumentTest {
             assertThat(info.getCreator()).isEqualTo("Microsoft Word");
             // CreationDate is inherited from source — the content's birth date.
             assertThat(info.getCreationDate().toInstant()).isEqualTo(sourceCreated);
-            // ModDate and Producer are *override*, not pass-through — this assertion is the test
-            // for that design decision.
+            // ModDate and Producer are overridden, not passed through from the source.
             assertThat(info.getModificationDate().toInstant()).isEqualTo(modDate);
             assertThat(info.getProducer()).isEqualTo("tate-yoko-pdf");
             assertThat(doc.getDocumentCatalog().getLanguage()).isEqualTo("ja-JP");

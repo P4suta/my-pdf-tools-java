@@ -18,9 +18,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.event.Level;
 
 /**
- * The spec (docs/error-model-spec.md) is the oracle, not the mapper's code. The table-driven cases
- * pin exit code + slf4j level + client-fault + masked message per {@link CommonErrorKind} (section
- * 2), and the fallback cases pin the throwable&rarr;kind table (section 5).
+ * Table-driven cases pin exit code + slf4j level + client-fault + masked message per {@link
+ * CommonErrorKind}; the fallback cases pin the throwable&rarr;kind table.
  */
 final class ExceptionMapperTest {
 
@@ -36,8 +35,7 @@ final class ExceptionMapperTest {
     /** An app-specific {@link ErrorCategory} not in {@link CommonErrorKind}, for the extra-rule. */
     private enum AppKind implements ErrorCategory {
         IMAGE_UNREADABLE(65, Severity.WARN, true, "画像を読み込めませんでした。"),
-        // INFO is reserved by the spec (no shared kind uses it); this fixture exercises the
-        // Severity.INFO -> Level.INFO arm of the mapper's translation.
+        // No shared kind uses Severity.INFO; this fixture exercises the INFO -> Level.INFO arm.
         INFO_NOTICE(0, Severity.INFO, false, "情報。");
 
         private final int exitCode;
@@ -73,7 +71,7 @@ final class ExceptionMapperTest {
         }
     }
 
-    // --- Section 2: every CommonErrorKind, carried by a domain exception, maps to its own row ---
+    // every CommonErrorKind, carried by a domain exception, maps to its own row
 
     static Stream<Arguments> commonKindRows() {
         // kind, expected exitCode, expected level, expected clientFault, expected message
@@ -131,7 +129,7 @@ final class ExceptionMapperTest {
         assertThat(mapping.level()).isEqualTo(Level.INFO);
     }
 
-    // --- Section 5: throwable -> kind fallback (first match wins) ---
+    // throwable -> kind fallback (first match wins)
 
     @Test
     void illegalArgumentFallsBackToInvalidParameter() {
@@ -172,7 +170,7 @@ final class ExceptionMapperTest {
         assertThat(mapping.exitCode()).isEqualTo(70);
     }
 
-    // --- Domain exception always wins over class-based fallback ---
+    // domain exception always wins over class-based fallback
 
     @Test
     void domainExceptionKindWinsEvenWhenItIsAnIllegalArgumentSubclass() {
@@ -190,7 +188,7 @@ final class ExceptionMapperTest {
         assertThat(mapping.technicalDetail()).isEqualTo("x");
     }
 
-    // --- Extra app-supplied rule: consulted before the baseline, but not before a domain exc. ---
+    // extra app-supplied rule: consulted before the baseline, but not before a domain exception
 
     @Test
     void extraRuleClassifiesAThrowableTheBaselineWouldMisroute() {
@@ -219,7 +217,7 @@ final class ExceptionMapperTest {
         assertThat(mapping.kind()).isEqualTo(CommonErrorKind.INTERNAL);
     }
 
-    // --- PII masking of the user message ---
+    // PII masking of the user message
 
     @Test
     void maskAbsolutePathsInUserMessage() {

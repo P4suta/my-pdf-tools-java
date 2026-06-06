@@ -4,10 +4,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The JSON body of a cache probe ({@code POST /api/v1/jobs/probe}): the client-computed SHA-256 of
- * the PDF it is about to upload, plus the same conversion options it would submit. The server
- * recomputes the content-addressed key and, on a hit, mints a ready job — so the client can skip
- * uploading the (potentially large) file entirely. The worker-thread count is intentionally absent:
- * it does not affect the cache key.
+ * the PDF it is about to upload, plus the same conversion options it would submit. On a cache hit
+ * the server mints a ready job, so the client skips uploading the file. The worker-thread count is
+ * absent: it does not affect the cache key.
  *
  * @param sha256 the lowercase-hex SHA-256 of the PDF bytes
  * @param direction {@code RTL} or {@code LTR}

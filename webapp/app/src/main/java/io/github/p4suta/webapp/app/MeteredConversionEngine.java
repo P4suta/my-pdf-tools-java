@@ -11,10 +11,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A {@link ConversionEngine} decorator that times each conversion and tags its outcome. The job's
- * {@code DONE}/{@code FAILED} state in {@code Conversions} is decided purely by whether {@code
- * convert} returns or throws, so this {@code outcome=success|failure} tag agrees with the {@code
- * pdfbook.jobs.by_state} gauge by construction. It lives in the app layer so Micrometer never
- * reaches the framework-free core; the timer's count doubles as the success/failure counter.
+ * {@code DONE}/{@code FAILED} state in {@code Conversions} is decided by whether {@code convert}
+ * returns or throws, so this {@code outcome=success|failure} tag agrees with the {@code
+ * pdfbook.jobs.by_state} gauge. Lives in the app layer so Micrometer never reaches the
+ * framework-free core; the timer's count doubles as the success/failure counter.
  */
 final class MeteredConversionEngine implements ConversionEngine {
 

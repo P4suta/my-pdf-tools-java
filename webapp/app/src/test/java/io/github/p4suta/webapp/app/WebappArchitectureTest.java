@@ -15,8 +15,8 @@ import com.tngtech.archunit.lang.ArchRule;
 
 /**
  * Pins the web feature's architectural boundaries the Gradle module graph cannot express: Spring
- * stays in the {@code app} shell, the whole feature is decoupled from the pipeline's internals (the
- * point of running pdfbook out-of-process), one nullness vocabulary, and no package cycles.
+ * stays in the {@code app} shell, the feature is decoupled from the pipeline's internals, one
+ * nullness vocabulary, and no package cycles.
  */
 @AnalyzeClasses(
         packages = "io.github.p4suta.webapp",
@@ -47,10 +47,9 @@ class WebappArchitectureTest {
                     .resideInAPackage("org.springframework..");
 
     /**
-     * Observability is an app-layer concern too: Micrometer and Actuator (which is {@code
-     * org.springframework.boot} so {@link #springIsConfinedToTheAppLayer} already covers it, but
-     * {@code io.micrometer} is not) stay in the shell. The telemetry seam ({@code QueueStats}) is
-     * plain Java, so the core never sees a metrics type.
+     * Micrometer and Actuator stay in the shell ({@link #springIsConfinedToTheAppLayer} covers the
+     * {@code org.springframework.boot} actuator packages, but not {@code io.micrometer}). The
+     * telemetry seam ({@code QueueStats}) is plain Java, so the core never sees a metrics type.
      */
     @ArchTest
     static final ArchRule observabilityIsConfinedToTheAppLayer =

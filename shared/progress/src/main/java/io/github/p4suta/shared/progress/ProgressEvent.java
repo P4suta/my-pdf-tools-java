@@ -3,13 +3,13 @@ package io.github.p4suta.shared.progress;
 import io.github.p4suta.shared.kernel.Validators;
 
 /**
- * The single, framework-free vocabulary of progress and lifecycle events emitted by a pdfbook
- * conversion and consumed by any front end (the CLI's {@code --progress-file}, the web layer's SSE
- * stream). One sealed hierarchy so producers and consumers share exactly one shape; the JSONL wire
- * form is {@link JsonlProgressCodec}.
+ * The framework-free vocabulary of progress and lifecycle events emitted by a pdfbook conversion
+ * and consumed by any front end (the CLI's {@code --progress-file}, the web layer's SSE stream).
+ * One sealed hierarchy so producers and consumers share one shape; the JSONL wire form is {@link
+ * JsonlProgressCodec}.
  *
  * <p>Stage identity is a plain {@code String} label (the pipeline's {@code Stage.name()}), not an
- * enum, so adding a processing stage needs no change here. Counts are non-negative.
+ * enum, so adding a stage needs no change here. Counts are non-negative.
  */
 public sealed interface ProgressEvent {
 
@@ -21,7 +21,6 @@ public sealed interface ProgressEvent {
      */
     record RunStarted(int stageCount) implements ProgressEvent {
 
-        /** Validates the component. */
         public RunStarted {
             Validators.requireNonNegative(stageCount, "stageCount");
         }
@@ -36,7 +35,6 @@ public sealed interface ProgressEvent {
      */
     record StageStarted(String stage, int index, int stageCount) implements ProgressEvent {
 
-        /** Validates the components. */
         public StageStarted {
             Validators.requireNonNull(stage, "stage");
             Validators.requireNonNegative(index, "index");
@@ -54,7 +52,6 @@ public sealed interface ProgressEvent {
      */
     record PageProcessed(String stage, int done, int total) implements ProgressEvent {
 
-        /** Validates the components. */
         public PageProcessed {
             Validators.requireNonNull(stage, "stage");
             Validators.requireNonNegative(done, "done");
@@ -69,7 +66,6 @@ public sealed interface ProgressEvent {
      */
     record StageCompleted(String stage) implements ProgressEvent {
 
-        /** Validates the component. */
         public StageCompleted {
             Validators.requireNonNull(stage, "stage");
         }
@@ -86,7 +82,6 @@ public sealed interface ProgressEvent {
      */
     record RunFailed(String kind, String message) implements ProgressEvent {
 
-        /** Validates the components. */
         public RunFailed {
             Validators.requireNonNull(kind, "kind");
             Validators.requireNonNull(message, "message");

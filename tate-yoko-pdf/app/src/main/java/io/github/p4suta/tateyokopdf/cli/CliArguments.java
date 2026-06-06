@@ -49,7 +49,7 @@ record CliArguments(
      * The directory filter for {@code INPUT} expansion: a regular file whose name ends with {@code
      * .pdf} (case-insensitive). Passed to the shared {@link InputResolver} rather than its {@code
      * globFilter("*.pdf")} because a glob matcher is case-sensitive on Linux, which would silently
-     * drop {@code .PDF} files — this reproduces tate's prior behavior exactly.
+     * drop {@code .PDF} files.
      */
     private static boolean isPdf(Path path) {
         return Files.isRegularFile(path)

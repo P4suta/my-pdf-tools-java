@@ -150,10 +150,9 @@ final class PipelineCommand {
                                                 parsed.jobs(),
                                                 parsed.force(),
                                                 parsed.suffix()));
-                // Continue-on-error batch: per-book failures are swallowed and counted (not a
-                // single ErrorCategory), so a partial failure surfaces as the generic
-                // internal/software-failure code (EX_SOFTWARE, 70) rather than the retired blanket
-                // 1.
+                // Continue-on-error batch: per-book failures are counted, not a single
+                // ErrorCategory, so a partial failure surfaces as the generic internal /
+                // software-failure code (EX_SOFTWARE, 70).
                 return summary.failed() > 0 ? ExitCodes.INTERNAL : ExitCodes.OK;
             }
             pipeline.run(
@@ -187,9 +186,6 @@ final class PipelineCommand {
      *
      * @param input the source PDF, or directory of PDFs in batch mode
      * @param output the output PDF, or directory in batch mode
-     * @param options the registration knobs shared with {@code register}
-     * @param jobs the worker thread count
-     * @param force whether to overwrite/regenerate existing output
      * @param suffix the batch-mode output-name suffix ({@code ""} when none)
      */
     record Parsed(
@@ -205,7 +201,6 @@ final class PipelineCommand {
      * parsing can be unit-tested, mirroring {@code RegisterCommand.parse}.
      *
      * @param args the raw arguments (after the {@code pipeline} subcommand)
-     * @return the parsed arguments
      * @throws ParseException if the options or positionals are malformed
      */
     Parsed parse(String[] args) throws ParseException {

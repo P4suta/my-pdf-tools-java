@@ -9,20 +9,18 @@ public sealed interface PaperSize permits PaperSize.Standard, PaperSize.Custom {
 
     /**
      * Largest average per-axis deviation at which a scanned size is still snapped to a standard
-     * book size. A bound book's scanned pages miss the nominal size by a few percent — trimming at
-     * binding, paper shrink/expansion, scan error — so a tolerant nearest-match (not "smallest
-     * enclosing standard") is what recognizes a trimmed 四六判 as 四六判 instead of overshooting to the
-     * next size up.
+     * book size. A bound book's scanned pages miss the nominal size by a few percent (trimming at
+     * binding, paper shrink, scan error), so a tolerant nearest-match recognizes a trimmed 四六判 as
+     * 四六判 rather than overshooting to the next size up.
      */
     double AUTO_SNAP_TOLERANCE = 0.08;
 
     /**
-     * How much an oversized scan (a page measured larger than a standard) counts against matching
-     * that standard, relative to an undersized one. Loose cropping and scan margin only ADD to a
-     * page's measured size, and the registration crops that overflow anyway, so measuring larger
-     * than a standard is weak evidence against it — whereas measuring smaller would mean cropping
-     * real content. Halving the oversize penalty makes a loosely-cut 文庫 snap back to A6 instead of
-     * jumping up to B6.
+     * Weight applied to oversize deviation relative to undersize when matching a standard. Loose
+     * cropping and scan margin only add to a page's measured size, and registration crops that
+     * overflow anyway, so measuring larger than a standard is weak evidence against it; measuring
+     * smaller would mean cropping real content. Halving the oversize penalty makes a loosely-cut 文庫
+     * snap back to A6 instead of jumping up to B6.
      */
     double OVERSIZE_PENALTY = 0.5;
 
@@ -86,7 +84,6 @@ public sealed interface PaperSize permits PaperSize.Standard, PaperSize.Custom {
     /** An arbitrary size in millimeters, e.g. from {@code --paper-mm 127x188}. */
     record Custom(double widthMm, double heightMm) implements PaperSize {
 
-        /** Validates the dimensions. */
         public Custom {
             Validators.requirePositive(widthMm, "widthMm");
             Validators.requirePositive(heightMm, "heightMm");
@@ -108,8 +105,8 @@ public sealed interface PaperSize permits PaperSize.Standard, PaperSize.Custom {
             }
             return Standard.valueOf(s.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            // NumberFormatException (bad WxH) and enum valueOf both extend
-            // IllegalArgumentException.
+            // Both causes extend IllegalArgumentException: NumberFormatException (bad WxH) and
+            // enum valueOf (unknown name).
             throw new IllegalArgumentException(
                     "unrecognized paper size '"
                             + spec
@@ -122,15 +119,8 @@ public sealed interface PaperSize permits PaperSize.Standard, PaperSize.Custom {
     /**
      * The paper for a scanned book whose median page measures {@code widthMm x heightMm}: the
      * nearest {@link Standard} when one is within {@link #AUTO_SNAP_TOLERANCE} (snapped to its
-     * clean nominal dimensions, so a trimmed, shrunk or loosely-cropped book still lands on its
-     * true size), otherwise the exact measured size as a {@link Custom}.
-     *
-     * <p>Matched by average per-axis deviation, asymmetric by direction (see {@link
-     * #OVERSIZE_PENALTY}): a page measured <em>smaller</em> than a standard counts in full (going
-     * smaller would crop real content), while a page measured <em>larger</em> counts at a discount
-     * (the excess is loose-cut margin the registration crops anyway). So a 文庫 trimmed a few mm
-     * under nominal still resolves to A6, and one scanned with a loose margin a few mm over nominal
-     * snaps back down to A6 rather than jumping up to B6.
+     * clean nominal dimensions), otherwise the exact measured size as a {@link Custom}. Nearness is
+     * the average per-axis deviation, weighted asymmetrically by {@link #OVERSIZE_PENALTY}.
      */
     static PaperSize fromScan(double widthMm, double heightMm) {
         Standard nearest = Standard.A6;

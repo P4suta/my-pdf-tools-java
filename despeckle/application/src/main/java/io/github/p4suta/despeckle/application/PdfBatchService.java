@@ -33,12 +33,7 @@ public final class PdfBatchService {
     private final PdfPipelineService pipeline;
     private final BatchReporter batchReporter;
 
-    /**
-     * Create a batch service over the injected per-book pipeline and batch reporter.
-     *
-     * @param pipeline the per-book PDF &rarr; PDF pipeline service
-     * @param batchReporter the batch-index reporter port
-     */
+    /** Create a batch service over the injected per-book pipeline and batch reporter. */
     public PdfBatchService(PdfPipelineService pipeline, BatchReporter batchReporter) {
         this.pipeline = pipeline;
         this.batchReporter = batchReporter;
@@ -84,8 +79,6 @@ public final class PdfBatchService {
     /**
      * Clean every top-level {@code *.pdf} under {@code inputDir} into {@code outputDir}.
      *
-     * @param config the batch configuration
-     * @return the run's roll-up
      * @throws IOException if the input cannot be listed or an output directory cannot be created
      */
     public Summary run(Config config) throws IOException {

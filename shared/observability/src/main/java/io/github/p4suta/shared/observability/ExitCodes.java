@@ -1,10 +1,9 @@
 package io.github.p4suta.shared.observability;
 
 /**
- * The sysexits.h-flavored process exit-code registry shared across the p4suta CLIs. Picked for
- * compatibility with shell scripts that already know the BSD conventions. {@link
- * io.github.p4suta.shared.kernel.error.ErrorCategory#exitCode()} returns one of these; the
- * constants exist so call sites and tests reference a name rather than a bare integer.
+ * The sysexits.h-flavored process exit-code registry, for compatibility with shell scripts that
+ * follow the BSD conventions. {@link io.github.p4suta.shared.kernel.error.ErrorCategory#exitCode()}
+ * returns one of these; the constants give call sites and tests a name rather than a bare integer.
  *
  * <p>{@code 137 = 128 + SIGKILL} is the conventional OOM exit. {@code USAGE} ({@code 2}) is the
  * Commons CLI parse-error code the CLIs return outside the {@link
@@ -17,7 +16,10 @@ public final class ExitCodes {
     /** Successful run. {@code EX_OK}. */
     public static final int OK = 0;
 
-    /** Unspecified failure. Retired in favor of the specific sysexits codes; kept for reference. */
+    /**
+     * Unspecified failure. Unused; the specific sysexits codes are used instead. Kept for
+     * reference.
+     */
     public static final int GENERIC = 1;
 
     /** Commons CLI usage / argument-parsing error (NOT routed through {@code ErrorCategory}). */

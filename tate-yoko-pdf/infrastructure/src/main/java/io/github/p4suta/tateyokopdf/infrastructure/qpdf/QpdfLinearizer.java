@@ -24,48 +24,41 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Drives the {@code qpdf} binary as an out-of-process step that performs two modernizations in one
- * pass. The invocation itself — the command array, the shared {@link ProcessRunner} run, and qpdf's
- * exit-3 ("succeeded with warnings") tolerance — is delegated to the cross-app {@link QpdfRunner}
- * capability ({@link QpdfRunner#modernizing}); this class keeps tate-yoko-pdf's two app-side
- * concerns layered over it: (a) the THROW-on-failure policy ({@link ErrorKind#PDF_WRITE_FAILED}),
- * and (b) the bundled-binary resolution chain below, which probes the in-jar {@code bin/} layout
- * that {@code QpdfRunner}'s {@code PATH}/{@code -D} resolution cannot reach. The resolved binary is
- * handed to {@code QpdfRunner} through the {@code QPDF_PATH_PROPERTY} {@code -D} override so the
- * shared runner resolves back to exactly the path this class picked.
+ * Drives the {@code qpdf} binary as an out-of-process modernization step. The invocation — command
+ * array, the shared {@link ProcessRunner} run, and qpdf's exit-3 ("succeeded with warnings")
+ * tolerance — is delegated to {@link QpdfRunner#modernizing}. This class adds two app-side
+ * concerns: the THROW-on-failure policy ({@link ErrorKind#PDF_WRITE_FAILED}) and the bundled-binary
+ * resolution chain below, which probes the in-jar {@code bin/} layout that {@code QpdfRunner}'s
+ * {@code PATH}/{@code -D} resolution cannot reach. The resolved binary is handed to {@code
+ * QpdfRunner} through the {@code QPDF_PATH_PROPERTY} {@code -D} override.
  *
- * <p>The two modernizations:
+ * <p>The modernizations:
  *
  * <ul>
  *   <li>{@code --linearize} — reorders bytes so the PDF can be streamed (Fast Web View / HTTP Range
- *       requests). qpdf packs the linearized output into object streams as part of this step, so we
- *       do not need {@code --object-streams=generate} on top (verified empirically — adding it
- *       produces a byte-identical file).
+ *       requests). qpdf packs the output into object streams as part of this step, so {@code
+ *       --object-streams=generate} is not needed on top (verified empirically: adding it produces a
+ *       byte-identical file).
  *   <li>{@code --min-version=X.Y} — rewrites the {@code %PDF-x.x} header byte to match {@link
  *       PdfOutputPolicy#TARGET}. PDFBox's {@code setVersion} updates only the catalog {@code
  *       /Version} entry for any value &ge; 1.4, so the header bump must happen here.
  *   <li>{@code --newline-before-endstream} — guarantees every stream object carries an EOL marker
  *       before the {@code endstream} keyword, which PDF/A (ISO 19005 clause 6.1.7.1) mandates.
- *       Harmless for ordinary output (a single extra byte per stream); required to keep {@code
- *       --pdf-a} files valid <em>after</em> linearisation, since linearisation otherwise repacks
- *       streams without that marker.
+ *       Required to keep {@code --pdf-a} files valid <em>after</em> linearisation, which otherwise
+ *       repacks streams without that marker.
  * </ul>
  *
  * <p>The binary is resolved in this order:
  *
  * <ol>
- *   <li>The in-bundle copy staged by {@code stageJpackageInput} from the upstream release zip.
- *       jpackage drops the input next to the shadow JAR under {@code app/}; the zip's native layout
- *       puts the executable at {@code bin/qpdf} (or {@code bin\qpdf.exe}). {@link
- *       #resolveBundledQpdf()} therefore probes the {@code bin/} subdirectory first, then falls
- *       back to a flat sibling layout for legacy dev-tree runs.
- *   <li>{@code which qpdf} / {@code where qpdf} on {@code PATH} — for dev runs from the source tree
- *       on a machine that has qpdf installed.
- *   <li>Falls back to {@link PdfPostProcessor#noOp()} and logs a single warning so a missing binary
- *       in a bundling failure surfaces audibly without breaking the whole pipeline. In that
- *       fallback the output PDF still has its catalog {@code /Version} set to the target (most
- *       conformant readers honor it) and is not linearized; the header byte stays at PDFBox's
- *       internal default.
+ *   <li>The in-bundle copy: jpackage drops the input next to the shadow JAR under {@code app/}, and
+ *       the upstream zip's layout puts the executable at {@code bin/qpdf} (or {@code
+ *       bin\qpdf.exe}). {@link #resolveBundledQpdf()} probes the {@code bin/} subdirectory first,
+ *       then a flat sibling layout for dev-tree runs.
+ *   <li>{@code qpdf} on {@code PATH} — for dev runs on a machine that has qpdf installed.
+ *   <li>Falls back to {@link PdfPostProcessor#noOp()} with a single warning. In that fallback the
+ *       output PDF has its catalog {@code /Version} set to the target (most conformant readers
+ *       honor it) but is not linearized; the header byte stays at PDFBox's internal default.
  * </ol>
  */
 public final class QpdfLinearizer implements PdfPostProcessor {
@@ -75,31 +68,27 @@ public final class QpdfLinearizer implements PdfPostProcessor {
     private static final Pattern PATH_SEPARATOR =
             Pattern.compile(Pattern.quote(File.pathSeparator));
 
-    // The -D override key through which we hand our app-side-resolved binary to the shared
-    // QpdfRunner. QpdfRunner takes a property KEY (not a Path), so process() sets this property to
-    // the binary this class resolved (bundle-first, then PATH) and QpdfRunner resolves back to
-    // exactly it. The key is tate-namespaced so it never collides with another app's qpdf override.
+    // -D override key passed to QpdfRunner, which takes a property KEY (not a Path); process() sets
+    // it to the binary this class resolved. tate-namespaced to avoid colliding with another app's
+    // qpdf override.
     private static final String QPDF_PATH_PROPERTY = "tateyokopdf.qpdf.path";
 
     // System properties are process-global, so the set-property -> QpdfRunner.linearize ->
-    // restore-property window must be one atomic critical section: without it two concurrent
-    // process() calls (e.g. parallel JUnit methods pinning different test binaries to the shared
-    // key) could stomp each other's override. Serializing qpdf calls is acceptable for a
-    // post-processor and production always resolves the same binary, so the lock is uncontended in
-    // practice.
+    // restore-property window must be one critical section: otherwise concurrent process() calls
+    // (e.g. parallel JUnit methods pinning different binaries to the shared key) could stomp each
+    // other's override. The lock is uncontended in practice (production resolves the same binary).
     private static final Object QPDF_PROPERTY_LOCK = new Object();
 
     private final Path qpdfBinary;
     private final PdfVersion targetVersion;
 
-    // Package-private so tests can pin the binary to a controlled failure mode
-    // (e.g. /bin/false) without going through the production resolution chain.
+    // Package-private so tests can pin the binary to a controlled failure mode (e.g. /bin/false).
     QpdfLinearizer(Path qpdfBinary, PdfVersion targetVersion) {
         this.qpdfBinary = qpdfBinary;
         this.targetVersion = targetVersion;
     }
 
-    // Convenience overload for tests that don't care about the target version.
+    // For tests that don't care about the target version.
     QpdfLinearizer(Path qpdfBinary) {
         this(qpdfBinary, PdfOutputPolicy.TARGET);
     }
@@ -132,33 +121,27 @@ public final class QpdfLinearizer implements PdfPostProcessor {
             throw SpreadException.withDetail(
                     ErrorKind.PDF_WRITE_FAILED, "qpdf input missing: " + path, null);
         }
-        // Write to a sibling temp file and move it over the target instead of using
-        // --replace-input. qpdf's --replace-input leaves a "<name>.~qpdf-orig" backup next to
-        // the output whenever it exits with warnings (code 3, which we accept), which litters
-        // the user's output directory — very visible in batch runs. An explicit out-file plus a
-        // move produces an identical linearized result while keeping the directory clean.
+        // Write to a sibling temp file and move it over the target instead of --replace-input,
+        // which leaves a "<name>.~qpdf-orig" backup whenever qpdf exits with warnings (code 3,
+        // which we accept). The explicit out-file plus move yields an identical result without
+        // littering the output directory.
         Path fileName = Objects.requireNonNull(path.getFileName());
         Path tmpOut = path.resolveSibling(fileName + ".qpdf-tmp");
-        // Hand the binary this class already resolved (bundle-first, then PATH; or a test-pinned
-        // path via the package-private constructor) to the shared QpdfRunner, which takes a
-        // property
-        // KEY rather than a Path. ToolPath.resolve returns Path.of(override) verbatim (no
-        // executable probe), so QpdfRunner runs exactly this binary. The set -> run -> restore is
-        // one synchronized critical section because the override property is process-global (see
-        // QPDF_PROPERTY_LOCK); restored in the finally so the property is left as we found it.
+        // QpdfRunner takes a property KEY, not a Path; ToolPath.resolve returns Path.of(override)
+        // verbatim (no executable probe), so it runs exactly the binary this class resolved. The
+        // set -> run -> restore is synchronized because the override property is process-global
+        // (see QPDF_PROPERTY_LOCK); restored in the finally.
         synchronized (QPDF_PROPERTY_LOCK) {
             String previousOverride = System.getProperty(QPDF_PATH_PROPERTY);
             System.setProperty(QPDF_PATH_PROPERTY, qpdfBinary.toString());
             try {
-                // QpdfRunner.modernizing builds the identical command array (--linearize,
-                // --newline-before-endstream, --min-version=<target>, in, out) and bakes in qpdf's
-                // exit-3 ("succeeded with warnings") tolerance — PDFBox's container routinely trips
-                // minor qpdf warnings yet the linearized output is valid. The default timeout is
-                // two
-                // minutes, so .withTimeout pins tate's 60s. The shared runner throws an IOException
-                // for any OTHER non-zero exit (or a launch failure); that surfaces through the
-                // catch (IOException) below as our PDF_WRITE_FAILED policy — the throw-on-failure
-                // decision stays app-side, layered over the runner's Result.
+                // QpdfRunner.modernizing builds the command array (--linearize,
+                // --newline-before-endstream, --min-version=<target>, in, out) and tolerates qpdf's
+                // exit 3 ("succeeded with warnings"): PDFBox's output routinely trips minor
+                // warnings
+                // yet is valid. .withTimeout pins tate's 60s over the runner's two-minute default.
+                // Any OTHER non-zero exit (or launch failure) throws IOException, caught below as
+                // PDF_WRITE_FAILED.
                 QpdfRunner runner =
                         QpdfRunner.modernizing(QPDF_PATH_PROPERTY, targetVersion.label(), true)
                                 .withTimeout(TIMEOUT);
@@ -215,8 +198,8 @@ public final class QpdfLinearizer implements PdfPostProcessor {
         }
     }
 
-    // Package-private so tests can drive the lookup with a synthetic directory
-    // without going through the class-loader/CodeSource probe.
+    // Package-private so tests can drive the lookup with a synthetic directory, bypassing the
+    // class-loader/CodeSource probe.
     static Optional<Path> resolveBundledQpdfIn(Path jarDir) {
         String executableName = osIsWindows() ? "qpdf.exe" : "qpdf";
         Path[] candidates = {
@@ -231,10 +214,9 @@ public final class QpdfLinearizer implements PdfPostProcessor {
         return Optional.empty();
     }
 
-    // Error Prone's StringSplitter check wants Guava's Splitter; pulling Guava in for one PATH
-    // walk is not worth it. `Pattern.compile(quote(File.pathSeparator)).split(...)` would still
-    // trip the check, and the surprising trailing-empty semantics that StringSplitter warns about
-    // don't matter here (we explicitly skip empties below).
+    // Suppresses Error Prone's StringSplitter check (which wants Guava's Splitter): not worth a
+    // Guava dependency for one PATH walk, and the trailing-empty semantics it warns about don't
+    // matter here since empties are skipped below.
     @SuppressWarnings("StringSplitter")
     static Optional<Path> resolveOnPath() {
         String executableName = osIsWindows() ? "qpdf.exe" : "qpdf";

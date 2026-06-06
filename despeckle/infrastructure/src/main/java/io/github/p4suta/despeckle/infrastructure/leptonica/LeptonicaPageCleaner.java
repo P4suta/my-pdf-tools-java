@@ -16,24 +16,21 @@ import java.util.Optional;
  *   read → keep components larger than k → (optionally) fill holes → write
  * </pre>
  *
- * <p>All connected-component analysis is delegated to Leptonica's battle-tested {@code
- * pixSelectBySize}; this class only sequences the calls and accounts for what changed. It is
- * stateless and therefore safe to share across threads.
+ * <p>Connected-component analysis is delegated to Leptonica's {@code pixSelectBySize}; this class
+ * sequences the calls and accounts for what changed. Stateless, so safe to share across threads.
  *
- * <p>The Leptonica adapter side of {@link PageCleaner}: it owns the shared {@link Pix} handles and
- * resolves an {@link OutputFormat} to the concrete Leptonica {@code IFF_*} write code, neither of
- * which ever crosses the port boundary. The shared imaging island exposes only the raw {@code
- * selectBySize} primitive; despeckle's keep-larger-than POLICY (the {@code IF_EITHER}/{@code IF_GT}
+ * <p>The Leptonica adapter side of {@link PageCleaner}: it owns the {@link Pix} handles and
+ * resolves an {@link OutputFormat} to the Leptonica {@code IFF_*} write code, neither of which
+ * crosses the port boundary. The shared imaging island exposes only the raw {@code selectBySize}
+ * primitive; despeckle's keep-larger-than policy (the {@code IF_EITHER}/{@code IF_GT}
  * keep-condition) lives here, app-side, in {@link #keepComponentsLargerThan(Pix, int)}.
  */
 public final class LeptonicaPageCleaner implements PageCleaner {
 
-    // --- Leptonica size-selection flags (pix.h), pinned app-side ---
-    // The shared imaging island holds these as package-private constants and exposes only the raw
-    // selectBySize(...) primitive, so they cannot be named cross-package; the despeckle
-    // keep-larger-
-    // than POLICY that composes them is app-side, so the values it needs live here. They are the
-    // literal header values, identical to the ones the migrated-away despeckle island carried.
+    // Leptonica size-selection flags, literal pix.h header values. The shared imaging island holds
+    // them as package-private constants and exposes only the raw selectBySize(...) primitive, so
+    // they cannot be named cross-package; the keep-larger-than policy that composes them is
+    // app-side, so the values it needs live here.
 
     /** 8-connectivity for connected-component analysis. */
     private static final int CONN_8 = 8;
@@ -44,22 +41,14 @@ public final class LeptonicaPageCleaner implements PageCleaner {
     /** Relation: keep if value is greater than the threshold. */
     private static final int L_SELECT_IF_GT = 2;
 
-    /**
-     * Process one page from {@code input} to {@code output}.
-     *
-     * @param input source image path
-     * @param output destination image path
-     * @param format desired output format
-     * @param options despeckle knobs
-     * @return what changed on this page
-     */
+    /** Process one page from {@code input} to {@code output}. */
     @Override
     public ProcessResult clean(
             Path input, Path output, OutputFormat format, ProcessOptions options) {
         try (Pix source = Pix.read(input)) {
-            // The FFM boundary: Leptonica's pixGetXRes returns 0 when the page carries no embedded
-            // resolution. Map that 0-means-absent to an Optional<Resolution> exactly once here, so
-            // the domain models a missing resolution with absence rather than a magic value.
+            // pixGetXRes returns 0 when the page carries no embedded resolution. Map that
+            // 0-means-absent to an Optional<Resolution> once here, so the domain models a missing
+            // resolution with absence rather than a magic value.
             int raw = source.resolution();
             Optional<Resolution> img = raw > 0 ? Optional.of(Resolution.of(raw)) : Optional.empty();
             int k = options.speckSize(img);
@@ -80,9 +69,9 @@ public final class LeptonicaPageCleaner implements PageCleaner {
                 }
 
                 if (options.fillHoles()) {
-                    // The thin-stroke threshold: only holes ringed by black thicker than this are
-                    // treated as pin-holes. Half the speck size (~3 px at 600 dpi) keeps body
-                    // strokes solid while sparing the fine gaps inside small or complex glyphs.
+                    // Thin-stroke threshold: only holes ringed by black thicker than this count as
+                    // pin-holes. Half the speck size (~3 px at 600 dpi) keeps body strokes solid
+                    // while sparing the fine gaps inside small or complex glyphs.
                     int strokeThickness = Math.max(1, Math.round(k / 2.0f));
                     Pix filled = fillHoles(current, k, strokeThickness);
                     current.close();
@@ -91,8 +80,8 @@ public final class LeptonicaPageCleaner implements PageCleaner {
 
                 int componentsAfter = current.connectedComponents();
                 long blackAfter = current.blackPixels();
-                // Stamp the resolution we honored, so a TIFF/PNG output carries an accurate tag.
-                // Only a known resolution is written; an unknown one is left untouched.
+                // Stamp the honored resolution so a TIFF/PNG output carries an accurate tag. Only a
+                // known resolution is written; an unknown one is left untouched.
                 options.resolution(img).map(Resolution::dpi).ifPresent(current::setResolution);
                 writeIn(current, output, format, sourceFormat);
                 return new ProcessResult(
@@ -107,13 +96,12 @@ public final class LeptonicaPageCleaner implements PageCleaner {
      * Return a new {@code Pix} keeping only components whose bounding box is larger than {@code k}
      * in <em>either</em> width or height (8-connected).
      *
-     * <p>This is the despeckle core, and the one piece of POLICY that the shared imaging island
-     * deliberately does NOT carry: it exposes only the raw {@code selectBySize} primitive, so the
-     * keep-condition is expressed here. Scanner dust is a few pixels across in both dimensions, so
+     * <p>The keep-condition the shared imaging island does not carry (it exposes only the raw
+     * {@code selectBySize} primitive). Scanner dust is a few pixels across in both dimensions, so
      * it fails the {@code > k} test on both and is dropped; punctuation, dakuten and ruby — and
      * even a thin vertical stroke, which is tall — clear it on at least one axis and survive. The
-     * {@code (IF_EITHER, IF_GT)} polarity expresses the <em>keep</em> condition (verified by the
-     * Milestone-0 spike, where the opposite polarity erased a solid block).
+     * {@code (IF_EITHER, IF_GT)} polarity is the <em>keep</em> condition; the opposite polarity
+     * erases.
      */
     private static Pix keepComponentsLargerThan(Pix pix, int k) {
         return pix.selectBySize(k, k, CONN_8, L_SELECT_IF_EITHER, L_SELECT_IF_GT);
@@ -121,13 +109,8 @@ public final class LeptonicaPageCleaner implements PageCleaner {
 
     /**
      * Write {@code pix} in the requested {@link OutputFormat} via {@link Pix}'s named writers, so
-     * no Leptonica {@code IFF_*} code is named app-side. {@code SAME} threads the page's source
-     * format (a derived Pix reports {@code inputFormat()==0}, so it is passed explicitly).
-     *
-     * @param pix the cleaned page
-     * @param output the destination path
-     * @param format the desired output format
-     * @param sourceFormat the {@code IFF_*} the page was read from (for {@link OutputFormat#SAME})
+     * no Leptonica {@code IFF_*} code is named app-side. {@code SAME} threads {@code sourceFormat}
+     * through explicitly because a derived Pix reports {@code inputFormat()==0}.
      */
     private static void writeIn(Pix pix, Path output, OutputFormat format, int sourceFormat) {
         switch (format) {

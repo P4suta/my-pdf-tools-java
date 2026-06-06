@@ -10,13 +10,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Accumulates, across the whole corpus, <em>where on the page</em> the filter removed ink, then
  * renders it as a heatmap. Each page's removed pixels (dark before, light after) are dropped into a
  * fixed normalized grid — so pages of slightly different sizes still stack — and the result is
- * colored white (nothing) through yellow to red (many pages lost a speck at that spot). A bright
- * band hugging one margin is a dirty platen region; a smear over the text block is the warning sign
- * that the filter is biting glyphs, not dust.
+ * colored white (nothing) through yellow to red (many pages lost a speck at that spot).
  *
- * <p>This is despeckle's own diagnostic — {@code register} has no equivalent — and the spatial twin
- * of the metric charts. It assumes the corpus is one roughly-uniform page shape (a scanned book),
- * which is exactly when the normalized stack is meaningful.
+ * <p>Assumes the corpus is one roughly-uniform page shape (a scanned book), which is when the
+ * normalized stack is meaningful.
  *
  * <h2>Concurrency: the parallel-histogram pattern</h2>
  *
@@ -79,7 +76,6 @@ final class RemovedHeatmap {
      * Render the combined heatmap.
      *
      * @param pageCount number of pages summed in, for the caption
-     * @return the heatmap image
      */
     BufferedImage render(int pageCount) {
         long[] grid = new long[CELLS];

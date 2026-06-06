@@ -9,9 +9,8 @@ import java.lang.reflect.Modifier;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the {@link ExitCodes} sysexits registry to the values named in the error-model spec
- * (sections 2 and 6) and confirms the shared {@link CommonErrorKind} exit codes agree with the
- * named constants — the registry and the error model must not drift.
+ * Pins the {@link ExitCodes} sysexits constants and confirms the {@link CommonErrorKind} exit codes
+ * agree with them, so the registry and the error model do not drift.
  */
 final class ExitCodesTest {
 

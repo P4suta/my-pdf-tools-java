@@ -38,7 +38,6 @@ public record ProcessOptions(
     /** Resolution assumed for the speck filter when neither a flag nor the image supplies one. */
     public static final int DEFAULT_DPI = 300;
 
-    /** Validates the option values. */
     public ProcessOptions {
         if (dpi.isPresent()) {
             Validators.requirePositive(dpi.getAsInt(), "dpi");
@@ -57,12 +56,9 @@ public record ProcessOptions(
     }
 
     /**
-     * The same options with an explicit resolution baked in. The pipeline uses this to pin the
-     * scan's detected DPI onto every page, so the speck filter sizes correctly off images that
-     * {@code pdfimages} left tagged at a default 72 dpi.
-     *
-     * @param dpi the resolution to honor for every page
-     * @return a copy with {@code dpi} set
+     * A copy with {@code dpi} set. The pipeline uses this to pin the scan's detected DPI onto every
+     * page, so the speck filter sizes correctly off images that {@code pdfimages} left tagged at a
+     * default 72 dpi.
      */
     public ProcessOptions withDpi(int dpi) {
         return new ProcessOptions(
@@ -83,13 +79,10 @@ public record ProcessOptions(
     }
 
     /**
-     * The resolution to honor for a page whose embedded resolution is {@code img} (empty if the
-     * image carries none). An explicit {@code --dpi} wins; otherwise the image's own resolution is
-     * used; otherwise it is unknown. This is the value stamped onto the output, so a guessed
-     * fallback is deliberately <em>not</em> reported here — only a resolution we actually know.
-     *
-     * @param img the page's embedded resolution, or empty if none
-     * @return the resolution to honor, or empty if none is known
+     * The resolution to honor for a page whose embedded resolution is {@code img} (empty if none).
+     * An explicit {@code --dpi} wins; otherwise the image's own resolution; otherwise empty. This
+     * is the value stamped onto the output, so a guessed fallback is <em>not</em> reported here —
+     * only a known resolution.
      */
     public Optional<Resolution> resolution(Optional<Resolution> img) {
         if (dpi.isPresent()) {
@@ -102,9 +95,6 @@ public record ProcessOptions(
      * The speck-size threshold in pixels for a page whose embedded resolution is {@code img}. An
      * explicit speck size wins; otherwise it scales with the resolved resolution (~3 px at 300 dpi,
      * ~6 px at 600 dpi), assuming {@link #DEFAULT_DPI} when nothing is known.
-     *
-     * @param img the page's embedded resolution, or empty if none
-     * @return the threshold in pixels
      */
     public int speckSize(Optional<Resolution> img) {
         if (speckSizePx.isPresent()) {
@@ -120,12 +110,9 @@ public record ProcessOptions(
     }
 
     /**
-     * The largest bounding box (in either axis) an isolated speck may have to still be treated as
-     * dust. An explicit value wins; otherwise it scales with resolution (~15 px at 600 dpi), kept
-     * comfortably below the smallest real glyph so only genuine specks qualify.
-     *
-     * @param img the page's embedded resolution, or empty if none
-     * @return the maximum isolated-speck size in pixels
+     * The largest bounding box (in either axis) an isolated speck may have to still count as dust.
+     * An explicit value wins; otherwise it scales with resolution (~15 px at 600 dpi), kept below
+     * the smallest real glyph so only genuine specks qualify.
      */
     public int isolatedDustSize(Optional<Resolution> img) {
         if (isolatedDustSizePx.isPresent()) {
@@ -138,11 +125,8 @@ public record ProcessOptions(
     /**
      * How close (in pixels) a speck must be to real text to be spared. A speck within this distance
      * of a kept component is assumed to belong to it (dakuten, punctuation, ruby) and is preserved;
-     * only specks farther than this on clean background are removed. Sized to cover the speck plus
-     * the typical gap to its glyph, so a near-text mark is protected as a whole.
-     *
-     * @param img the page's embedded resolution, or empty if none
-     * @return the protection radius in pixels
+     * only specks farther out on clean background are removed. Sized to cover the speck plus the
+     * typical gap to its glyph.
      */
     public int isolatedDustProximity(Optional<Resolution> img) {
         return isolatedDustSize(img) + speckSize(img);

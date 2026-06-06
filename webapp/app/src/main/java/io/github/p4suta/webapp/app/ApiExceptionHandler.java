@@ -14,20 +14,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
- * Maps the domain's typed failures — plus an over-size upload and an unexpected I/O error — to RFC
+ * Maps the domain's typed failures, plus an over-size upload and an unexpected I/O error, to RFC
  * 9457 {@link ProblemDetail} responses (media type {@code application/problem+json}). Each problem
  * carries a stable, machine-readable {@code code} property so a client can branch on the failure
  * kind without parsing the human-readable {@code detail}.
  *
  * <p>Spring MVC's own framework exceptions (415, 405, malformed body, …) are already rendered as
- * problem+json by {@code spring.mvc.problemdetails.enabled}; this advice deliberately does NOT add
- * a broad {@code Exception} handler, which would intercept and flatten those. Anything not handled
- * here falls to the container's default error path, which the {@code prod} profile strips of
- * messages and stack traces ({@code server.error.include-*: never}) so nothing internal leaks.
+ * problem+json by {@code spring.mvc.problemdetails.enabled}. No broad {@code Exception} handler is
+ * added, since it would intercept and flatten those. Anything not handled here falls to the
+ * container's default error path, which the {@code prod} profile strips of messages and stack
+ * traces ({@code server.error.include-*: never}) so nothing internal leaks.
  *
  * <p>The HTTP status comes solely from the returned {@link ProblemDetail} (Spring applies {@code
- * ProblemDetail.getStatus()} to the response) — no {@code @ResponseStatus}, so there is one source
- * of truth for each status.
+ * ProblemDetail.getStatus()}); no {@code @ResponseStatus}, so one source of truth per status.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {

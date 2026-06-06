@@ -15,9 +15,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Removes jobs whose age exceeds a time-to-live, deleting each one's workspace. Reaping by {@code
- * createdAt} sweeps both finished jobs whose results were never downloaded and any orphans left
- * behind by a crash; with a TTL of hours, an in-flight conversion (which takes minutes) is never
- * caught.
+ * createdAt} sweeps both finished jobs whose results were never downloaded and any orphans left by
+ * a crash; with a TTL of hours, an in-flight conversion (minutes long) is never caught.
  */
 public final class JobReaper {
 

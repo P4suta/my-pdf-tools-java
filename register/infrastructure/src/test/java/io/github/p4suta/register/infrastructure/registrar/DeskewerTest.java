@@ -12,9 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests the register deskew POLICY layered on the shared {@link Pix} primitives. The bit-for-bit
- * equivalence to the old register-local {@code Pix.deskew()} was proven by the (temporary) {@code
- * PixParityTest}; this suite pins the policy's observable behavior and its confidence/angle gate.
+ * Tests the register deskew policy layered on the shared {@link Pix} primitives: its observable
+ * behavior and its confidence/angle gate.
  */
 class DeskewerTest {
 

@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class JsonlProgressCodecTest {
 
-    // --- wire format (locked exact strings) ---
+    // wire format (locked exact strings)
 
     @Test
     void writesRunStarted() {
@@ -66,7 +66,7 @@ class JsonlProgressCodecTest {
                                 + "\"a\\\"b\\\\c\\nd\\re\\tf\\u0000g\\u001fh\"}");
     }
 
-    // --- round trip ---
+    // round trip
 
     @Property
     void roundTripsEveryEvent(@ForAll("events") ProgressEvent event) {
@@ -102,7 +102,7 @@ class JsonlProgressCodecTest {
                 .hasMessageContaining("missing or non-string field: type");
     }
 
-    // --- malformed input (every reader error arm) ---
+    // malformed input (every reader error arm)
 
     @Test
     void rejectsUnknownEventType() {

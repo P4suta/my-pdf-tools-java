@@ -60,7 +60,7 @@ final class PipelineE2eTest {
                                 });
 
         // Continue-on-error batch: with at least one failed book the run reports the EX_SOFTWARE
-        // aggregate (70) under the sysexits uplift (the flat RUNTIME_ERROR 1 is retired).
+        // aggregate (70).
         assertEquals(70, code, "a failed book makes the batch exit with the EX_SOFTWARE aggregate");
         assertTrue(Files.exists(out.resolve("a.pdf")), "good book a is cleaned");
         assertTrue(Files.exists(out.resolve("b.pdf")), "good book b is cleaned");

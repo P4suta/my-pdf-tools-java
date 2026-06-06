@@ -2,8 +2,8 @@ package io.github.p4suta.webapp.port;
 
 /**
  * Runs conversion tasks asynchronously under a bounded concurrency. The production adapter runs a
- * single task at a time (each pdfbook already saturates the machine with its own worker threads),
- * so concurrent jobs cannot oversubscribe the CPU.
+ * single task at a time, since each pdfbook already saturates the machine with its own worker
+ * threads, so concurrent jobs would oversubscribe the CPU.
  */
 public interface ConversionExecutor {
 

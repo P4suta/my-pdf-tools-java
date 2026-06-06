@@ -165,9 +165,6 @@ public final class RegisterCommand {
      * {@code ExceptionMapper} maps the failure's {@code ErrorCategory} to its {@code exitCode()} —
      * e.g. 65 image-unreadable, 66 input-not-found, 70 native-tool / internal, 73 output-conflict).
      * Help and version short-circuit to 0. The sole stdout/stderr writer.
-     *
-     * @param args the raw command-line arguments
-     * @return the process exit code
      */
     public int execute(String[] args) {
         // `register pipeline <in.pdf> <out.pdf>` is the PDF -> PDF mode; the default (no
@@ -217,8 +214,6 @@ public final class RegisterCommand {
      * Parse {@code args} into a {@link RegistrationService.Config} without running. Package-private
      * so the CLI parsing can be unit-tested.
      *
-     * @param args the raw command-line arguments
-     * @return the parsed run configuration
      * @throws ParseException if the options or positionals are malformed
      */
     RegistrationService.Config parse(String[] args) throws ParseException {

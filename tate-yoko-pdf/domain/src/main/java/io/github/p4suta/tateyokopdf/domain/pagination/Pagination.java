@@ -11,12 +11,12 @@ import java.util.List;
 /**
  * Pairs a document's pages into the sequence of spreads to emit, for a given {@link FirstPageMode}.
  *
- * <p>One exhaustive {@code switch} over the three openings replaces the former strategy hierarchy:
- * {@code STANDARD} pairs from the first ({@code 1·2, 3·4, …}); {@code COVER} isolates page 1 as a
- * standalone cover on the reading-leading half, then pairs from page 2 ({@code [1], 2·3, …});
- * {@code LEADING_BLANK} opens with page 1 on the trailing half — across from an implied leading
- * blank — then pairs from page 2 ({@code [▢|1], 2·3, …}). The two offset modes share their
- * grouping; only page 0's half (and, for STANDARD, its presence) differs.
+ * <p>One exhaustive {@code switch} over the three openings: {@code STANDARD} pairs from the first
+ * ({@code 1·2, 3·4, …}); {@code COVER} isolates page 1 as a standalone cover on the reading-leading
+ * half, then pairs from page 2 ({@code [1], 2·3, …}); {@code LEADING_BLANK} opens with page 1 on
+ * the trailing half — across from an implied leading blank — then pairs from page 2 ({@code [▢|1],
+ * 2·3, …}). The two offset modes share their grouping; only page 0's half (and, for STANDARD, its
+ * presence) differs.
  */
 public final class Pagination {
 

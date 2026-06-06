@@ -13,11 +13,8 @@ import org.apache.commons.cli.help.TextHelpAppendable;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Argument-parsing helpers shared by every p4suta CLI front end, merged from register's {@code
- * CliSupport} and despeckle's {@code DespeckleOptions}. Holds the genuinely app-neutral logic — the
- * int/double/enum value parsing, the positional-count check, and the help / usage-error renderers —
- * so no command re-derives it. Like its callers it lives in the one layer allowed to write to
- * {@code System.out}/{@code System.err}.
+ * Argument-parsing helpers: int/double/enum value parsing, the positional-count check, and the help
+ * / usage-error renderers.
  *
  * <p>The value parsers throw {@link ParseException} on bad input (rather than {@code
  * NumberFormatException}/{@code IllegalArgumentException}), keeping a parse failure on the Commons
@@ -137,9 +134,8 @@ public final class CliOptionSupport {
      *
      * <p>The {@code HelpFormatter}'s {@link TextHelpAppendable} pads wrapped option descriptions
      * out to the column width, leaving trailing whitespace on many lines and an extra blank line at
-     * the end. We render into a buffer, {@linkplain String#stripTrailing() strip} the trailing
-     * whitespace off every line, and drop the trailing blank line(s) before emitting — matching the
-     * cleaner output despeckle's front end produced before it adopted this shared helper. Leading
+     * the end. Render into a buffer, {@linkplain String#stripTrailing() strip} the trailing
+     * whitespace off every line, and drop the trailing blank line(s) before emitting. Leading
      * indentation (which carries the option layout) is preserved.
      *
      * @param program the program name used in the could-not-render fallback message

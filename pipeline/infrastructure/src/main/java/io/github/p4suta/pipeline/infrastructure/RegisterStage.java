@@ -34,11 +34,7 @@ public final class RegisterStage implements Stage {
     private final int jobs;
     private final ProgressSink progress;
 
-    /**
-     * @param jobs worker threads
-     * @param deskew straighten each page before detection
-     * @param scale scale each page's column to the reference height
-     */
+    /** {@link ProgressSink#NO_OP} variant of the four-arg constructor. */
     public RegisterStage(int jobs, boolean deskew, boolean scale) {
         this(jobs, deskew, scale, ProgressSink.NO_OP);
     }

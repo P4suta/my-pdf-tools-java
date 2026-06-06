@@ -6,10 +6,10 @@ import io.github.p4suta.shared.kernel.error.CommonErrorKind;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins {@link RegisterException}'s factory behavior, mirroring tate's {@code SpreadExceptionTest}:
- * {@code of} adopts the kind's default message and leaves the detail null, {@code of(kind, cause)}
- * preserves the cause, and {@code withDetail} folds the detail into the throwable message. The kind
- * may be a {@link RegisterErrorKind} or a reused {@link CommonErrorKind}.
+ * Pins {@link RegisterException}'s factory behavior: {@code of} adopts the kind's default message
+ * and leaves the detail null, {@code of(kind, cause)} preserves the cause, and {@code withDetail}
+ * folds the detail into the throwable message. The kind may be a {@link RegisterErrorKind} or a
+ * reused {@link CommonErrorKind}.
  */
 final class RegisterExceptionTest {
 

@@ -28,7 +28,6 @@ public final class MainColumnDetector {
      * @param page the (already deskewed) page to analyze
      * @param dpi the page's scan resolution; the running-title gutter is about {@code dpi/8} px,
      *     the gap width that blocks a band, so it must be sized in the page's own pixels
-     * @return the detection, or empty when no body column is found
      */
     public Optional<Detection> detect(Pix page, int dpi) {
         int blockingGap = Math.max(1, Math.round(dpi / 8.0f));

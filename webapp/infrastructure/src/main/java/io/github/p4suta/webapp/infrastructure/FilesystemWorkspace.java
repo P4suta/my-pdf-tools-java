@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 /**
  * A {@link Workspace} that gives each job a private directory under a root, holding the uploaded
  * {@code input.pdf} and the produced {@code output.pdf}. Job ids are already restricted to a safe
- * token, but each resolved directory is re-checked to lie under the root as defense in depth
+ * token; each resolved directory is also re-checked to lie under the root, as defense in depth
  * against path traversal.
  */
 public final class FilesystemWorkspace implements Workspace {
@@ -54,8 +54,8 @@ public final class FilesystemWorkspace implements Workspace {
     public String storeUpload(JobId id, InputStream pdf) throws IOException {
         MessageDigest digest = sha256();
         BufferedInputStream buffered = new BufferedInputStream(pdf);
-        // Peek the first bytes to reject non-PDF uploads before writing the whole file; reset and
-        // then digest every byte as Files.copy streams it to disk (no in-memory buffering).
+        // Peek the first bytes to reject non-PDF uploads before writing; reset, then digest every
+        // byte as Files.copy streams it to disk (no in-memory buffering).
         buffered.mark(PDF_MAGIC.length + 1);
         byte[] head = buffered.readNBytes(PDF_MAGIC.length);
         if (!Arrays.equals(head, PDF_MAGIC)) {

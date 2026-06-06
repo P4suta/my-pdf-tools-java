@@ -5,8 +5,8 @@ import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 
 /**
- * Always {@code UP} — a full queue is normal back-pressure (the API answers 429), not a failure —
- * but surfaces the live queue/worker counts as health details for operators.
+ * Always {@code UP}: a full queue is normal back-pressure (the API answers 429), not a failure.
+ * Surfaces the live queue/worker counts as health details for operators.
  */
 final class QueueHealthIndicator implements HealthIndicator {
 

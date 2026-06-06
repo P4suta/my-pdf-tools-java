@@ -121,7 +121,7 @@ public final class DespeckleCli {
                 DespeckleOptions.optionalInt(cmd, DespeckleOptions.ISOLATED_DUST_SIZE);
 
         // Hole-filling and the isolated-dust pass are on by default; an --x flag opts in,
-        // a --no-x flag opts out, mirroring the old `optIn || !optOut` picocli wiring.
+        // a --no-x flag opts out (optIn || !optOut).
         boolean fillHoles =
                 cmd.hasOption(DespeckleOptions.FILL_HOLES)
                         || !cmd.hasOption(DespeckleOptions.NO_FILL_HOLES);

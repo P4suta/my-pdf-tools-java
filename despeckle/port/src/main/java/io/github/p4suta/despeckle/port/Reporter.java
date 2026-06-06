@@ -20,19 +20,11 @@ public interface Reporter extends AutoCloseable {
      * Render and record the panels for one page.
      *
      * @param relativeStem page path relative to the input root
-     * @param inputImage original page on disk
-     * @param outputImage cleaned page on disk
-     * @param result the per-page outcome
-     * @throws IOException if a panel cannot be written
      */
     void addPage(Path relativeStem, Path inputImage, Path outputImage, ProcessResult result)
             throws IOException;
 
-    /**
-     * Write the corpus artifacts and index tying the run's pages together.
-     *
-     * @throws IOException if an artifact cannot be written
-     */
+    /** Write the corpus artifacts and index tying the run's pages together. */
     void finish() throws IOException;
 
     /** Closing a reporter finishes it, so it can be used as a try-with-resources. */
@@ -44,8 +36,6 @@ public interface Reporter extends AutoCloseable {
     /**
      * A pass-through reporter that records nothing and writes nothing — the {@code null}-object the
      * application uses when reporting is disabled.
-     *
-     * @return a no-op reporter
      */
     static Reporter noOp() {
         return new Reporter() {

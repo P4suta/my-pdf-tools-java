@@ -56,8 +56,8 @@ let fromCache = $state(false); // served instantly from the result cache (upload
 let source: EventSource | null = null;
 
 // Liveness clock: `now` ticks once a second while a job is in flight, so the elapsed time and the
-// "last update" readout keep moving even when no progress event arrives — the extract step is
-// silent, and a slow or hung step would otherwise look identical to a fast one.
+// "last update" readout keep moving even when no progress event arrives (the extract step is
+// silent, and a slow or hung step would otherwise look identical to a fast one).
 let now = $state(Date.now());
 let startedAt = $state<number | null>(null);
 let lastEventAt = $state<number | null>(null);
@@ -79,7 +79,7 @@ const allDone = $derived(steps.length > 0 && steps.every((s) => s.status === "do
 const stale = $derived(phase === "running" && sinceEventMs !== null && sinceEventMs > 20000);
 
 // Overall progress = average of per-step completion. A done step counts as full; the active step
-// contributes its page ratio (extract is indeterminate, so it contributes nothing to the bar — the
+// contributes its page ratio (extract is indeterminate, so it contributes nothing to the bar; the
 // stepper and the elapsed clock carry the signal while it runs).
 const overall = $derived.by(() => {
   if (steps.length === 0) {
@@ -215,7 +215,7 @@ function advance(event: ProgressEvent) {
     }
     case "runCompleted":
       // pdfbook finished writing, but the server may still be reaping the subprocess; don't show
-      // the result until the job is actually DONE, or the preview races a 409 not-ready response.
+      // the result until the job is DONE, or the preview races a 409 not-ready response.
       for (const s of steps) {
         s.status = "done";
       }
@@ -478,8 +478,8 @@ function reset() {
         </form>
       </section>
     {:else if phase === "done" && jobId}
-      <!-- Done: the result fills the screen. The section is the shared .view (a flex column), so the
-           preview (flex: 1) is the one child that grows to fill the height; the bar sits above it. -->
+      <!-- Done: the section is the shared .view (a flex column), so the preview (flex: 1) is the one
+           child that grows to fill the height; the bar sits above it. -->
       <section class="view" in:fade={{ duration: 240 }}>
         <div class="result-bar">
           <span class="ok">✓ 製本が完了しました{fromCache ? "（キャッシュ）" : `（所要 ${fmtDuration(elapsedMs)}）`}</span>
@@ -496,8 +496,8 @@ function reset() {
         ></iframe>
       </section>
     {:else}
-      <!-- Work: controls are gone; the pipeline stepper shows the whole flow, current step, and
-           liveness. The same view (with the failed step in red) shows on failure. -->
+      <!-- Work: the pipeline stepper shows the whole flow, current step, and liveness. The same view
+           (with the failed step in red) shows on failure. -->
       <section class="view" in:fade={{ duration: 200 }}>
         <div class="run-head">
           <div class="run-status">

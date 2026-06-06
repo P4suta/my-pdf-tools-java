@@ -145,7 +145,6 @@ final class PipelineCli {
                                             parsed.flipbook()));
             // Continue-on-error batch: individual books are logged with their own kind as they
             // fail; the run as a whole reports the EX_SOFTWARE aggregate (70) when any book failed.
-            // The flat RUNTIME_ERROR (1) is retired under the sysexits uplift.
             return summary.failed() > 0 ? ExitCodes.INTERNAL : ExitCodes.OK;
         }
         pipeline.run(

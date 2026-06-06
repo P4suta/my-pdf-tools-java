@@ -11,12 +11,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Runs at most one conversion at a time over a bounded queue. One worker is deliberate: each
- * pdfbook already fans out across the machine's cores with its own {@code -j} workers, so a second
- * concurrent conversion would only oversubscribe the CPU. When the queue is full {@link
+ * Runs at most one conversion at a time over a bounded queue. A single worker because each pdfbook
+ * already fans out across the machine's cores with its own {@code -j} workers, so a second
+ * concurrent conversion would oversubscribe the CPU. When the queue is full {@link
  * #submit(Runnable)} raises {@link QueueFullException} (the web layer answers HTTP 429) rather than
- * accept unbounded work. Also exposes its queue/worker state through {@link QueueStats} so the web
- * layer can publish metrics and health without reaching into the pool.
+ * accept unbounded work. Exposes its queue/worker state through {@link QueueStats} so the web layer
+ * can publish metrics and health without reaching into the pool.
  */
 public final class BoundedConversionExecutor
         implements ConversionExecutor, QueueStats, AutoCloseable {

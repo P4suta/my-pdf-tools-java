@@ -2,15 +2,12 @@
 
 Automatic dust / speckle removal for bitonal Japanese-novel scans.
 
-`despeckle` post-processes self-scanned PDF books so every page looks
-clean: it removes the random pepper-noise a scanner sprinkles across the
-page while protecting fragile typography — **ruby (振り仮名), 句読点
-(「。」「、」), and dakuten/handakuten (「゛」「゜」)** — that a naive
-size filter would also erase.
+`despeckle` removes the random pepper-noise a scanner sprinkles across a
+page while protecting typography a naive size filter would also erase:
+**ruby (振り仮名), 句読点 (「。」「、」), and dakuten/handakuten (「゛」「゜」)**.
 
-It is a thin, careful wrapper around [Leptonica](http://www.leptonica.org/)'s
-`pixSelectBySize`, called through the JDK Foreign Function & Memory API.
-The image science is Leptonica's; despeckle supplies the conservative,
+It wraps [Leptonica](http://www.leptonica.org/)'s `pixSelectBySize`, called
+through the JDK Foreign Function & Memory API, and adds the conservative,
 DPI-aware policy, the directory/parallel driver, and the inspection report.
 
 ## Boundaries
@@ -38,10 +35,9 @@ read (Leptonica) → keep components larger than k, 8-connected
 ```
 
 Hole-filling is thickness-aware: a white pin-hole is closed only when the ink
-ringing it is solid (survives an opening by ~half the speck size). The fine
-gaps inside small or complex glyphs are ringed by *thin* strokes, so they are
-left alone — small running heads and the fine strokes inside complex kanji
-stay crisp instead of filling in.
+ringing it is solid (survives an opening by ~half the speck size). Fine gaps
+inside small or complex glyphs are ringed by *thin* strokes and are left alone,
+so small running heads and the fine strokes inside complex kanji stay crisp.
 
 `k` (the speck size) defaults to `dpi / 100` — about 3 px at 300 dpi, 6 px
 at 600. The resolution is read from each page's own tag when `--dpi` is
@@ -52,7 +48,7 @@ specks comes back unchanged.
 
 ## Quick start
 
-Everything runs inside the dev container, so the host only needs Docker:
+Everything runs inside the dev container; the host only needs Docker:
 
 ```sh
 just bootstrap     # build/pull the dev image, install git hooks
@@ -107,9 +103,9 @@ took.
 
 Five Gradle modules under `io.github.p4suta.despeckle`, a hexagonal (ports &
 adapters) graph in which a layer violation does not compile — the boundary is
-the *absence* of a `project()` dependency, not a runtime check (the exit-code
-mapping + fatal uncaught handler now come from the cross-app `:shared:observability`
-+ `:shared:cli`, which used to be a per-app `:observability` module):
+the *absence* of a `project()` dependency, not a runtime check. The exit-code
+mapping + fatal uncaught handler come from the cross-app `:shared:observability`
++ `:shared:cli`:
 
 | module            | role                                                                        |
 | ----------------- | --------------------------------------------------------------------------- |
@@ -121,8 +117,7 @@ mapping + fatal uncaught handler now come from the cross-app `:shared:observabil
 
 `:domain`/`:port`/`:application` never see `:infrastructure`, so PDFBox, the FFM
 binding and AWT are confined to `:infrastructure` (and Commons CLI to `:app`) by
-construction — a future GUI can depend on `:application` plus the ports
-unchanged. Shared build logic lives in the `build-logic` included build (three
+construction. Shared build logic lives in the `build-logic` included build (three
 convention plugins); versions stay in `gradle/libs.versions.toml`.
 
 ## Requirements

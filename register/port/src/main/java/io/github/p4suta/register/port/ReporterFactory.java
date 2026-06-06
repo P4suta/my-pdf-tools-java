@@ -13,17 +13,11 @@ public interface ReporterFactory {
     /**
      * Create a reporter writing into {@code diagDir}.
      *
-     * @param diagDir the diagnostics output directory
      * @param flipbook whether to also assemble the animated-WebP flip-book at finish
-     * @return a ready reporter
      * @throws IOException if the diagnostics directory cannot be created
      */
     Reporter create(Path diagDir, boolean flipbook) throws IOException;
 
-    /**
-     * A pass-through reporter for when diagnostics are disabled.
-     *
-     * @return a no-op reporter
-     */
+    /** A pass-through reporter for when diagnostics are disabled. */
     Reporter noOp();
 }

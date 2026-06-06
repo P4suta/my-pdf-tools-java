@@ -127,7 +127,7 @@ final class ProcessOptionsTest {
                                 OptionalInt.of(0)));
     }
 
-    // --- Coverage added for the domain floor (not in the original verbatim test) ---
+    // Domain floor coverage.
 
     @Test
     void withDpiPinsAnExplicitResolutionAndPreservesEveryOtherKnob() {

@@ -28,9 +28,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * The composition root: wires the framework-free use cases and adapters together as Spring beans.
- * This is the one place that knows every concrete type — the layers below are assembled here
- * exactly as the CLI's {@code PipelineCommand} assembles the pipeline, only with Spring holding the
- * references.
+ * The one place that knows every concrete type.
  */
 @Configuration
 @EnableConfigurationProperties(WebappProperties.class)
@@ -88,8 +86,7 @@ public class WebappConfig {
             Path pdfbookBinary, WebappProperties properties, MeterRegistry registry) {
         ConversionEngine engine =
                 new SubprocessConversionEngine(pdfbookBinary, properties.conversionTimeout());
-        // Decorate so every conversion is timed and tagged success/failure (see
-        // MeteredConversionEngine).
+        // Times and tags each conversion success/failure (see MeteredConversionEngine).
         return new MeteredConversionEngine(engine, registry);
     }
 

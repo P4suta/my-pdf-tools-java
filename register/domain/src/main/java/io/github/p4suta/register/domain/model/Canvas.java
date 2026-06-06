@@ -5,7 +5,6 @@ import io.github.p4suta.shared.kernel.Validators;
 /** The fixed output page in pixels: a paper size rasterised at a chosen resolution. */
 public record Canvas(int width, int height) {
 
-    /** Validates the dimensions. */
     public Canvas {
         Validators.requirePositive(width, "width");
         Validators.requirePositive(height, "height");

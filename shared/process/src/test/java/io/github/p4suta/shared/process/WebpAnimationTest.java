@@ -70,8 +70,8 @@ final class WebpAnimationTest {
     void assembleReturnsFalseWhenToolCannotStart(@TempDir Path dir) throws Exception {
         Path frame = dir.resolve("f.png");
         writePng(frame);
-        // An override pointing at a non-existent binary makes ToolPath resolve it but the launch
-        // fail — exercising the graceful "keep going, return false" path.
+        // An override pointing at a non-existent binary resolves but fails to launch, so assemble
+        // returns false.
         String key = "p4suta.test.img2webp.path";
         System.setProperty(key, dir.resolve("does-not-exist").toString());
         try {

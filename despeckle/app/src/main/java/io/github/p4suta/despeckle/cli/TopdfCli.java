@@ -20,10 +20,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Front end for {@code despeckle topdf <image-dir> <out.pdf>}: pack a directory of already-cleaned
  * bitonal pages into one lossless-JBIG2 PDF — the tail of the image-mode flow ({@code despeckle
- * <in> <out>} then {@code topdf}), and the pure-Java replacement for {@code just to-pdf}. Each page
- * keeps its own resolution unless {@code --dpi} forces one; {@code --source} inherits a scan's
- * metadata. Like {@link DespeckleCli} / {@link PipelineCli} it owns the standard streams and the
- * same exit-code contract (0 success, 2 usage, 1 runtime).
+ * <in> <out>} then {@code topdf}). Each page keeps its own resolution unless {@code --dpi} forces
+ * one; {@code --source} inherits a scan's metadata. Like {@link DespeckleCli} / {@link PipelineCli}
+ * it owns the standard streams and the same exit-code contract (0 success, 2 usage, 1 runtime).
  */
 final class TopdfCli {
 

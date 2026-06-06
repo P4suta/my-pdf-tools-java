@@ -2,13 +2,13 @@
 
 **縦書き日本語スキャンPDFを見開きレイアウトに変換する CLI ツール**
 
-2つの縦長（ポートレート）ページを1つの横長（ランドスケープ）見開きページに結合し、右綴じ（RTL）の読み順を正しく再現します。どのPDFリーダーでも正しい見開き表示が得られます。
+2つの縦長ページを1つの横長見開きページに結合し、右綴じ（RTL）の読み順を再現します。どのPDFリーダーでも正しい見開き表示が得られます。
 
 ---
 
 ## 解決する課題
 
-日本語の縦書き書籍をスキャンしてPDF化すると、各ページは個別の縦長画像として格納されます。一般的なPDFリーダーの見開きモードは横書き（LTR）前提のため、ページの左右が逆転してしまいます。
+縦書き書籍をスキャンすると各ページは個別の縦長画像になります。一般的なPDFリーダーの見開きモードは横書き（LTR）前提のため、ページの左右が逆転します。
 
 ```
 一般的なPDFリーダーの見開き表示（LTR）    tate-yoko-pdf による見開き変換（RTL）
@@ -72,7 +72,7 @@ cat in.pdf | ./tate-yoko-pdf - -o - > out.pdf   # stdin → stdout（Unix パイ
 
 ## インストール
 
-各OSに **JRE をバンドルした app-image**（zip 1 個・別途 Java インストール不要）を CI で 3 OS 並列にビルドしています。zip を展開して中の launcher を叩くだけで動作します。
+各OSに **JRE をバンドルした app-image**（zip 1 個・別途 Java インストール不要）を CI で 3 OS 並列にビルドしています。zip を展開して中の launcher を実行します。
 
 | OS | 配布物 | 実行ファイル |
 |---|---|---|
@@ -94,7 +94,7 @@ cat in.pdf | ./tate-yoko-pdf - -o - > out.pdf   # stdin → stdout（Unix パイ
 
 ## 開発
 
-開発環境は完全にDocker内で完結します。ホスト側に必要なものは git + Docker + （任意で）mise / lefthook / just のみ。
+開発環境はDocker内で完結します。ホスト側に必要なのは git + Docker +（任意で）mise / lefthook / just。
 
 ### 初回セットアップ
 
@@ -142,14 +142,14 @@ just docker-clean     # 本プロジェクトの Docker artifacts を一掃
 
 ## アーキテクチャ
 
-ヘキサゴナル（Ports & Adapters）を採用し、ドメインロジックを PDF ライブラリから完全に隔離しています。v2.0.0 で各レイヤを **5つの Gradle モジュール**に物理分割し、PDFBox/qpdf の封じ込めやドメイン純粋性は ArchUnit ではなく**クラスパス上に相手が存在しないこと**でコンパイル時に強制されます。
+ヘキサゴナル（Ports & Adapters）でドメインロジックを PDF ライブラリから隔離しています。各レイヤは **5つの Gradle モジュール**に物理分割され、PDFBox/qpdf の封じ込めやドメイン純粋性は ArchUnit ではなく**クラスパス上に相手が存在しないこと**でコンパイル時に強制されます。
 
 ```
 :app ──▶ :application ──▶ :port ──▶ :domain（純粋・依存なし）
   └────▶ :infrastructure ──▶ :port, :domain（PDFBox / qpdf はここだけ）
 ```
 
-例外→終了コードのマッピングと致命的例外ハンドラは、かつての各アプリ `:observability` モジュールに代わり、現在は横断共有の `:shared:observability` + `:shared:cli` が担います。
+例外→終了コードのマッピングと致命的例外ハンドラは、横断共有の `:shared:observability` + `:shared:cli` が担います。
 
 設計の俯瞰・各モジュールの責務・判断の背景（ADR）は **[docs/architecture.md](docs/architecture.md)** と **[docs/adr/](docs/adr/)** を参照してください。
 

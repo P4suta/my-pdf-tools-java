@@ -30,9 +30,7 @@ public final class DespeckleStage implements Stage {
     private final int jobs;
     private final ProgressSink progress;
 
-    /**
-     * @param jobs worker threads per book
-     */
+    /** {@link ProgressSink#NO_OP} variant of the two-arg constructor. */
     public DespeckleStage(int jobs) {
         this(jobs, ProgressSink.NO_OP);
     }
