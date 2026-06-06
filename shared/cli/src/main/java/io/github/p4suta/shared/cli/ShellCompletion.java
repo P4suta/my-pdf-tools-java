@@ -51,6 +51,10 @@ public final class ShellCompletion {
         };
     }
 
+    // Built with plain concatenation, not String.format: a completion script must carry literal
+    // '\n', and a format string with embedded newlines is exactly what
+    // VA_FORMAT_STRING_USES_NEWLINE
+    // flags.
     private static String bash(String program, Options options, List<String> subcommands) {
         String flags =
                 options.getOptions().stream()
@@ -58,41 +62,48 @@ public final class ShellCompletion {
                         .collect(Collectors.joining(" "));
         String subs = String.join(" ", subcommands);
         String fn = "_" + program.replace('-', '_');
-        return """
-        # bash completion for %1$s — source this file or drop it in a bash-completion.d directory.
-        %2$s() {
-          local cur="${COMP_WORDS[COMP_CWORD]}"
-          local opts="%3$s"
-          local subs="%4$s"
-          if [[ "$cur" == -* ]]; then
-            COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
-            return
-          fi
-          COMPREPLY=( $(compgen -W "$subs" -f -- "$cur") )
-        }
-        complete -F %2$s %1$s
-        """
-                .formatted(program, fn, flags, subs);
+        return "# bash completion for "
+                + program
+                + " — source this file or drop it in a bash-completion.d directory.\n"
+                + fn
+                + "() {\n"
+                + "  local cur=\"${COMP_WORDS[COMP_CWORD]}\"\n"
+                + "  local opts=\""
+                + flags
+                + "\"\n"
+                + "  local subs=\""
+                + subs
+                + "\"\n"
+                + "  if [[ \"$cur\" == -* ]]; then\n"
+                + "    COMPREPLY=( $(compgen -W \"$opts\" -- \"$cur\") )\n"
+                + "    return\n"
+                + "  fi\n"
+                + "  COMPREPLY=( $(compgen -W \"$subs\" -f -- \"$cur\") )\n"
+                + "}\n"
+                + "complete -F "
+                + fn
+                + " "
+                + program
+                + "\n";
     }
 
     private static String zsh(String program, Options options, List<String> subcommands) {
-        String optLines =
-                options.getOptions().stream()
-                        .map(ShellCompletion::zshOptionLine)
-                        .collect(Collectors.joining("\n"));
-        String subLine =
-                subcommands.isEmpty() ? "" : "\n  '1: :(" + String.join(" ", subcommands) + ")' \\";
-        return """
-        #compdef %1$s
-        # zsh completion for %1$s
-        _%2$s() {
-          _arguments -s \\
-        %3$s%4$s
-            '*:file:_files'
+        String fn = "_" + program.replace('-', '_');
+        StringBuilder out = new StringBuilder();
+        out.append("#compdef ").append(program).append('\n');
+        out.append("# zsh completion for ").append(program).append('\n');
+        out.append(fn).append("() {\n");
+        out.append("  _arguments -s \\\n");
+        for (Option o : options.getOptions()) {
+            out.append(zshOptionLine(o)).append('\n');
         }
-        _%2$s "$@"
-        """
-                .formatted(program, program.replace('-', '_'), optLines, subLine);
+        if (!subcommands.isEmpty()) {
+            out.append("    '1: :(").append(String.join(" ", subcommands)).append(")' \\\n");
+        }
+        out.append("    '*:file:_files'\n");
+        out.append("}\n");
+        out.append(fn).append(" \"$@\"\n");
+        return out.toString();
     }
 
     private static String zshOptionLine(Option o) {

@@ -42,6 +42,9 @@ Every tool shares the same front-end contract (shared `:shared:cli` scaffolding)
   `--completion <bash|zsh|fish>` / `--man` (both generated from the command's own
   option model, so they never drift from `--help`). A bare invocation prints help
   and exits 0.
+- **Interactive mode** — `pdfbook -i` runs a guided wizard (pick input, choose
+  options with defaults, confirm, live progress bar). It requires a TTY and fails
+  fast otherwise, so scripts use the flags.
 - **Overwrite safety** — an existing output is refused by default (exit 73);
   `--force` overwrites (batch modes skip-existing-unless-`--force`). Interrupting a
   run (Ctrl-C) leaves no temp files behind.

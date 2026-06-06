@@ -67,6 +67,17 @@
     <Class name="io.github.p4suta.tateyokopdf.tools.RuntimeBenchmark"/>
   </Match>
 
+  <!-- ============================ shared:cli ============================ -->
+
+  <!-- Prompt is the interactive seam: its public constructor stores the caller-supplied Reader and
+       PrintStream on purpose (production passes the console's streams via Prompt.console(); tests
+       pass scripted ones). The whole point is to hold those references, and defensive-copying live
+       streams is impossible, so EI_EXPOSE_REP2 here flags the intended injection, not a leak. -->
+  <Match>
+    <Class name="io.github.p4suta.shared.cli.Prompt"/>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+
   <!-- ============================ webapp ============================ -->
 
   <!-- The web feature's use cases, adapters, and Spring wiring are all dependency-injection targets:

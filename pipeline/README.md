@@ -33,6 +33,7 @@ never stops the rest; existing outputs are skipped unless `--force`).
 | `--pdf-a` | off | emit PDF/A-2b conformance |
 | `--force` | off | overwrite an existing output (batch: regenerate, don't skip) |
 | `--progress-file <path>` | — | write machine-readable JSONL progress events (single input only) |
+| `-i, --interactive` | off | guided mode: prompt for the input, options and output |
 | `-h, --help` | — | show help and exit |
 | `-V, --version` | — | print version and exit |
 | `-v, --verbose` | off | enable verbose (DEBUG) logging |
@@ -41,6 +42,18 @@ never stops the rest; existing outputs are skipped unless `--force`).
 
 A bare `pdfbook` prints help and exits 0. The same `--completion` / `--man` flags
 are available on every tool in this repo.
+
+### Interactive mode
+
+`pdfbook -i` walks you through the conversion: pick the input PDF, choose reading
+direction / first-page / which stages to run (defaults shown in brackets), name
+the output, confirm an overwrite, then watch a live progress bar. It needs a
+terminal — a piped or non-TTY `-i` fails fast rather than blocking — so scripts
+should use the flag form above.
+
+```sh
+pdfbook -i
+```
 
 ```sh
 pdfbook --completion bash > /etc/bash_completion.d/pdfbook   # tab-complete options

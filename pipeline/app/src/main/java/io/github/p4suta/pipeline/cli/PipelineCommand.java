@@ -17,6 +17,7 @@ import io.github.p4suta.shared.cli.CliOptionSupport;
 import io.github.p4suta.shared.cli.CliVersion;
 import io.github.p4suta.shared.cli.InputResolver;
 import io.github.p4suta.shared.cli.OutputGuard;
+import io.github.p4suta.shared.cli.Prompt;
 import io.github.p4suta.shared.observability.ExitCodes;
 import io.github.p4suta.shared.progress.ProgressSink;
 import io.github.p4suta.tateyokopdf.domain.model.DocumentMetadata;
@@ -24,6 +25,7 @@ import io.github.p4suta.tateyokopdf.domain.model.FirstPageMode;
 import io.github.p4suta.tateyokopdf.domain.model.MemoryMode;
 import io.github.p4suta.tateyokopdf.domain.model.ReadingDirection;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -74,6 +76,11 @@ public final class PipelineCommand {
                 Option.builder("v")
                         .longOpt("verbose")
                         .desc("Enable verbose (DEBUG) logging.")
+                        .get());
+        options.addOption(
+                Option.builder("i")
+                        .longOpt("interactive")
+                        .desc("Guided interactive mode: prompt for the input, options and output.")
                         .get());
         options.addOption(
                 Option.builder("o")
@@ -186,6 +193,9 @@ public final class PipelineCommand {
         if (docs >= 0) {
             return docs;
         }
+        if (cmd.hasOption("interactive")) {
+            return runInteractive(verbose);
+        }
         try {
             return dispatch(cmd);
         } catch (ParseException e) {
@@ -247,6 +257,123 @@ public final class PipelineCommand {
                                 String.format(
                                         Locale.ROOT, "[%d/%d] %s", index, total, in.getFileName()),
                         in -> runOne(in, output.resolve(outputName(in)), config, null));
+    }
+
+    /**
+     * Guided interactive flow: prompt for the input, options and output, then run a single
+     * conversion with a live console progress bar. Requires a terminal; a piped / non-TTY {@code
+     * -i} fails fast with a usage error rather than blocking on a read.
+     */
+    private int runInteractive(boolean verbose) {
+        Prompt prompt;
+        try {
+            prompt = Prompt.console();
+        } catch (IllegalStateException e) {
+            System.err.println("pdfbook: " + e.getMessage());
+            return ExitCodes.USAGE;
+        }
+        try {
+            @Nullable Plan plan = plan(prompt);
+            if (plan == null) {
+                prompt.say("Cancelled.");
+                return ExitCodes.OK;
+            }
+            runWith(plan.input(), plan.output(), plan.config(), ConsoleProgressSink.forTerminal());
+            return ExitCodes.OK;
+        } catch (UncheckedIOException e) {
+            @Nullable Throwable cause = e.getCause();
+            System.err.println("pdfbook: " + (cause != null ? cause.getMessage() : e.getMessage()));
+            return ExitCodes.USAGE;
+        } catch (IOException | RuntimeException e) {
+            return new CliExceptionHandler(() -> verbose).handle(e);
+        }
+    }
+
+    /** A confirmed interactive run: the input, output and assembled config. */
+    record Plan(Path input, Path output, Config config) {}
+
+    /**
+     * Drives the guided questions over {@code prompt} and returns the {@link Plan}, or {@code null}
+     * if the user declines. Pure prompt/filesystem interaction (no pipeline run, no console
+     * coupling), so it is unit-tested with a scripted {@link Prompt}.
+     *
+     * @param prompt the interactive prompt (injected)
+     * @return the plan, or {@code null} when cancelled
+     */
+    static @Nullable Plan plan(Prompt prompt) {
+        prompt.say("pdfbook — interactive setup");
+
+        Path input = askInputPdf(prompt);
+        ReadingDirection direction =
+                prompt.select(
+                        "Reading direction",
+                        List.of(
+                                Prompt.Choice.of(
+                                        "RTL (Japanese vertical, right-to-left)",
+                                        ReadingDirection.RTL),
+                                Prompt.Choice.of("LTR (left-to-right)", ReadingDirection.LTR)),
+                        Prompt.Choice.of("RTL", ReadingDirection.RTL));
+        FirstPageMode firstPage =
+                prompt.select(
+                        "First page opens on",
+                        List.of(
+                                Prompt.Choice.of("right (standard)", FirstPageMode.STANDARD),
+                                Prompt.Choice.of(
+                                        "left (leading blank)", FirstPageMode.LEADING_BLANK),
+                                Prompt.Choice.of("cover (page one alone)", FirstPageMode.COVER)),
+                        Prompt.Choice.of("right", FirstPageMode.STANDARD));
+        boolean despeckle = prompt.confirm("Remove scanner dust (despeckle)?", true);
+        boolean register = prompt.confirm("Straighten & align pages (register)?", true);
+        boolean deskew = !register || prompt.confirm("  Straighten each page (deskew)?", true);
+        boolean scale =
+                !register || prompt.confirm("  Scale columns to the reference height?", true);
+        boolean pdfA = prompt.confirm("Emit PDF/A-2b for archiving?", false);
+
+        Path output = Path.of(prompt.ask("Output PDF", defaultOutput(input)));
+        boolean force = false;
+        if (Files.exists(output)) {
+            if (!prompt.confirm(output + " exists. Overwrite?", false)) {
+                return null;
+            }
+            force = true;
+        }
+        if (!prompt.confirm("Start conversion?", true)) {
+            return null;
+        }
+        Config config =
+                new Config(
+                        Math.max(1, Runtime.getRuntime().availableProcessors()),
+                        direction,
+                        firstPage,
+                        despeckle,
+                        register,
+                        deskew,
+                        scale,
+                        pdfA,
+                        force);
+        return new Plan(input, output, config);
+    }
+
+    private static Path askInputPdf(Prompt prompt) {
+        while (true) {
+            Path input = Path.of(prompt.ask("Input PDF", null));
+            if (Files.isRegularFile(input)) {
+                return input;
+            }
+            prompt.say("  not a file: " + input);
+        }
+    }
+
+    private static String defaultOutput(Path input) {
+        @Nullable Path fileName = input.getFileName();
+        String name = fileName == null ? "book" : fileName.toString();
+        String base =
+                name.toLowerCase(Locale.ROOT).endsWith(".pdf")
+                        ? name.substring(0, name.length() - 4)
+                        : name;
+        Path parent = input.toAbsolutePath().getParent();
+        Path out = (parent == null ? Path.of(".") : parent).resolve(base + "_book.pdf");
+        return out.toString();
     }
 
     private static void runOne(Path input, Path output, Config config, @Nullable Path progressFile)
@@ -332,7 +459,7 @@ public final class PipelineCommand {
     }
 
     /** Parsed, type-converted command line shared by single and batch runs. */
-    private record Config(
+    record Config(
             int jobs,
             ReadingDirection direction,
             FirstPageMode firstPage,
