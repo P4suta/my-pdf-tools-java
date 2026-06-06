@@ -14,7 +14,7 @@ pdfbox = "3.0.7"
 slf4j = "2.0.18"
 junit = "6.1.0"
 errorprone = "2.49.0"
-nullaway = "0.13.5"
+nullaway = "0.13.6"
 jspecify = "1.0.0"
 archunit = "1.4.2"
 # google-java-format: was inlined in despeckle's quality script and pinned in register's catalog;
@@ -43,7 +43,7 @@ shadow = "9.4.2"
 # Spring Boot Gradle plugin (bootRun/bootJar) for the :webapp:app web front end. Boot 4.0 (Spring
 # Framework 7) baselines Java 17 with first-class Java 25 support. Applied only in :webapp:app via
 # `alias(libs.plugins.springBoot)`; it imports its own dependency BOM for spring-boot-starter-*.
-spring-boot = "4.0.4"
+spring-boot = "4.0.6"
 # springdoc-openapi (Swagger UI + /v3/api-docs) for the :webapp:app REST API. The 3.0.x line targets
 # Spring Boot 4 / Jackson 3 (2.8.x is the Boot 3 line). App-only dep; not BOM-managed by Spring Boot.
 springdoc = "3.0.3"
