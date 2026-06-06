@@ -1,48 +1,42 @@
 package io.github.p4suta.shared.kernel.error;
 
 /**
- * The generic failure categories every p4suta app reuses, each carrying its sysexits exit code,
- * {@link Severity}, client-fault flag, and default Japanese message ON the constant (per
- * section&nbsp;2 of the error-model spec). An app adds an app-specific {@code ErrorKind} only where
- * a failure carries a genuinely distinct exit code or user message; otherwise it reuses one of
- * these.
+ * The generic failure categories, each carrying its sysexits exit code, {@link Severity}, and
+ * client-fault flag on the constant. An app adds an app-specific {@code ErrorKind} only where a
+ * failure carries a distinct exit code; otherwise it reuses one of these.
+ *
+ * <p>Presentation-free: no user-facing message lives here. User text is resolved per surface from
+ * the stable constant name (CLI English catalog / web Japanese catalog).
  *
  * <ul>
  *   <li>{@code 64} = {@code EX_USAGE}-family data error (bad CLI value / precondition).
+ *   <li>{@code 73} = {@code EX_CANTCREAT}, an output already exists (pass {@code --force}).
  *   <li>{@code 137} = {@code 128 + SIGKILL}, the conventional OOM exit.
  *   <li>{@code 70} = {@code EX_SOFTWARE}, internal/unexpected.
  * </ul>
- *
- * <p>These three coincide exactly (code + severity + fault + message) with three of tate-yoko-pdf's
- * eight kinds, validating the chosen values.
  */
 public enum CommonErrorKind implements ErrorCategory {
 
     /** Bad CLI value or violated precondition. {@code EX_USAGE}-family data error. */
-    INVALID_PARAMETER("入力値が不正です。", true, 64, Severity.WARN),
+    INVALID_PARAMETER(true, 64, Severity.WARN),
+
+    /** The output path already exists and {@code --force} was not given. {@code EX_CANTCREAT}. */
+    OUTPUT_CONFLICT(true, 73, Severity.WARN),
 
     /** The JVM ran out of heap. {@code 128 + SIGKILL}. */
-    OUT_OF_MEMORY("メモリが不足しました。-Xmx を増やすか、ページ数の少ない PDF で試してください。", false, 137, Severity.ERROR),
+    OUT_OF_MEMORY(false, 137, Severity.ERROR),
 
     /** An unexpected internal failure. {@code EX_SOFTWARE}. */
-    INTERNAL("予期しないエラーが発生しました。", false, 70, Severity.ERROR);
+    INTERNAL(false, 70, Severity.ERROR);
 
-    private final String defaultUserMessage;
     private final boolean clientFault;
     private final int exitCode;
     private final Severity severity;
 
-    CommonErrorKind(
-            String defaultUserMessage, boolean clientFault, int exitCode, Severity severity) {
-        this.defaultUserMessage = defaultUserMessage;
+    CommonErrorKind(boolean clientFault, int exitCode, Severity severity) {
         this.clientFault = clientFault;
         this.exitCode = exitCode;
         this.severity = severity;
-    }
-
-    @Override
-    public String defaultUserMessage() {
-        return defaultUserMessage;
     }
 
     @Override

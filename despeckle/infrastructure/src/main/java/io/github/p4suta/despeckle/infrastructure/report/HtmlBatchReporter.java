@@ -18,7 +18,6 @@ import java.util.List;
  */
 public final class HtmlBatchReporter implements BatchReporter {
 
-    /** Create a batch reporter. */
     public HtmlBatchReporter() {}
 
     /**
@@ -107,7 +106,7 @@ public final class HtmlBatchReporter implements BatchReporter {
         return "<a href=\"" + escape(book.stem()) + "/index.html\">" + label + "</a>";
     }
 
-    /** The lowercase display label the old free-form status string carried. */
+    /** The lowercase display label for a status. */
     private static String statusLabel(BookStatus status) {
         return switch (status) {
             case OK -> "ok";

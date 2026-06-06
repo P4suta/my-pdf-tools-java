@@ -19,8 +19,8 @@ final class TopdfCliTest {
     }
 
     @Test
-    void noPositionalsIsUsageError() {
-        assertEquals(2, run("topdf"));
+    void noArgsPrintsHelpAndExitsZero() {
+        assertEquals(0, run("topdf"));
     }
 
     @Test

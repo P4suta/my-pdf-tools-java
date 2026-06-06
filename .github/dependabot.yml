@@ -40,6 +40,26 @@ updates:
     labels:
       - dependencies
 
+  # npm/pnpm — the webapp SPA (Svelte / Vite / Tailwind, resolved through pnpm-lock.yaml). Grouped
+  # into one weekly PR like the gradle stanzas. This is plain Dependabot with no cooldown of its own;
+  # however pnpm's default minimumReleaseAge supply-chain policy makes the frozen-install CI gate
+  # reject a just-published version, so a Dependabot bump to one won't pass CI (and so won't
+  # auto-merge) until that version has aged. That CI gate — not a Dependabot setting — is the de facto
+  # cooldown. (Add a Dependabot `cooldown:` block here if an explicit one is ever wanted.)
+  - package-ecosystem: npm
+    directory: /webapp/frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      frontend-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: build
+    labels:
+      - dependencies
+
   # GitHub Actions — the SHA-pinned actions in .github/workflows/*.
   - package-ecosystem: github-actions
     directory: /

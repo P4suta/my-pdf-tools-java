@@ -9,7 +9,12 @@ import io.github.p4suta.register.infrastructure.pdf.PdfBoxJbig2Assembler;
 import io.github.p4suta.register.infrastructure.pdf.PdfImagesCliExtractor;
 import io.github.p4suta.register.infrastructure.registrar.LeptonicaPageRegistrar;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
 import io.github.p4suta.shared.cli.CliOptionSupport;
+import io.github.p4suta.shared.cli.CliVersion;
+import io.github.p4suta.shared.cli.IoPathAction;
+import io.github.p4suta.shared.cli.OutputTarget;
+import io.github.p4suta.shared.cli.StdinSource;
 import io.github.p4suta.shared.observability.ExitCodes;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +43,8 @@ final class PipelineCommand {
                 + " registered result. With a directory as the first argument, every top-level"
                 + " *.pdf under <input-dir> is registered into <output-dir>/<same-name>.pdf"
                 + " (existing outputs are skipped unless --force; one failed book never stops the"
-                + " rest).";
+                + " rest). Pass - for <input.pdf> to read one PDF from stdin and/or - for"
+                + " <output.pdf> to write it to stdout.";
 
     private static final Options OPTIONS = buildOptions();
 
@@ -46,6 +52,16 @@ final class PipelineCommand {
         Options options = new Options();
         options.addOption(
                 Option.builder("h").longOpt("help").desc("Show this help and exit.").get());
+        options.addOption(
+                Option.builder("V")
+                        .longOpt("version")
+                        .desc("Print version information and exit.")
+                        .get());
+        options.addOption(
+                Option.builder("v")
+                        .longOpt("verbose")
+                        .desc("Enable verbose (DEBUG) logging.")
+                        .get());
         options.addOption(
                 Option.builder()
                         .longOpt("paper")
@@ -116,14 +132,27 @@ final class PipelineCommand {
     }
 
     int execute(String[] args) {
+        // A bare `register pipeline` prints help and succeeds rather than erroring on missing args.
+        if (args.length == 0) {
+            printHelp();
+            return ExitCodes.OK;
+        }
         CommandLine cmd;
         try {
             cmd = new DefaultParser().parse(OPTIONS, args);
         } catch (ParseException e) {
             return usageError(e);
         }
+        boolean verbose = cmd.hasOption("verbose");
+        if (verbose) {
+            CliLogging.enableDebug();
+        }
         if (cmd.hasOption("help")) {
             printHelp();
+            return ExitCodes.OK;
+        }
+        if (cmd.hasOption("version")) {
+            System.out.println(CliVersion.line("register", PipelineCommand.class));
             return ExitCodes.OK;
         }
 
@@ -135,6 +164,12 @@ final class PipelineCommand {
         }
 
         try {
+            // '-' as input and/or output streams a single PDF through stdin/stdout via the shared
+            // temp-file bridge (the assembler needs a real, seekable path), mirroring tate.
+            if (isDash(parsed.input()) || isDash(parsed.output())) {
+                runPiped(parsed);
+                return ExitCodes.OK;
+            }
             // A directory input batches every top-level *.pdf into the output directory; a file
             // input is the single-PDF pipeline. Both share the registration options above; --suffix
             // only shapes batch output names (single mode names its output explicitly).
@@ -150,10 +185,9 @@ final class PipelineCommand {
                                                 parsed.jobs(),
                                                 parsed.force(),
                                                 parsed.suffix()));
-                // Continue-on-error batch: per-book failures are swallowed and counted (not a
-                // single ErrorCategory), so a partial failure surfaces as the generic
-                // internal/software-failure code (EX_SOFTWARE, 70) rather than the retired blanket
-                // 1.
+                // Continue-on-error batch: per-book failures are counted, not a single
+                // ErrorCategory, so a partial failure surfaces as the generic internal /
+                // software-failure code (EX_SOFTWARE, 70).
                 return summary.failed() > 0 ? ExitCodes.INTERNAL : ExitCodes.OK;
             }
             pipeline.run(
@@ -165,7 +199,42 @@ final class PipelineCommand {
                             parsed.force()));
             return ExitCodes.OK;
         } catch (IOException | RuntimeException e) {
-            return new CliExceptionHandler(() -> false).handle(e);
+            return new CliExceptionHandler(() -> verbose).handle(e);
+        }
+    }
+
+    private static boolean isDash(Path path) {
+        return "-".equals(path.toString());
+    }
+
+    /**
+     * Runs the single-PDF pipeline with stdin and/or stdout bridged through a temp file. The output
+     * temp is our own freshly-created file, so the pipeline writes to it with {@code force} on; a
+     * real {@code -o} path keeps the user's {@code --force} (and the service's overwrite guard).
+     */
+    private void runPiped(Parsed parsed) throws IOException {
+        PdfPipelineService pipeline = pdfPipelineService();
+        boolean stdoutOut = isDash(parsed.output());
+        OutputTarget out =
+                stdoutOut
+                        ? OutputTarget.stdout("register-pipe-out", ".pdf")
+                        : OutputTarget.file(parsed.output());
+        boolean force = stdoutOut || parsed.force();
+        IoPathAction fromInput =
+                inPath ->
+                        out.write(
+                                outPath ->
+                                        pipeline.run(
+                                                new PdfPipelineService.Config(
+                                                        inPath,
+                                                        outPath,
+                                                        parsed.options(),
+                                                        parsed.jobs(),
+                                                        force)));
+        if (isDash(parsed.input())) {
+            StdinSource.withStdin("register-pipe-in", ".pdf", fromInput);
+        } else {
+            fromInput.accept(parsed.input());
         }
     }
 
@@ -187,9 +256,6 @@ final class PipelineCommand {
      *
      * @param input the source PDF, or directory of PDFs in batch mode
      * @param output the output PDF, or directory in batch mode
-     * @param options the registration knobs shared with {@code register}
-     * @param jobs the worker thread count
-     * @param force whether to overwrite/regenerate existing output
      * @param suffix the batch-mode output-name suffix ({@code ""} when none)
      */
     record Parsed(
@@ -205,7 +271,6 @@ final class PipelineCommand {
      * parsing can be unit-tested, mirroring {@code RegisterCommand.parse}.
      *
      * @param args the raw arguments (after the {@code pipeline} subcommand)
-     * @return the parsed arguments
      * @throws ParseException if the options or positionals are malformed
      */
     Parsed parse(String[] args) throws ParseException {

@@ -1,0 +1,44 @@
+# Production profile — activated by SPRING_PROFILES_ACTIVE=prod (the Docker runtime image sets it).
+# Differs from the loopback dev defaults in application.yml; everything else is inherited.
+server:
+  # Bind all interfaces inside the container; publish locally with `-p 127.0.0.1:8080:8080`, or put a
+  # TLS-terminating reverse proxy in front (see ADR-0009) before any real exposure.
+  address: 0.0.0.0
+  error:
+    # Never echo exception messages, stack traces, or binding errors in responses — ApiExceptionHandler
+    # returns curated problem+json; anything reaching the container's default error path must not leak
+    # internals.
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+# Hide the API docs in production: the OpenAPI JSON and Swagger UI enumerate every endpoint, a recon
+# surface on an exposed instance. They stay on in dev (application.yml keeps the springdoc defaults).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health is exposed in prod (dev also serves info/metrics/prometheus). Metrics and the
+        # Prometheus scrape are a recon/abuse surface with no auth; serve them via a private
+        # management port or behind authentication before re-enabling on an exposed instance.
+        include: health
+  endpoint:
+    health:
+      # The prod container binds 0.0.0.0 with no auth, so do not leak health details (binary paths,
+      # work dir, queue internals). With no Spring Security on the classpath there is never an
+      # authenticated principal, so "when-authorized" never shows details — only UP/DOWN. Tighten
+      # further (separate loopback management port, real auth) before any LAN exposure.
+      show-details: when-authorized
+
+logging:
+  structured:
+    format:
+      # One JSON object per line (Elastic Common Schema) for log scraping in the container; MDC
+      # entries (the per-job `jobId`) become JSON fields automatically. Dev keeps human-readable logs.
+      console: ecs

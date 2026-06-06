@@ -11,8 +11,7 @@ import java.util.concurrent.Future;
 /**
  * Runs a batch of {@link Callable}s on a caller-owned {@link ExecutorService} and collects their
  * results in submission order, turning the executor's checked machinery into a single {@link
- * IOException}. Shared across the infrastructure adapters that fan page work out across a fixed
- * pool.
+ * IOException}.
  */
 public final class Tasks {
 

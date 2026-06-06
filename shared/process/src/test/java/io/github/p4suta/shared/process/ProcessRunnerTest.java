@@ -50,7 +50,7 @@ final class ProcessRunnerTest {
 
     @Test
     void acceptableNonZeroExitReturnsInsteadOfThrowing() throws Exception {
-        // Generalized qpdf-exit-3 tolerance: exit 3 is returned, not thrown, when in the set.
+        // exit 3 is returned, not thrown, when in the acceptable set.
         ProcessRunner.Result result =
                 ProcessRunner.run(List.of("sh", "-c", "exit 3"), Duration.ofSeconds(10), Set.of(3));
         assertThat(result.exitCode()).isEqualTo(3);

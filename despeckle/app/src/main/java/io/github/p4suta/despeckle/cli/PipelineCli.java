@@ -11,7 +11,12 @@ import io.github.p4suta.despeckle.infrastructure.pdf.QpdfLinearizer;
 import io.github.p4suta.despeckle.infrastructure.report.HtmlBatchReporter;
 import io.github.p4suta.despeckle.infrastructure.report.HtmlReporterFactory;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
 import io.github.p4suta.shared.cli.CliOptionSupport;
+import io.github.p4suta.shared.cli.CliVersion;
+import io.github.p4suta.shared.cli.IoPathAction;
+import io.github.p4suta.shared.cli.OutputTarget;
+import io.github.p4suta.shared.cli.StdinSource;
 import io.github.p4suta.shared.observability.ExitCodes;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,17 +46,15 @@ final class PipelineCli {
                 + " self-contained step. With two files, <in.pdf> is the source scan and <out.pdf>"
                 + " the cleaned result. With a directory as the first argument, every top-level"
                 + " *.pdf under <in-dir> is cleaned into <out-dir>/<same-name>.pdf (existing"
-                + " outputs are skipped unless --force; one failed book never stops the rest).";
+                + " outputs are skipped unless --force; one failed book never stops the rest). Pass"
+                + " - for <in.pdf> to read one PDF from stdin and/or - for <out.pdf> to write"
+                + " stdout.";
 
     private final Options options = buildOptions();
 
     private static Options buildOptions() {
         Options options = new Options();
-        options.addOption(
-                Option.builder("h")
-                        .longOpt(DespeckleOptions.HELP)
-                        .desc("Show this help and exit.")
-                        .get());
+        DespeckleOptions.addStandardFlags(options);
         options.addOption(
                 Option.builder("j")
                         .longOpt(DespeckleOptions.JOBS)
@@ -97,14 +100,28 @@ final class PipelineCli {
 
     /** Parse {@code args} (everything after {@code pipeline}), run, and return the exit code. */
     int run(String[] args) {
+        // A bare `despeckle pipeline` prints help and succeeds rather than erroring on missing
+        // args.
+        if (args.length == 0) {
+            CliOptionSupport.printHelp("despeckle pipeline", SYNTAX, DESCRIPTION, options);
+            return ExitCodes.OK;
+        }
         CommandLine cmd;
         try {
             cmd = new DefaultParser().parse(options, args);
         } catch (ParseException e) {
             return usageError(e);
         }
+        boolean verbose = cmd.hasOption(DespeckleOptions.VERBOSE);
+        if (verbose) {
+            CliLogging.enableDebug();
+        }
         if (cmd.hasOption(DespeckleOptions.HELP)) {
             CliOptionSupport.printHelp("despeckle pipeline", SYNTAX, DESCRIPTION, options);
+            return ExitCodes.OK;
+        }
+        if (cmd.hasOption(DespeckleOptions.VERSION)) {
+            System.out.println(CliVersion.line("despeckle", PipelineCli.class));
             return ExitCodes.OK;
         }
 
@@ -117,19 +134,18 @@ final class PipelineCli {
         } catch (ParseException e) {
             return usageError(e);
         } catch (IOException | RuntimeException e) {
-            return new CliExceptionHandler(() -> false).handle(e);
+            return new CliExceptionHandler(() -> verbose).handle(e);
         }
     }
 
     private int dispatch(Parsed parsed) throws IOException {
-        DespeckleService despeckleService =
-                new DespeckleService(new LeptonicaPageCleaner(), new HtmlReporterFactory());
-        PdfPipelineService pipeline =
-                new PdfPipelineService(
-                        new PdfImagesCliExtractor(),
-                        despeckleService,
-                        new PdfBoxJbig2Assembler(),
-                        new QpdfLinearizer());
+        // '-' as input and/or output streams a single PDF through stdin/stdout via the shared
+        // temp-file bridge (the assembler needs a real, seekable path), mirroring tate.
+        if (isDash(parsed.input()) || isDash(parsed.output())) {
+            runPiped(parsed);
+            return ExitCodes.OK;
+        }
+        PdfPipelineService pipeline = pdfPipelineService();
         if (Files.isDirectory(parsed.input())) {
             PdfBatchService.Summary summary =
                     new PdfBatchService(pipeline, new HtmlBatchReporter())
@@ -145,7 +161,6 @@ final class PipelineCli {
                                             parsed.flipbook()));
             // Continue-on-error batch: individual books are logged with their own kind as they
             // fail; the run as a whole reports the EX_SOFTWARE aggregate (70) when any book failed.
-            // The flat RUNTIME_ERROR (1) is retired under the sysexits uplift.
             return summary.failed() > 0 ? ExitCodes.INTERNAL : ExitCodes.OK;
         }
         pipeline.run(
@@ -158,6 +173,53 @@ final class PipelineCli {
                         parsed.reportDir(),
                         parsed.flipbook()));
         return ExitCodes.OK;
+    }
+
+    private static boolean isDash(Path path) {
+        return "-".equals(path.toString());
+    }
+
+    private static PdfPipelineService pdfPipelineService() {
+        DespeckleService despeckleService =
+                new DespeckleService(new LeptonicaPageCleaner(), new HtmlReporterFactory());
+        return new PdfPipelineService(
+                new PdfImagesCliExtractor(),
+                despeckleService,
+                new PdfBoxJbig2Assembler(),
+                new QpdfLinearizer());
+    }
+
+    /**
+     * Runs the single-PDF pipeline with stdin and/or stdout bridged through a temp file. The output
+     * temp is our own freshly-created file, so the pipeline writes to it with {@code force} on; a
+     * real {@code <out.pdf>} keeps the user's {@code --force} (and the service's overwrite guard).
+     */
+    private void runPiped(Parsed parsed) throws IOException {
+        PdfPipelineService pipeline = pdfPipelineService();
+        boolean stdoutOut = isDash(parsed.output());
+        OutputTarget out =
+                stdoutOut
+                        ? OutputTarget.stdout("despeckle-pipe-out", ".pdf")
+                        : OutputTarget.file(parsed.output());
+        boolean force = stdoutOut || parsed.force();
+        IoPathAction fromInput =
+                inPath ->
+                        out.write(
+                                outPath ->
+                                        pipeline.run(
+                                                new PdfPipelineService.Config(
+                                                        inPath,
+                                                        outPath,
+                                                        parsed.options(),
+                                                        parsed.jobs(),
+                                                        force,
+                                                        parsed.reportDir(),
+                                                        parsed.flipbook())));
+        if (isDash(parsed.input())) {
+            StdinSource.withStdin("despeckle-pipe-in", ".pdf", fromInput);
+        } else {
+            fromInput.accept(parsed.input());
+        }
     }
 
     /** Type-converts and validates the parsed command line; failures here are usage errors. */

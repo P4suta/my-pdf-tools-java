@@ -10,18 +10,10 @@ import java.nio.file.Path;
  */
 public interface PdfLinearizer {
 
-    /**
-     * Linearize {@code pdf} in place (best effort).
-     *
-     * @param pdf the PDF to linearize
-     */
+    /** Linearize {@code pdf} in place (best effort). */
     void linearize(Path pdf);
 
-    /**
-     * A linearizer that does nothing, for when no Fast-Web-View pass is wanted.
-     *
-     * @return a no-op linearizer
-     */
+    /** A linearizer that does nothing, for when no Fast-Web-View pass is wanted. */
     static PdfLinearizer noOp() {
         return p -> {};
     }

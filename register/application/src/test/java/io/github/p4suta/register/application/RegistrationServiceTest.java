@@ -17,6 +17,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.OptionalInt;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -206,5 +209,35 @@ class RegistrationServiceTest {
                                         out,
                                         options(OptionalInt.of(600), PaperSize.Standard.A6),
                                         null)));
+    }
+
+    @Test
+    void reportsProgressAcrossBothPassesOverATwoNDenominator(@TempDir Path tmp) throws IOException {
+        Path in = Files.createDirectories(tmp.resolve("in"));
+        Path out = tmp.resolve("out");
+        writePages(in, 3);
+        FakePageRegistrar registrar = new FakePageRegistrar(true, 600, 1000, 1500);
+        RegistrationService service =
+                new RegistrationService(registrar, new RecordingReporterFactory());
+        // jobs=2, so progress is reported from the worker threads across two sequential passes.
+        List<int[]> seen = Collections.synchronizedList(new ArrayList<>());
+
+        service.run(
+                config(in, out, options(OptionalInt.of(600), PaperSize.Standard.A6), null),
+                (done, total) -> seen.add(new int[] {done, total}));
+
+        // Two passes over 3 pages = 6 callbacks, each carrying the 2N=6 denominator, and the shared
+        // counter visits every value 1..6 exactly once (analyze 1..3, render 4..6).
+        assertEquals(6, seen.size(), "one callback per page in each of the two passes");
+        boolean[] reported = new boolean[7]; // index by 1-based done count over 2N
+        for (int[] pair : seen) {
+            assertEquals(6, pair[1], "total is 2N on every callback");
+            assertTrue(pair[0] >= 1 && pair[0] <= 6, "done is within 1..2N");
+            reported[pair[0]] = true;
+        }
+        for (int n = 1; n <= 6; n++) {
+            assertTrue(
+                    reported[n], "done value " + n + " was reported exactly once across the run");
+        }
     }
 }

@@ -14,11 +14,10 @@ import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage for {@link QpdfRunner}, the neutral {@code qpdf --linearize} capability. The runner
- * RETURNS a {@link ProcessRunner.Result} and propagates {@code IOException}/{@code
- * TimeoutException}/{@code InterruptedException}; it never degrades to no-op or wraps as a domain
- * exception (that policy is the app's), so the tests assert on the returned Result and the
- * propagated IOException, mirroring tate-yoko-pdf's existing qpdf adapter tests.
+ * Coverage for {@link QpdfRunner}. The runner returns a {@link ProcessRunner.Result} and propagates
+ * {@code IOException}/{@code TimeoutException}/{@code InterruptedException} without degrading or
+ * wrapping as a domain exception (that policy is the app's), so the tests assert on the returned
+ * Result and the propagated IOException.
  */
 final class QpdfRunnerTest {
 
@@ -127,12 +126,8 @@ final class QpdfRunnerTest {
 
     @Test
     void unresolvedBinaryThrowsIoException(@TempDir Path tmp) throws Exception {
-        // A property key whose value points at a path that does not exist still "resolves"
-        // (override
-        // wins) but fails to launch; to drive the orElseThrow branch we point the key at a tool
-        // name
-        // not on PATH by giving an empty override and a tool name we know is absent — simplest: a
-        // bogus absolute path makes start() fail -> IOException either way.
+        // An override pointing at a non-existent path resolves (override wins) but fails to launch,
+        // so start() throws IOException.
         Path in = Files.writeString(tmp.resolve("in.pdf"), "stub");
         Path out = tmp.resolve("out.pdf");
         String key = "shared.pdf.test.missing.qpdf.path";

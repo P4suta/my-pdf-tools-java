@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * generic-region mode) and embeds it verbatim as a {@code /JBIG2Decode} image XObject via PDFBox,
  * so the decoded pages stay bit-identical to the Python pipeline's; only the binary it resolves is
  * register's (the {@code register.jbig2.path} override key, passed at construction). PDFBox and the
- * {@code jbig2} process now live entirely on the shared island's side of this boundary.
+ * {@code jbig2} process live on the shared island's side of this boundary.
  *
  * <p>Stateless, so it is safe to share.
  */
@@ -32,8 +32,7 @@ public final class PdfBoxJbig2Assembler implements Jbig2Assembler {
     /**
      * Assemble {@code imageDir}'s registered pages into {@code outPdf}, inheriting {@code source}'s
      * metadata and PDF version. The pipeline passes its resolved scan DPI as {@code
-     * OptionalInt.of(dpi)} (forcing one size for every page) and a non-null source PDF, preserving
-     * register's prior fixed-DPI, metadata-inheriting behavior.
+     * OptionalInt.of(dpi)} (forcing one size for every page) and a non-null source PDF.
      */
     @Override
     public void assemble(

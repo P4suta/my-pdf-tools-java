@@ -14,20 +14,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Extracts a PDF's embedded bitonal images as TIFFs by driving {@code pdfimages} — the Java port of
- * the {@code just extract} (pdfimages) + {@code stamp-dpi.py --print} glue. The page range is split
- * across the worker pool (one {@code pdfimages -f/-l} per chunk) with distinct zero-padded {@code
- * page-cNN-} prefixes, so a name sort yields reading order and chunks never collide. The dominant
- * scan DPI is read from {@code pdfimages -list} and passed to the clean step as an explicit DPI, so
- * the extracted TIFFs (which {@code pdfimages} tags at a default 72 dpi) never need re-tagging.
+ * Extracts a PDF's embedded bitonal images as TIFFs by driving {@code pdfimages}. The page range is
+ * split across the worker pool (one {@code pdfimages -f/-l} per chunk) with distinct zero-padded
+ * {@code page-cNN-} prefixes, so a name sort yields reading order and chunks never collide. The
+ * dominant scan DPI is read from {@code pdfimages -list} and passed to the clean step as an
+ * explicit DPI, since {@code pdfimages} tags the extracted TIFFs at a default 72 dpi.
  *
  * <p>The textual {@code pdfinfo}/{@code pdfimages -list} reports are parsed by the pure {@link
- * PdfListingParser}; this adapter only drives the external processes via the shared {@link
+ * PdfListingParser}; this adapter only drives the external processes via {@link
  * ProcessRunner}/{@link Tasks}, resolving the binaries through {@link ToolPath}. The {@code
- * pdfimages}/{@code pdfinfo} override property keys are constructor PARAMETERS (e.g. {@code
- * despeckle.pdfimages.path}), never unified literals, so each app keeps its own and packaged
- * app-image runs keep resolving. A missing binary or an unacceptable exit surfaces as a plain
- * {@link IOException} — the policy stays with the app.
+ * pdfimages}/{@code pdfinfo} override property keys are constructor parameters (e.g. {@code
+ * despeckle.pdfimages.path}), so each app keeps its own. A missing binary or an unacceptable exit
+ * surfaces as a plain {@link IOException}, leaving the policy to the app.
  */
 public final class PdfImagesCliExtractor {
 

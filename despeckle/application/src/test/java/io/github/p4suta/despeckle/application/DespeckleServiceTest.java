@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -97,6 +100,31 @@ final class DespeckleServiceTest {
         DespeckleService service =
                 new DespeckleService(new FakePageCleaner(LIGHT), new RecordingReporterFactory());
         assertThrows(IOException.class, () -> service.run(config(in, out, false, null)));
+    }
+
+    @Test
+    void reportsEveryPageToTheProgressListener(@TempDir Path tmp) throws IOException {
+        Path in = tmp.resolve("in");
+        writeInputs(in, 4);
+        // Collect (done,total) pairs; the run uses a worker pool, so guard the list.
+        List<int[]> seen = Collections.synchronizedList(new ArrayList<>());
+
+        new DespeckleService(new FakePageCleaner(LIGHT), new RecordingReporterFactory())
+                .run(
+                        config(in, tmp.resolve("out"), false, null),
+                        (done, total) -> seen.add(new int[] {done, total}));
+
+        assertEquals(4, seen.size(), "one callback per page");
+        boolean[] reported = new boolean[5]; // index by 1-based done count
+        for (int[] pair : seen) {
+            assertEquals(4, pair[1], "total is the page count on every callback");
+            assertTrue(pair[0] >= 1 && pair[0] <= 4, "done is within 1..N");
+            reported[pair[0]] = true;
+        }
+        for (int n = 1; n <= 4; n++) {
+            assertTrue(
+                    reported[n], "done value " + n + " was reported exactly once across the run");
+        }
     }
 
     @Test

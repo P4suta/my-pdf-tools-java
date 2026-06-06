@@ -35,13 +35,6 @@ public final class PdfPipelineService {
     private final RegistrationService registrationService;
     private final Jbig2Assembler assembler;
 
-    /**
-     * Create a PDF pipeline service over the injected adapters.
-     *
-     * @param extractor the PDF image-extraction port
-     * @param registrationService the corpus registration service that places the extracted pages
-     * @param assembler the JBIG2 PDF-assembly port
-     */
     public PdfPipelineService(
             PdfImageExtractor extractor,
             RegistrationService registrationService,
@@ -54,11 +47,7 @@ public final class PdfPipelineService {
     /**
      * One PDF -> PDF run.
      *
-     * @param inputPdf the source scan PDF
-     * @param outputPdf the registered lossless-JBIG2 PDF to write
      * @param options registration knobs (its empty {@code --dpi} is resolved from the scan)
-     * @param jobs worker threads
-     * @param force whether to overwrite an existing output PDF
      */
     public record Config(
             Path inputPdf, Path outputPdf, RegisterOptions options, int jobs, boolean force) {}
@@ -66,7 +55,6 @@ public final class PdfPipelineService {
     /**
      * Run the pipeline.
      *
-     * @param config the run configuration
      * @throws IOException on a missing input, a failed external tool, or a write failure
      */
     public void run(Config config) throws IOException {

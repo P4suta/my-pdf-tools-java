@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class ValidatorsTest {
 
-    // --- requirePositive(int) ---
+    // requirePositive(int)
 
     @Test
     void requirePositiveIntReturnsAPositiveValue() {
@@ -32,7 +32,7 @@ class ValidatorsTest {
         assertEquals("speckSizePx must be positive: -5", negative.getMessage());
     }
 
-    // --- requireNonNegative(int) ---
+    // requireNonNegative(int)
 
     @Test
     void requireNonNegativeReturnsZeroAndPositive() {
@@ -49,7 +49,7 @@ class ValidatorsTest {
         assertEquals("count must be non-negative: -1", negative.getMessage());
     }
 
-    // --- requirePositive(double) ---
+    // requirePositive(double)
 
     @Test
     void requirePositiveDoubleReturnsAPositiveValue() {
@@ -78,7 +78,7 @@ class ValidatorsTest {
         assertEquals("mm must be positive: NaN", nan.getMessage());
     }
 
-    // --- requireNonNull ---
+    // requireNonNull
 
     @Test
     void requireNonNullReturnsTheSameInstance() {
@@ -95,7 +95,7 @@ class ValidatorsTest {
         assertEquals("paper must not be null", ex.getMessage());
     }
 
-    // --- the utility class itself ---
+    // the utility class itself
 
     @Test
     void isANonInstantiableUtilityClass() throws ReflectiveOperationException {

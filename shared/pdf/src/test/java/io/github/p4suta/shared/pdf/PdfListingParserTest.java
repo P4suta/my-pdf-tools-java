@@ -50,8 +50,6 @@ final class PdfListingParserTest {
                 PdfListingParser.parseDominantDpi("header\n----\n(no image rows)\n"));
     }
 
-    // --- Coverage added for the floor (not in the original verbatim test) ---
-
     @Test
     void parsePageCountThrowsWhenThePagesValueIsNotANumber() {
         // Exercises the NumberFormatException -> IllegalArgumentException catch branch.

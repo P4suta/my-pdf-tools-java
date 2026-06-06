@@ -28,7 +28,7 @@ public enum Severity {
 }
 ```
 
-`:shared:observability` (and each app's `:observability`) owns the single mapping to slf4j:
+`:shared:observability` owns the single mapping to slf4j:
 
 | Severity | org.slf4j.event.Level |
 |----------|-----------------------|

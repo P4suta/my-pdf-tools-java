@@ -96,14 +96,10 @@ final class PdfImagesCliExtractorTest {
 
     @Test
     void missingToolFailsWithAClearMessage(@TempDir Path tmp) throws Exception {
-        // A property key whose override points at a path that resolves but is not a real tool would
-        // still launch; to drive the resolve() orElseThrow branch deterministically we use a key
-        // whose tool name is not on PATH. Point pdfinfo at a tool name that cannot resolve.
         Path pdf = tmp.resolve("doc.pdf");
         Files.writeString(pdf, "%PDF-1.4\n");
-        // Use a nonsense tool by overriding both keys to a non-existent absolute path: ToolPath
-        // returns the override, ProcessRunner.start() then throws IOException — surfacing as
-        // IOException at the dominantDpi() boundary.
+        // An override pointing at a non-existent path: ToolPath returns the override,
+        // ProcessRunner.start() then throws IOException at the dominantDpi() boundary.
         String badImagesKey = "shared.pdf.test.bad.pdfimages.path";
         System.setProperty(badImagesKey, tmp.resolve("definitely-not-pdfimages").toString());
         try {

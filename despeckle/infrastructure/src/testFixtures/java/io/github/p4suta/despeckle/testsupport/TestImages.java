@@ -16,13 +16,7 @@ public final class TestImages {
 
     private TestImages() {}
 
-    /**
-     * Writes {@code pixels[y][x]} (true = black) to {@code path} as PBM P4.
-     *
-     * @param path the destination file
-     * @param pixels the bitonal image, row-major as {@code pixels[y][x]} (true = black)
-     * @throws IOException if writing the file fails
-     */
+    /** Writes {@code pixels[y][x]} (row-major, true = black) to {@code path} as PBM P4. */
     public static void writePbm(Path path, boolean[][] pixels) throws IOException {
         int height = pixels.length;
         int width = height == 0 ? 0 : pixels[0].length;
@@ -42,26 +36,12 @@ public final class TestImages {
         }
     }
 
-    /**
-     * Returns a blank (all-white) canvas.
-     *
-     * @param width the canvas width in pixels
-     * @param height the canvas height in pixels
-     * @return a fresh {@code boolean[height][width]} with every pixel white
-     */
+    /** A fresh blank (all-white) {@code boolean[height][width]} canvas. */
     public static boolean[][] blank(int width, int height) {
         return new boolean[height][width];
     }
 
-    /**
-     * Paints a solid filled rectangle (inclusive corners) black.
-     *
-     * @param img the image to paint into, row-major as {@code img[y][x]}
-     * @param x0 the left column (inclusive)
-     * @param y0 the top row (inclusive)
-     * @param x1 the right column (inclusive)
-     * @param y1 the bottom row (inclusive)
-     */
+    /** Paints a solid black rectangle into {@code img[y][x]}, corners inclusive. */
     public static void fillRect(boolean[][] img, int x0, int y0, int x1, int y1) {
         for (int y = y0; y <= y1; y++) {
             for (int x = x0; x <= x1; x++) {
@@ -70,13 +50,7 @@ public final class TestImages {
         }
     }
 
-    /**
-     * Sets a single black pixel.
-     *
-     * @param img the image to paint into, row-major as {@code img[y][x]}
-     * @param x the column
-     * @param y the row
-     */
+    /** Sets a single black pixel at {@code img[y][x]}. */
     public static void dot(boolean[][] img, int x, int y) {
         img[y][x] = true;
     }

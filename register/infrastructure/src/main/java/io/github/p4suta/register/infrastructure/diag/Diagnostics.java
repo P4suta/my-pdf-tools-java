@@ -46,8 +46,6 @@ final class Diagnostics implements Reporter {
     /**
      * Create a diagnostics collector writing into {@code dir} (created if absent).
      *
-     * @param dir the output directory for overlays, the JSONL log, the summary and the corpus
-     *     before/after overlay and residual chart
      * @param flipbook whether to also assemble the registered pages into an animated WebP flip-book
      *     (needs libwebp's {@code img2webp})
      * @throws IOException if the directory cannot be created
@@ -62,8 +60,6 @@ final class Diagnostics implements Reporter {
      * Record one rendered page: re-read the deskewed page, draw its overlay and remember its
      * diagnostic.
      *
-     * @param diagnostic the page's recorded state
-     * @param deskewedPage the deskewed page on disk (the render pass's scratch)
      * @throws IOException if the page cannot be read back or the overlay cannot be written
      */
     @Override
@@ -92,7 +88,6 @@ final class Diagnostics implements Reporter {
      * and the residual chart — and, when enabled, the animated WebP flip-book of the registered
      * pages.
      *
-     * @param info the run settings and references
      * @param outputs the registered output image paths in reading order (frames for the flip-book)
      * @throws IOException on write failure
      */
@@ -116,7 +111,6 @@ final class Diagnostics implements Reporter {
      * reads from files), so a long book stays a small preview. The frame scratch directory is
      * always removed.
      *
-     * @param outputs the registered output image paths, in reading order
      * @throws IOException if frame extraction or filesystem work fails
      */
     private void writeFlipbook(List<Path> outputs) throws IOException {

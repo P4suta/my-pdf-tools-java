@@ -31,35 +31,30 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Packs a directory of cleaned bitonal pages into a lossless-JBIG2 PDF — the Java port of {@code
- * jbig2-pdf.py} + {@code pdfmeta.py}. Each page is encoded by {@code jbig2 -p} (jbig2enc's
- * generic-region mode, lossless; never the lossy {@code -s} symbol mode) in parallel, then embedded
- * verbatim as a {@code /JBIG2Decode} image XObject via PDFBox. Because the per-page JBIG2 streams
- * come from the same {@code jbig2} binary the Python pipeline used, the decoded pages are
- * bit-identical; the container is finished with a {@code qpdf --linearize} pass (the caller's, via
- * {@link QpdfRunner}) to keep the Fast-Web-View output the Python path produced.
+ * Packs a directory of cleaned bitonal pages into a lossless-JBIG2 PDF. Each page is encoded by
+ * {@code jbig2 -p} (jbig2enc's generic-region mode, lossless; never the lossy {@code -s} symbol
+ * mode) in parallel, then embedded verbatim as a {@code /JBIG2Decode} image XObject via PDFBox. The
+ * caller finishes the container with a {@code qpdf --linearize} pass (via {@link QpdfRunner}) for
+ * Fast-Web-View output.
  *
- * <p>Each page is sized by its own resolution (so a mixed-resolution book — e.g. a 600-dpi text
- * with a 1200-dpi plate — comes out correctly), unless the caller forces one DPI; a page that
- * carries no resolution falls back to {@link #DEFAULT_DPI}. This matches {@code jbig2-pdf.py}'s
- * per-image {@code page_dpi}.
+ * <p>Each page is sized by its own resolution (so a mixed-resolution book — a 600-dpi text with a
+ * 1200-dpi plate — comes out correctly), unless the caller forces one DPI; a page that carries no
+ * resolution falls back to {@link #DEFAULT_DPI}.
  *
- * <p>The {@code jbig2} binary is resolved through the shared {@link ToolPath} island: an explicit
- * {@code -D<jbig2PropertyKey>} override wins (how a packaged app-image points at its bundled
- * binary), else the first {@code jbig2} on {@code PATH}. The property key is a constructor
- * PARAMETER, never a unified literal, so each app keeps its own ({@code register.jbig2.path},
- * {@code despeckle.jbig2.path}); a missing binary surfaces as a plain {@link IOException} — the
- * "fatal vs skip" policy stays with the app.
+ * <p>The {@code jbig2} binary is resolved through {@link ToolPath}: an explicit {@code
+ * -D<jbig2PropertyKey>} override wins, else the first {@code jbig2} on {@code PATH}. The property
+ * key is a constructor parameter, so each app keeps its own ({@code register.jbig2.path}, {@code
+ * despeckle.jbig2.path}); a missing binary surfaces as a plain {@link IOException}, leaving the
+ * fatal-vs-skip policy to the app.
  *
- * <p>The {@code jbig2 -p} encode is driven by a single LOCAL {@link ProcessBuilder} rather than the
- * shared {@code ProcessRunner}: {@code jbig2 -p} writes a RAW binary JBIG2 stream to stdout, and
- * the shared runner decodes captured stdout to a UTF-8 {@link String}, which would corrupt the
- * binary bytes. Redirecting stdout straight to the per-page scratch file is binary-safe by
- * construction.
+ * <p>The {@code jbig2 -p} encode runs through a local {@link ProcessBuilder} rather than the shared
+ * {@code ProcessRunner}: {@code jbig2 -p} writes a raw binary JBIG2 stream to stdout, and the
+ * runner decodes captured stdout to a UTF-8 {@link String}, which would corrupt the binary bytes.
+ * Redirecting stdout straight to the per-page scratch file is binary-safe.
  */
 public final class PdfBoxJbig2Assembler {
 
-    /** Page size assumed when an image carries no resolution (matches {@code jbig2-pdf.py}). */
+    /** Page DPI assumed when an image carries no resolution. */
     static final int DEFAULT_DPI = 300;
 
     private static final COSName JBIG2_DECODE = COSName.getPDFName("JBIG2Decode");
@@ -71,8 +66,7 @@ public final class PdfBoxJbig2Assembler {
      * Create an assembler that encodes pages with {@code jbig2} and writes the PDF via PDFBox.
      *
      * @param jbig2PropertyKey the {@code -D} system-property override the app uses to point at its
-     *     bundled {@code jbig2} binary (e.g. {@code despeckle.jbig2.path}); kept a parameter so
-     *     each app passes its own and packaged app-image runs keep resolving
+     *     bundled {@code jbig2} binary (e.g. {@code despeckle.jbig2.path})
      */
     public PdfBoxJbig2Assembler(String jbig2PropertyKey) {
         this.jbig2PropertyKey = jbig2PropertyKey;
@@ -128,9 +122,9 @@ public final class PdfBoxJbig2Assembler {
     }
 
     /**
-     * Resolve the {@code jbig2} binary via the shared {@link ToolPath} island. A missing binary is
-     * a plain {@link IOException} here — the encode cannot proceed — leaving the "fatal vs skip"
-     * policy to the app, which sees the IOException at the {@link #assemble} boundary.
+     * Resolve the {@code jbig2} binary via {@link ToolPath}. A missing binary throws {@link
+     * IOException} here, leaving the fatal-vs-skip policy to the app at the {@link #assemble}
+     * boundary.
      */
     private String jbig2() throws IOException {
         return ToolPath.resolve("jbig2", jbig2PropertyKey)
@@ -150,11 +144,10 @@ public final class PdfBoxJbig2Assembler {
         ImageInfo info = readImageInfo(image);
         int dpi = forcedDpi.orElse(info.resolution() > 0 ? info.resolution() : DEFAULT_DPI);
         Path out = jb2Dir.resolve(String.format(Locale.ROOT, "%06d.jb2", index));
-        // jbig2 -p writes the RAW binary JBIG2 stream to stdout. Redirect it straight to the
-        // scratch
-        // file: the shared ProcessRunner decodes stdout to a UTF-8 String, which would corrupt
+        // jbig2 -p writes a raw binary JBIG2 stream to stdout; redirect it straight to the scratch
+        // file. The shared ProcessRunner decodes stdout to a UTF-8 String, which would corrupt
         // these
-        // binary bytes, so this one call site keeps a local ProcessBuilder (binary-safe).
+        // binary bytes, so this call site uses a local ProcessBuilder.
         ProcessBuilder pb = new ProcessBuilder(jbig2, "-p", image.toString());
         pb.redirectOutput(out.toFile());
         pb.redirectError(ProcessBuilder.Redirect.DISCARD);
@@ -178,12 +171,11 @@ public final class PdfBoxJbig2Assembler {
     }
 
     /**
-     * Read a cleaned page's pixel size and resolution via Leptonica (the shared {@link Pix}). The
-     * read goes through Leptonica — not {@code javax.imageio} — because the cleaned pages are
-     * bitonal raw PBM (P4) and Group-4 TIFF, which Leptonica decodes natively but ImageIO has no
-     * reader for. {@link Pix#resolution()} returns {@code 0} when the format carries no DPI tag
-     * (PBM never does), so the caller's {@link #DEFAULT_DPI} fallback (or {@code forcedDpi}) wins —
-     * exactly the per-image {@code page_dpi} behavior of {@code jbig2-pdf.py}.
+     * Read a cleaned page's pixel size and resolution via Leptonica ({@link Pix}), not {@code
+     * javax.imageio}: the cleaned pages are bitonal raw PBM (P4) and Group-4 TIFF, which Leptonica
+     * decodes natively but ImageIO has no reader for. {@link Pix#resolution()} returns {@code 0}
+     * when the format carries no DPI tag (PBM never does), so the {@link #DEFAULT_DPI} fallback (or
+     * {@code forcedDpi}) wins.
      */
     private static ImageInfo readImageInfo(Path image) {
         try (Pix pix = Pix.read(image)) {
@@ -194,9 +186,8 @@ public final class PdfBoxJbig2Assembler {
     /** Embed one page's JBIG2 stream as a full-page {@code /JBIG2Decode} image XObject. */
     private static void addPage(PDDocument doc, Page page) throws IOException {
         COSStream cos = doc.getDocument().createCOSStream();
-        // createRawOutputStream stores the bytes verbatim (no re-filtering) — the analogue of
-        // pikepdf's Stream(pdf, data); createOutputStream(JBIG2Decode) would try to *encode*, which
-        // PDFBox cannot do for JBIG2.
+        // createRawOutputStream stores the bytes verbatim (no re-filtering). createOutputStream
+        // would try to encode, which PDFBox cannot do for JBIG2.
         try (OutputStream raw = cos.createRawOutputStream();
                 InputStream in = Files.newInputStream(page.jbig2())) {
             in.transferTo(raw);
@@ -222,8 +213,8 @@ public final class PdfBoxJbig2Assembler {
     /** Copy the source PDF's Info dict, XMP metadata and (&ge; 1.4) version onto the output. */
     private static void inheritMetadata(PDDocument doc, @Nullable Path source) throws IOException {
         if (source == null) {
-            // No source scan to mirror (the topdf path may pack loose pages): keep PDFBox's own
-            // Info, but still never declare a version below 1.4, which JBIG2Decode requires.
+            // No source to mirror: keep PDFBox's own Info, but never declare a version below 1.4,
+            // which JBIG2Decode requires.
             doc.setVersion(Math.max(doc.getVersion(), 1.4f));
             return;
         }
@@ -248,7 +239,7 @@ public final class PdfBoxJbig2Assembler {
         }
     }
 
-    /** Page extent in points: pixels / dpi * 72, rounded to 4 dp (matches {@code jbig2-pdf.py}). */
+    /** Page extent in points: pixels / dpi * 72, rounded to 4 dp. */
     private static float points(int pixels, int dpi) {
         double pt = (double) pixels / dpi * 72.0;
         return (float) (Math.round(pt * 10_000.0) / 10_000.0);

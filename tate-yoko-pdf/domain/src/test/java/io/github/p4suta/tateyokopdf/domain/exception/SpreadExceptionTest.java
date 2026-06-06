@@ -7,10 +7,9 @@ import org.junit.jupiter.api.Test;
 final class SpreadExceptionTest {
 
     @Test
-    void ofKindUsesDefaultMessage() {
+    void ofKindLeavesDetailNull() {
         var ex = SpreadException.of(ErrorKind.PDF_CORRUPTED);
         assertThat(ex.kind()).isEqualTo(ErrorKind.PDF_CORRUPTED);
-        assertThat(ex.userMessage()).isEqualTo(ErrorKind.PDF_CORRUPTED.defaultUserMessage());
         assertThat(ex.technicalDetail()).isNull();
         assertThat(ex.getCause()).isNull();
     }

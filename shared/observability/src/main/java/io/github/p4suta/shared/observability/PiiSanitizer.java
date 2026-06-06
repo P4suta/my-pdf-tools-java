@@ -4,11 +4,7 @@ import java.nio.file.Path;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Strips personally-identifying file-system paths out of text bound for logs, keeping diagnostics
- * useful without leaking a user's directory layout. Ported verbatim from tate-yoko-pdf so register
- * and despeckle mask paths identically.
- */
+/** Strips personally-identifying file-system paths out of text bound for logs. */
 public final class PiiSanitizer {
 
     private static final Pattern ABSOLUTE_PATH =

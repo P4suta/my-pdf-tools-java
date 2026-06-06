@@ -8,16 +8,15 @@ import java.util.concurrent.ExecutorService;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Despeckle's {@link Jbig2Assembler} adapter — a thin port-implementing wrapper over the shared
- * {@code io.github.p4suta.shared.pdf.PdfBoxJbig2Assembler}, the cross-app {@code jbig2} + PDFBox
- * container donated from this app. The wrapper exists only to bind that neutral capability to
- * despeckle's {@code :port} abstraction and to fix despeckle's own {@code jbig2} override property
- * key ({@code despeckle.jbig2.path}), so a packaged app-image keeps resolving its bundled binary.
+ * Despeckle's {@link Jbig2Assembler} adapter — a wrapper over the shared {@code
+ * io.github.p4suta.shared.pdf.PdfBoxJbig2Assembler} ({@code jbig2} + PDFBox container). It binds
+ * the shared capability to despeckle's {@code :port} abstraction and fixes the {@code
+ * despeckle.jbig2.path} override key, so a packaged app-image keeps resolving its bundled binary.
  *
- * <p>All per-page {@code jbig2 -p} encoding, the {@code /JBIG2Decode} XObject embedding, and the
+ * <p>The per-page {@code jbig2 -p} encoding, the {@code /JBIG2Decode} XObject embedding, and the
  * Info/XMP/version inheritance live in the shared class; this adapter forwards {@link #assemble}
- * unchanged. Each page is sized by its own resolution unless the caller forces one DPI; a page that
- * carries no resolution falls back to the shared assembler's 300-dpi default.
+ * unchanged. Each page is sized by its own resolution unless the caller forces one DPI; a page with
+ * no resolution falls back to the shared assembler's 300-dpi default.
  */
 public final class PdfBoxJbig2Assembler implements Jbig2Assembler {
 
@@ -26,7 +25,6 @@ public final class PdfBoxJbig2Assembler implements Jbig2Assembler {
     private final io.github.p4suta.shared.pdf.PdfBoxJbig2Assembler delegate =
             new io.github.p4suta.shared.pdf.PdfBoxJbig2Assembler("despeckle.jbig2.path");
 
-    /** Creates an assembler that encodes pages with {@code jbig2} and writes the PDF via PDFBox. */
     public PdfBoxJbig2Assembler() {}
 
     /**

@@ -19,8 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Runtime performance + memory benchmark for the built jpackage launcher — the Java successor to
- * the former {@code scripts/bench-runtime.sh}.
+ * Runtime performance + memory benchmark for the built jpackage launcher.
  *
  * <p>Splits a conversion's wall-clock into its parts without touching production code: end-to-end
  * wall (measured around the launcher process), the launcher's own in-process {@code "Done in"}, the
@@ -75,7 +74,7 @@ public final class RuntimeBenchmark {
         benchmark.run(inputs);
     }
 
-    // ---- result records -----------------------------------------------------
+    // Result records
 
     /**
      * One measured run: elapsed wall seconds, peak RSS (KiB, or -1 if unavailable), child output.
@@ -94,7 +93,7 @@ public final class RuntimeBenchmark {
             double coldWall,
             long rssMedianKib) {}
 
-    // ---- orchestration ------------------------------------------------------
+    // Orchestration
 
     private void run(List<Path> inputs) throws IOException, InterruptedException {
         requireExecutable(launcher, "app-image launcher", "build it first:  just package");
@@ -204,7 +203,7 @@ public final class RuntimeBenchmark {
         return OptionalDouble.of(median(qs));
     }
 
-    // ---- subprocess measurement ---------------------------------------------
+    // Subprocess measurement
 
     /**
      * Runs {@code command}, returning its wall time ({@link System#nanoTime()} around the process),
@@ -281,7 +280,7 @@ public final class RuntimeBenchmark {
         return digits.isEmpty() ? -1 : Integer.parseInt(digits);
     }
 
-    // ---- numeric helpers ----------------------------------------------------
+    // Numeric helpers
 
     private static OptionalDouble parseDoneSeconds(String output) {
         Matcher m = DONE_IN.matcher(output);
@@ -318,7 +317,7 @@ public final class RuntimeBenchmark {
         return String.format(Locale.ROOT, "%.1f", bytes / (double) MIB);
     }
 
-    // ---- rendering ----------------------------------------------------------
+    // Rendering
 
     private String render(Floor floor, List<Row> rows) {
         var sb = new StringBuilder();
@@ -501,7 +500,7 @@ public final class RuntimeBenchmark {
         return String.format(Locale.ROOT, "%.1f×", (rssKib * 1024.0) / sizeBytes);
     }
 
-    // ---- small utilities ----------------------------------------------------
+    // Small utilities
 
     private static String fileName(Path path) {
         Path name = path.getFileName();

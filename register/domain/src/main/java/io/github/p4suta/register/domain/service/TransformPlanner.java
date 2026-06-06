@@ -34,15 +34,9 @@ public final class TransformPlanner {
     /**
      * Plan the transform that places {@code column}'s page on the canvas.
      *
-     * @param column the page's detected main-column box
      * @param reference the parity reference box (canvas coordinates; the {@code TOP_RIGHT} target)
-     * @param pageWidth the page width in pixels
-     * @param pageHeight the page height in pixels
-     * @param canvasWidth the output canvas width in pixels
-     * @param canvasHeight the output canvas height in pixels
      * @param scaleEnabled whether to shrink an oversized page to fit the canvas
      * @param outlierRatio a column smaller than this fraction of the reference area is centered
-     * @param anchor where to place the column on the canvas
      */
     public Transform plan(
             Box column,

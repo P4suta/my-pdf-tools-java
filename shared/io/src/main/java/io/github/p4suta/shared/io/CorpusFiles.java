@@ -7,22 +7,20 @@ import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Corpus discovery and output-path mirroring shared by every directory-walking pipeline: collect
- * the matching input pages in a deterministic order, and map each input to its mirrored output path
- * under a separate output root.
+ * Corpus discovery and output-path mirroring: collect the matching input pages in a deterministic
+ * order, and map each input to its mirrored output path under a separate output root.
  *
- * <p>Two contracts are load-bearing and reproduced exactly from the apps:
+ * <p>Two load-bearing contracts:
  *
  * <ul>
  *   <li>the sort order is by the full walked path's string ({@code
- *       Comparator.comparing(Path::toString)}), so the pages are processed in the same order every
- *       run — register's and despeckle's end-to-end tests pin this;
- *   <li>the selection filter is a caller-supplied glob, never a hardcoded extension set, so each
- *       app keeps its own input pattern.
+ *       Comparator.comparing(Path::toString)}), so pages are processed in the same order every run;
+ *   <li>the selection filter is a caller-supplied glob, not a hardcoded extension set.
  * </ul>
  */
 public final class CorpusFiles {
@@ -58,13 +56,37 @@ public final class CorpusFiles {
     }
 
     /**
+     * The top-level {@code *.pdf} files directly under {@code dir} (case-insensitive on the
+     * extension), in file-name order. Unlike {@link #collect}, the directory is NOT walked
+     * recursively — this discovers the inputs of a batch run, where only the directory's own PDFs
+     * count, and the sort (by full path string) keeps the batch order deterministic.
+     *
+     * @param dir the directory to list (not recursed)
+     * @return the top-level {@code *.pdf} files, sorted by full path string
+     * @throws IOException if listing {@code dir} fails
+     */
+    public static List<Path> listTopLevelPdfs(Path dir) throws IOException {
+        try (Stream<Path> entries = Files.list(dir)) {
+            return entries.filter(Files::isRegularFile)
+                    .filter(CorpusFiles::isPdf)
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList();
+        }
+    }
+
+    private static boolean isPdf(Path p) {
+        Path name = p.getFileName();
+        return name != null && name.toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
+    }
+
+    /**
      * The output path for {@code src}: its {@code inputDir}-relative path resolved under {@code
      * outputDir}, with the file extension swapped to {@code extension} — or kept unchanged when
      * {@code extension} is {@code null} (the {@code --format same} case) or {@code src} has no file
      * name.
      *
-     * <p>The replacement extension is supplied as a plain string so this helper stays free of any
-     * app's output-format enum: each app passes its own {@code OutputFormat.extension()}.
+     * <p>The replacement extension is a plain string so this helper imports no app's output-format
+     * enum.
      *
      * @param src the source page path (must be under {@code inputDir})
      * @param inputDir the input root the mirroring is relative to

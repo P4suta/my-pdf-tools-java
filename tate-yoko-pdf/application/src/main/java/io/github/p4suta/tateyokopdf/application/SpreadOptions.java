@@ -31,9 +31,6 @@ public record SpreadOptions(
      * Options for {@code sourcePath} with every other field defaulted: output written to {@code
      * <name>_spread.pdf} beside the source, {@link ReadingDirection#DEFAULT} direction, {@link
      * FirstPageMode#STANDARD} opening, and no PDF/A.
-     *
-     * @param sourcePath the PDF to convert
-     * @return default options for that source
      */
     public static SpreadOptions withDefaults(Path sourcePath) {
         return new SpreadOptions(
@@ -47,8 +44,7 @@ public record SpreadOptions(
     private static Path deriveOutputPath(Path source) {
         Path file = source.getFileName();
         if (file == null) {
-            // Path.getFileName() only returns null for roots like "/" or "C:\\", which
-            // we never legitimately receive as input — guard explicitly.
+            // getFileName() is null only for roots like "/" or "C:\\", never a legitimate input.
             throw new IllegalArgumentException("source path has no file name: " + source);
         }
         String output = file.toString().replaceFirst("(?i)\\.pdf$", "_spread.pdf");

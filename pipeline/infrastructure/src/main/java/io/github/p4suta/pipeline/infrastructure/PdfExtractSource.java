@@ -38,6 +38,11 @@ public final class PdfExtractSource implements Source {
     }
 
     @Override
+    public String name() {
+        return "extract";
+    }
+
+    @Override
     public Corpus open(Path workDir) throws IOException {
         int dpi = extractor.dominantDpi(sourcePdf);
         ExecutorService pool = Executors.newFixedThreadPool(jobs);

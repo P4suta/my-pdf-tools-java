@@ -8,6 +8,7 @@ import io.github.p4suta.despeckle.port.Reporter;
 import io.github.p4suta.despeckle.port.ReporterFactory;
 import io.github.p4suta.shared.io.CorpusFiles;
 import io.github.p4suta.shared.io.OutputDirs;
+import io.github.p4suta.shared.kernel.PageProgressListener;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -42,12 +43,7 @@ public final class DespeckleService {
     private final PageCleaner pageCleaner;
     private final ReporterFactory reporterFactory;
 
-    /**
-     * Create a despeckle service over the injected adapters.
-     *
-     * @param pageCleaner the per-page despeckle port
-     * @param reporterFactory the factory for the per-run report sink
-     */
+    /** Create a despeckle service over the injected adapters. */
     public DespeckleService(PageCleaner pageCleaner, ReporterFactory reporterFactory) {
         this.pageCleaner = pageCleaner;
         this.reporterFactory = reporterFactory;
@@ -58,11 +54,8 @@ public final class DespeckleService {
      *
      * @param inputDir directory of source pages (walked recursively)
      * @param outputDir directory to mirror cleaned pages into
-     * @param format output format
      * @param glob file-name glob for input selection
-     * @param jobs worker thread count
      * @param force whether to overwrite a non-empty output directory
-     * @param options despeckle knobs
      * @param reportDir report output directory, or {@code null} for no report
      * @param flipbook whether to assemble the animated-WebP overlay flip-book (needs {@code
      *     reportDir} and libwebp's {@code img2webp})
@@ -87,14 +80,18 @@ public final class DespeckleService {
      */
     public record Summary(int pages, long componentsRemoved, int overRemovalWarnings) {}
 
-    /**
-     * Execute a run.
-     *
-     * @param config run configuration
-     * @return the aggregate summary
-     * @throws IOException on filesystem failure
-     */
+    /** Execute a run, reporting no per-page progress. */
     public Summary run(Config config) throws IOException {
+        return run(config, PageProgressListener.NO_OP);
+    }
+
+    /**
+     * Execute a run, reporting each finished page to {@code progress}.
+     *
+     * @param progress called once per page as it completes (1-based count, total page count); may
+     *     be invoked from the worker threads, so it must be thread-safe
+     */
+    public Summary run(Config config, PageProgressListener progress) throws IOException {
         OutputDirs.prepare(config.outputDir(), config.force());
 
         List<Path> files = CorpusFiles.collect(config.inputDir(), config.glob());
@@ -119,6 +116,7 @@ public final class DespeckleService {
                         () -> {
                             PageOutcome outcome = processOne(src, config, report);
                             int n = done.incrementAndGet();
+                            progress.onPage(n, files.size());
                             if (n % PROGRESS_EVERY == 0 || n == files.size()) {
                                 LOG.info("{}/{}", n, files.size());
                             }

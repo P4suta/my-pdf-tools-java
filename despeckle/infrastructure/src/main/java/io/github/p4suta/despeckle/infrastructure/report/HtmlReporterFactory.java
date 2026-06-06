@@ -10,21 +10,17 @@ import java.util.List;
 /**
  * Builds {@link HtmlReporter} instances — the {@link ReporterFactory} adapter the {@code :app}
  * composition root supplies to the application. Creating a reporter lays out the {@code
- * before}/{@code overlay}/{@code after} panel directories up front, so that work is done here, in
- * {@link #create(Path, boolean)}, mirroring the prior {@code Report.create} static factory.
+ * before}/{@code overlay}/{@code after} panel directories up front, in {@link #create(Path,
+ * boolean)}.
  */
 public final class HtmlReporterFactory implements ReporterFactory {
 
-    /** Create a factory. */
     public HtmlReporterFactory() {}
 
     /**
      * Create the report directory tree and a ready {@link HtmlReporter}.
      *
-     * @param reportDir the report root
      * @param flipbook whether to assemble the animated-WebP overlay flip-book at finish
-     * @return a ready reporter
-     * @throws IOException if the directories cannot be created
      */
     @Override
     public Reporter create(Path reportDir, boolean flipbook) throws IOException {
@@ -34,11 +30,7 @@ public final class HtmlReporterFactory implements ReporterFactory {
         return new HtmlReporter(reportDir, flipbook);
     }
 
-    /**
-     * A pass-through reporter for when reporting is disabled.
-     *
-     * @return a no-op reporter
-     */
+    /** A pass-through reporter for when reporting is disabled. */
     @Override
     public Reporter noOp() {
         return Reporter.noOp();

@@ -2,13 +2,13 @@
 
 **縦書き日本語スキャンPDFを見開きレイアウトに変換する CLI ツール**
 
-2つの縦長（ポートレート）ページを1つの横長（ランドスケープ）見開きページに結合し、右綴じ（RTL）の読み順を正しく再現します。どのPDFリーダーでも正しい見開き表示が得られます。
+2つの縦長ページを1つの横長見開きページに結合し、右綴じ（RTL）の読み順を再現します。どのPDFリーダーでも正しい見開き表示が得られます。
 
 ---
 
 ## 解決する課題
 
-日本語の縦書き書籍をスキャンしてPDF化すると、各ページは個別の縦長画像として格納されます。一般的なPDFリーダーの見開きモードは横書き（LTR）前提のため、ページの左右が逆転してしまいます。
+縦書き書籍をスキャンすると各ページは個別の縦長画像になります。一般的なPDFリーダーの見開きモードは横書き（LTR）前提のため、ページの左右が逆転します。
 
 ```
 一般的なPDFリーダーの見開き表示（LTR）    tate-yoko-pdf による見開き変換（RTL）
@@ -47,13 +47,18 @@ cat in.pdf | ./tate-yoko-pdf - -o - > out.pdf   # stdin → stdout（Unix パイ
 | `--first-page` | 1ページ目の開始側: `right` / `left` / `cover`（`left` は先頭ブランクで1ページ目を反対側に、`cover` は表紙を単独に） | 読み方向の自然側 |
 | `--pdf-a` | PDF/A-2b を出力（保存用・ベストエフォルト） | `false` |
 | `--low-memory` | ページストリームを一時ファイルへ退避しヒープを抑制（巨大スキャン向け） | `false` |
+| `--force` | 既存の出力を上書き（バッチでは既存分も再生成し、スキップしない） | `false` |
 | `-v`, `--verbose` | DEBUGレベルのログ出力 | `false` |
-| `-h`, `--help` / `--version` | ヘルプ / バージョン表示 | — |
+| `-h`, `--help` / `-V`, `--version` | ヘルプ / バージョン表示 | — |
+| `--completion <bash\|zsh\|fish>` | シェル補完スクリプトを出力して終了 | — |
+| `--man` | man ページ（troff）を出力して終了 | — |
 
 **入力/出力の規則**:
 - **複数入力**（複数ファイル列挙 or ディレクトリ）は**バッチ処理**。`-o` を付けると出力ディレクトリ、省略すると各入力の隣に `_spread.pdf` を生成。バッチは1ファイル失敗しても続行し、最後に失敗があれば非0で終了します。
+- **既存の出力は既定で上書きしません**。単一入力は出力が既に在ると終了コード 73 で拒否、バッチは既存分をスキップ（`[i/n] file: skipped`）。`--force` で上書き/再生成します。
 - **`-`** は単独入力時のみ有効（stdin から1つのPDFを読む）。`-o -` で stdout へ出力するとパイプ連結できます。
 - **進捗・ログはすべて stderr** に出力されるため、`-o -` の stdout は純粋なPDFバイト列のままです。
+- 引数なしの `tate-yoko-pdf` はヘルプを表示して 0 で終了します。
 
 ### 1ページ目の開き方（`--first-page`）
 
@@ -72,7 +77,7 @@ cat in.pdf | ./tate-yoko-pdf - -o - > out.pdf   # stdin → stdout（Unix パイ
 
 ## インストール
 
-各OSに **JRE をバンドルした app-image**（zip 1 個・別途 Java インストール不要）を CI で 3 OS 並列にビルドしています。zip を展開して中の launcher を叩くだけで動作します。
+各OSに **JRE をバンドルした app-image**（zip 1 個・別途 Java インストール不要）を CI で 3 OS 並列にビルドしています。zip を展開して中の launcher を実行します。
 
 | OS | 配布物 | 実行ファイル |
 |---|---|---|
@@ -94,7 +99,7 @@ cat in.pdf | ./tate-yoko-pdf - -o - > out.pdf   # stdin → stdout（Unix パイ
 
 ## 開発
 
-開発環境は完全にDocker内で完結します。ホスト側に必要なものは git + Docker + （任意で）mise / lefthook / just のみ。
+開発環境はDocker内で完結します。ホスト側に必要なのは git + Docker +（任意で）mise / lefthook / just。
 
 ### 初回セットアップ
 
@@ -142,13 +147,14 @@ just docker-clean     # 本プロジェクトの Docker artifacts を一掃
 
 ## アーキテクチャ
 
-ヘキサゴナル（Ports & Adapters）を採用し、ドメインロジックを PDF ライブラリから完全に隔離しています。v2.0.0 で各レイヤを **6つの Gradle モジュール**に物理分割し、PDFBox/qpdf の封じ込めやドメイン純粋性は ArchUnit ではなく**クラスパス上に相手が存在しないこと**でコンパイル時に強制されます。
+ヘキサゴナル（Ports & Adapters）でドメインロジックを PDF ライブラリから隔離しています。各レイヤは **5つの Gradle モジュール**に物理分割され、PDFBox/qpdf の封じ込めやドメイン純粋性は ArchUnit ではなく**クラスパス上に相手が存在しないこと**でコンパイル時に強制されます。
 
 ```
 :app ──▶ :application ──▶ :port ──▶ :domain（純粋・依存なし）
-  ├────▶ :infrastructure ──▶ :port, :domain（PDFBox / qpdf はここだけ）
-  └────▶ :observability ──▶ :domain
+  └────▶ :infrastructure ──▶ :port, :domain（PDFBox / qpdf はここだけ）
 ```
+
+例外→終了コードのマッピングと致命的例外ハンドラは、横断共有の `:shared:observability` + `:shared:cli` が担います。
 
 設計の俯瞰・各モジュールの責務・判断の背景（ADR）は **[docs/architecture.md](docs/architecture.md)** と **[docs/adr/](docs/adr/)** を参照してください。
 
@@ -161,7 +167,7 @@ just docker-clean     # 本プロジェクトの Docker artifacts を一掃
 | 言語 | Java | 25 |
 | PDF操作 | Apache PDFBox | 3.0.7 |
 | CLI | Apache Commons CLI | 1.11.0 |
-| ロギング | SLF4J + Logback | 1.5.33 |
+| ロギング | SLF4J + slf4j-simple | 2.0.18 |
 | ビルド | Gradle (Kotlin DSL) | 9.5.1 |
 | Fat JAR | Shadow Plugin | 9.4.2 |
 | 配布 | jlink + jpackage (Liberica JDK Full 25 同梱) | OpenJDK 25 |
@@ -180,7 +186,7 @@ just test     # テストのみ
 ```
 
 テストは多層構成:
-- **Unit** (`domain.*`, `application`, `domain.exception`, `observability`) — 純粋ロジック、外部依存なし
+- **Unit** (`domain.*`, `application`, `domain.exception`) — 純粋ロジック、外部依存なし
 - **Property-based** (`jqwik`) — Pagination / SpreadLayoutCalculator の不変条件を多数ケースで検証
 - **Integration** (`infrastructure.pdfbox` / `infrastructure.qpdf`) — 実 PDFBox / qpdf 経由で破損・暗号化・回転 PDF や linearize を扱う
 - **Architecture** (`architecture`、`:app`) — ArchUnit で残る2点（`domain.strategy` の直接生成禁止・パッケージ循環禁止）を強制。他の境界はモジュール分割によりコンパイル時に強制される
@@ -194,7 +200,7 @@ JaCoCo はモジュール別 threshold で `check` の必須ゲート: `:domain`
 
 ### エラーが出たら
 
-CLI は `Error[KIND]: ...` を **stderr** に出力します。**ErrorKind** で原因が判別できます。
+CLI は `Error[KIND]: ...` を **stderr** に出力します。**ErrorKind** で原因が判別できます。`KIND` は言語非依存の安定トークンで、メッセージ本文は CLI では英語、web UI では日本語に解決されます（共有カーネルはメッセージを持たず、各サーフェスが kind から自前で表示文言を引きます）。
 
 | ErrorKind | 意味 | 対処 |
 |---|---|---|

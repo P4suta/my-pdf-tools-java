@@ -28,12 +28,9 @@ public final class TestPdfs {
     private TestPdfs() {}
 
     /**
-     * Write a few-page bitonal PDF whose pages carry a kept glyph-sized block plus isolated dust
-     * the despeckle filter removes. Each page is sized so {@code pdfimages} reports ~300 x-ppi.
-     *
-     * @param path the PDF to write
-     * @param pages the number of identical pages to emit
-     * @throws IOException if the PDF cannot be written
+     * Write a {@code pages}-page bitonal PDF whose pages carry a kept glyph-sized block plus
+     * isolated dust the despeckle filter removes. Each page is sized so {@code pdfimages} reports
+     * ~300 x-ppi.
      */
     public static void writeBitonalPdf(Path path, int pages) throws IOException {
         try (PDDocument doc = new PDDocument()) {
@@ -53,13 +50,7 @@ public final class TestPdfs {
         }
     }
 
-    /**
-     * The page count of a PDF.
-     *
-     * @param pdf the PDF to read
-     * @return the number of pages
-     * @throws IOException if the PDF cannot be read
-     */
+    /** The page count of a PDF. */
     public static int pageCount(Path pdf) throws IOException {
         try (PDDocument doc = Loader.loadPDF(pdf.toFile())) {
             return doc.getNumberOfPages();
@@ -69,10 +60,6 @@ public final class TestPdfs {
     /**
      * Whether the first image XObject on the first page is encoded with the {@code /JBIG2Decode}
      * filter — i.e. the page was packed as lossless JBIG2.
-     *
-     * @param pdf the PDF to inspect
-     * @return {@code true} if the first page's first image is JBIG2-encoded
-     * @throws IOException if the PDF cannot be read
      */
     public static boolean firstImageIsJbig2(Path pdf) throws IOException {
         try (PDDocument doc = Loader.loadPDF(pdf.toFile())) {

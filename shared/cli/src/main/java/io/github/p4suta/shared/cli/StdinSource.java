@@ -13,7 +13,8 @@ public final class StdinSource {
 
     /**
      * Drains {@code System.in} into a fresh temp file named {@code <prefix>…<suffix>}, runs {@code
-     * action} against it, and deletes the temp afterwards (always, even on failure). {@code
+     * action} against it, and deletes the temp afterwards — always, even on failure or an
+     * interrupting signal (the temp is created via {@link TempFiles}). {@code
      * Files.copy(InputStream, …)} does not close {@code System.in}.
      *
      * @param prefix the temp-file name prefix (app-chosen, e.g. {@code "tate-yoko-in"})
@@ -33,12 +34,12 @@ public final class StdinSource {
      */
     static void withStdin(InputStream in, String prefix, String suffix, IoPathAction action)
             throws IOException {
-        Path tmpIn = Files.createTempFile(prefix, suffix);
+        Path tmpIn = TempFiles.createTempFile(prefix, suffix);
         try {
             Files.copy(in, tmpIn, StandardCopyOption.REPLACE_EXISTING);
             action.accept(tmpIn);
         } finally {
-            Files.deleteIfExists(tmpIn);
+            TempFiles.delete(tmpIn);
         }
     }
 }

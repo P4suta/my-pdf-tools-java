@@ -1,9 +1,15 @@
 .gradle/
 .gradle-home/
+# pnpm's content-addressable store — a build cache like .gradle-home (pnpm puts it at the repo root
+# in the dev container, where $HOME is not persistent). Never committed.
+.pnpm-store/
 **/build/
 out/
 out[0-9]*/
 *.log
+# The SPA bundle is built into the bootJar's static resources (Docker frontend stage, or a manual
+# `pnpm build` + copy for local serving); it is a build artifact, never committed.
+webapp/app/src/main/resources/static/
 # jqwik property-test example database (one per module that runs the jqwik engine).
 # register/ and tate-yoko-pdf/ ignore this locally; cover despeckle/ and shared/ from root.
 .jqwik-database

@@ -15,20 +15,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Pins the hand-rolled Commons CLI parsing the old picocli annotations used to guarantee: exit-code
- * mapping (0 success / 2 usage / the sysexits codes for runtime failures — here 64
- * INVALID_PARAMETER for a bad value), the on-by-default flag composition, the jobs clamp, and the
- * defaults. {@link DespeckleService.Config} is built by the composition root from the parsed
- * values, so this is the only coverage of the parse layer itself.
+ * Pins the Commons CLI parsing: exit-code mapping (0 success / 2 usage / the sysexits codes for
+ * runtime failures — here 64 INVALID_PARAMETER for a bad value), the on-by-default flag
+ * composition, the jobs clamp, and the defaults. {@link DespeckleService.Config} is built by the
+ * composition root from the parsed values, so this is the only coverage of the parse layer itself.
  */
 final class DespeckleCliTest {
 
     // ---- exit 2: usage / parse / type errors (never reach the service) ----
-
-    @Test
-    void noArgumentsIsUsageError() {
-        assertEquals(2, new DespeckleCli().run(new String[] {}));
-    }
 
     @Test
     void onePositionalIsUsageError() {
@@ -83,6 +77,11 @@ final class DespeckleCliTest {
     }
 
     // ---- exit 0: help / version short-circuit before the service ----
+
+    @Test
+    void noArgumentsPrintsHelpAndExitsZero() {
+        assertEquals(0, new DespeckleCli().run(new String[] {}));
+    }
 
     @Test
     void helpExitsZero() {

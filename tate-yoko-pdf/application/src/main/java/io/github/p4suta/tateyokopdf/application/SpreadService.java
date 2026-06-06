@@ -73,8 +73,8 @@ public class SpreadService {
             }
             output.save(options.outputPath());
         }
-        // Post-processing runs *after* the SpreadDocument is closed so the file
-        // handle is released before qpdf opens it in --replace-input mode.
+        // Post-processing runs after the SpreadDocument is closed so the file handle is released
+        // before qpdf opens it.
         pdfPostProcessor.process(options.outputPath());
         progressListener.onComplete(System.currentTimeMillis() - startTime);
     }

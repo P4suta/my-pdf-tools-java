@@ -7,6 +7,9 @@ import io.github.p4suta.despeckle.infrastructure.leptonica.LeptonicaPageCleaner;
 import io.github.p4suta.despeckle.infrastructure.report.HtmlReporterFactory;
 import io.github.p4suta.pipeline.domain.Corpus;
 import io.github.p4suta.pipeline.port.Stage;
+import io.github.p4suta.shared.kernel.PageProgressListener;
+import io.github.p4suta.shared.progress.ProgressEvent;
+import io.github.p4suta.shared.progress.ProgressSink;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.OptionalInt;
@@ -25,16 +28,24 @@ public final class DespeckleStage implements Stage {
     private final DespeckleService service;
     private final ProcessOptions baseOptions;
     private final int jobs;
+    private final ProgressSink progress;
+
+    /** {@link ProgressSink#NO_OP} variant of the two-arg constructor. */
+    public DespeckleStage(int jobs) {
+        this(jobs, ProgressSink.NO_OP);
+    }
 
     /**
      * @param jobs worker threads per book
+     * @param progress sink that each cleaned page is reported into as a {@code PageProcessed} event
      */
-    public DespeckleStage(int jobs) {
+    public DespeckleStage(int jobs, ProgressSink progress) {
         this.service = new DespeckleService(new LeptonicaPageCleaner(), new HtmlReporterFactory());
         this.jobs = jobs;
         this.baseOptions =
                 new ProcessOptions(
                         OptionalInt.empty(), OptionalInt.empty(), true, true, OptionalInt.empty());
+        this.progress = progress;
     }
 
     @Override
@@ -44,6 +55,11 @@ public final class DespeckleStage implements Stage {
 
     @Override
     public Corpus apply(Corpus input, Path workDir) throws IOException {
+        // Bridge the service's framework-free per-page callback into this stage's progress event,
+        // labeling it with name() so it matches the StageStarted label PipelineRunner emits.
+        PageProgressListener pages =
+                (done, total) ->
+                        progress.emit(new ProgressEvent.PageProcessed(name(), done, total));
         service.run(
                 new DespeckleService.Config(
                         input.dir(),
@@ -54,7 +70,8 @@ public final class DespeckleStage implements Stage {
                         true,
                         baseOptions.withDpi(input.dpi()),
                         null,
-                        false));
+                        false),
+                pages);
         return input.movedTo(workDir, OUTPUT_GLOB);
     }
 }

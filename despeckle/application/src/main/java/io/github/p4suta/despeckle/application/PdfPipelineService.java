@@ -27,10 +27,8 @@ import org.slf4j.LoggerFactory;
  * Fast Web View. All intermediates live under one temp directory that is removed at the end, so the
  * only inputs/outputs are the two PDFs.
  *
- * <p>This is the pure-Java replacement for the {@code just extract} &rarr; {@code just run} &rarr;
- * {@code just to-pdf} chain (the Python scripts), so the whole pipeline runs in one self-contained
- * command. The four steps are reached only through injected ports, so this service stays free of
- * {@code :infrastructure}.
+ * <p>The whole pipeline runs in one self-contained command. The four steps are reached only through
+ * injected ports, so this service stays free of {@code :infrastructure}.
  */
 public final class PdfPipelineService {
 
@@ -41,14 +39,7 @@ public final class PdfPipelineService {
     private final Jbig2Assembler assembler;
     private final PdfLinearizer linearizer;
 
-    /**
-     * Create a PDF pipeline service over the injected adapters.
-     *
-     * @param extractor the PDF image-extraction port
-     * @param despeckleService the corpus despeckle service that cleans the extracted pages
-     * @param assembler the JBIG2 PDF-assembly port
-     * @param linearizer the PDF linearization port
-     */
+    /** Create a PDF pipeline service over the injected adapters. */
     public PdfPipelineService(
             PdfImageExtractor extractor,
             DespeckleService despeckleService,
@@ -63,11 +54,7 @@ public final class PdfPipelineService {
     /**
      * One PDF &rarr; PDF run.
      *
-     * @param inputPdf the source scan PDF
-     * @param outputPdf the cleaned lossless-JBIG2 PDF to write
      * @param options despeckle knobs (its empty {@code dpi} is resolved from the scan)
-     * @param jobs worker threads
-     * @param force whether to overwrite an existing output PDF
      * @param reportDir an optional report directory for this PDF, or {@code null}
      * @param flipbook whether to assemble the overlay flip-book (needs {@code reportDir})
      */
@@ -83,7 +70,6 @@ public final class PdfPipelineService {
     /**
      * Run the pipeline.
      *
-     * @param config the run configuration
      * @return the despeckle summary (pages, components removed) for this book
      * @throws IOException on a missing input, a failed external tool, or a write failure
      */

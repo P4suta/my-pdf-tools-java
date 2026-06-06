@@ -3,14 +3,10 @@
 Align bitonal scans of Japanese vertical-writing (縦書き) novel pages onto a
 fixed paper-size canvas. Every scan of the same book produces slightly different
 page sizes, text-block positions and rotations; `register` removes that jitter
-so every cleaned page sits identically on the page — ready to be bound back into
-a uniform PDF.
+so every cleaned page sits identically, ready to be bound back into a uniform PDF.
 
-It is a Java reimplementation of the (abandoned) Rust prototype
-[`register-rs`](https://github.com/P4suta/register-rs), built on the same
-Leptonica/FFM foundation as its sibling
-[`despeckle`](https://github.com/P4suta/despeckle) so the two can later merge
-into one self-scanning toolchain:
+It shares the Leptonica/FFM foundation with its sibling
+[`despeckle`](https://github.com/P4suta/despeckle):
 
 ```text
 pdfimages → despeckle (noise removal) → register (alignment) → re-pack to PDF
@@ -26,19 +22,18 @@ For each page, in two passes over the directory:
 2. **Derive a reference layout.** Per parity (recto / verso), the median
    main-column box across the whole book becomes the target — robust to the odd
    badly scanned page.
-3. **Register each page** onto a fresh paper-size canvas: straighten it
-   (deskew), scale its column to the reference height, and place it onto the
-   corpus type-area grid — the fixed rectangle the book is set in. By default
-   (`--anchor top_right`) the page anchors, on each axis, whichever content edge
-   sits on the grid: a body page by its top (the head margin, where every column
-   starts) and right (the reading origin of vertical right-to-left text), an
-   opener by its bottom (when the head is dropped) or left (when the rightmost
-   columns are blank). The scan margin that overflows the canvas is cropped, so
-   the text block — and the page number riding with it — lands at the same canvas
-   position on every page of a parity. `--anchor center` instead
-   balances each page's margins on the canvas without cropping, at the cost of
-   that cross-page consistency. Pages whose column is far smaller than the
-   reference (very sparse or blank pages) are passed through, centered.
+3. **Register each page** onto a fresh paper-size canvas: deskew, scale its
+   column to the reference height, and place it onto the corpus type-area grid
+   (the fixed rectangle the book is set in). With `--anchor top_right` (default)
+   the page anchors, per axis, whichever content edge sits on the grid: a body
+   page by its top (head margin, where every column starts) and right (reading
+   origin of vertical RTL text); an opener by its bottom (head dropped) or left
+   (rightmost columns blank). Margin overflowing the canvas is cropped, so the
+   text block — and the page number riding with it — lands at the same canvas
+   position on every page of a parity. `--anchor center` balances each page's
+   margins without cropping, losing that cross-page consistency. Pages whose
+   column is far smaller than the reference (sparse or blank) are passed through,
+   centered.
 
 Input and output are directories of bitonal **PBM / PNG / TIFF** images; PDFs
 are never touched (that is the re-packing step's job).
@@ -55,8 +50,8 @@ just run scans/book out/book --no-scale --no-deskew --format png
 | --- | --- | --- |
 | `--paper` | `auto` | `auto`, a standard name (`shiroku/a4/a5/a6/b5/b6/shinsho`), or a custom `WxH` mm (e.g. `127x188`). `auto` snaps the median scanned page to the nearest standard book size — robust to a book scanned a little under nominal (binding trim / paper shrink) *and* over nominal (loose crop / scan margin, which it treats as croppable and so does not let pull the choice up a size) — falling back to the exact measured size when no standard is close |
 | `--dpi` | inherit scan | output resolution; fixes the canvas pixel size. Default: inherit the input scan's own resolution (falls back to `400` for untagged inputs such as raw PBM) |
-| `--format` | `same` | `same/pbm/png/tiff` |
-| `--glob` | `*.{pbm,png,tiff,tif}` | input file-name glob |
+| `--format` | `same` | `same/pbm/png/tiff/webp` |
+| `--glob` | `*.{pbm,png,tiff,tif}` | input file-name glob (matched case-insensitively) |
 | `-j`/`--jobs` | CPUs | worker threads |
 | `--no-deskew` | off | turn off straightening each page before detection (on by default) |
 | `--no-scale` | off | turn off scaling each column to the reference height (on by default) |
@@ -65,37 +60,57 @@ just run scans/book out/book --no-scale --no-deskew --format png
 | `--force` | off | overwrite a non-empty output directory |
 | `--diag` | off | write diagnostic artifacts to this directory (see below) |
 | `--flipbook` | off | with `--diag`, also assemble an animated WebP flip-book of the registered pages (needs libwebp's `img2webp`) |
+| `-v`/`--verbose` | off | enable verbose (DEBUG) logging |
+| `-h`/`--help` | — | show help and exit |
+| `-V`/`--version` | — | print version and exit |
+| `--completion <bash\|zsh\|fish>` | — | print a shell completion script and exit |
+| `--man` | — | print a man page (troff) and exit |
 
-Enum values (`--format`, `--anchor`) are case-insensitive.
+Enum values (`--format`, `--anchor`) are case-insensitive. A bare `register` prints
+help and exits 0.
+
+### PDF-to-PDF pipeline
+
+`register pipeline <in.pdf> <out.pdf>` registers a scanned PDF onto a fixed canvas
+and repacks it as lossless-JBIG2 in one step (a directory batches every top-level
+`*.pdf`). Pass `-` for `<in.pdf>` to read one PDF from stdin and/or `-` for
+`<out.pdf>` to write it to stdout.
+
+### Exit codes
+
+CLI exit codes follow [the shared error model](../shared/observability/): `0`
+success, `2` usage/parse error, `64` bad value, `65` unreadable image, `66` input
+not found, `70` internal / native-tool failure, `73` output exists (pass
+`--force`), `137` out of memory. Errors print as `Error[KIND]: …`; the `KIND` token
+is the language-neutral error vocabulary — the CLI renders it in English, the web
+UI in Japanese, neither sharing a message string.
 
 ### Diagnostics (`--diag <dir>`)
 
-Registration is geometric and easy to "eyeball wrong", so `--diag` writes a set
-of artifacts that show *what the alignment actually did* — without touching the
+`--diag` writes artifacts showing what the alignment did, without touching the
 bilevel output:
 
 - **`NNNN-<page>.diag.webp`** — one per page: the page with its detected column
   (green), the band it came from (blue), the reference box (orange), the
   projection profiles and the numeric placement.
-- **`corpus-overlay.webp`** — the whole corpus at a glance. For each parity it
-  overlays every registered page's detected column **before** (raw page space —
-  the scan-jitter cloud) and **after** (canvas space — where it landed). A tight
-  *after* stack around the orange median grid box, where the *before* cloud was
-  wide, is the visible proof the jitter collapsed onto the grid.
+- **`corpus-overlay.webp`** — for each parity, every registered page's detected
+  column **before** (raw page space — the scan-jitter cloud) and **after**
+  (canvas space). A tight *after* stack around the orange median grid box where
+  the *before* cloud was wide shows the jitter collapsed onto the grid.
 - **`residuals.webp`** — per-page distance from each placed column edge to the
   grid edge, plotted by page index (recto ●, verso ▲), one panel per axis. Low
   and flat means tight registration; a spike names the page that drifted. (Same
   numbers as `summary.txt`.)
-- **`pages.jsonl`** / **`summary.txt`** — the machine-readable per-page log and
-  the aggregate run summary.
+- **`pages.jsonl`** / **`summary.txt`** — machine-readable per-page log and
+  aggregate run summary.
 - **`flipbook.webp`** (with `--flipbook`) — the registered pages as an animated
-  WebP; flip through it and the text block stays steady while the margins move.
-  Built via libwebp's `img2webp` (from the `PATH` or `-Dregister.img2webp.path`);
-  if the tool is missing the flip-book is skipped and the rest is unaffected.
+  WebP. Built via libwebp's `img2webp` (from the `PATH` or
+  `-Dregister.img2webp.path`); if the tool is missing the flip-book is skipped
+  and the rest is unaffected.
 
 ## Architecture
 
-Six Gradle modules under `io.github.p4suta.register`, a **hexagonal (ports & adapters) graph** in
+Five Gradle modules under `io.github.p4suta.register`, a **hexagonal (ports & adapters) graph** in
 which a layer violation does not compile — the inter-module dependency edges put the offending class
 off the classpath. ArchUnit (in `:app`) pins the intra-module rules the module graph cannot express
 (the FFM island, PDFBox / `ProcessBuilder` / `System.out` / filesystem confinement, the single
@@ -104,9 +119,11 @@ JSpecify nullness vocabulary). Shared build conventions live in `build-logic/` a
 
 ```
 :app ──▶ :application ──▶ :port ──▶ :domain   (pure; no project or third-party runtime deps)
-  ├────▶ :infrastructure ──▶ :port, :domain   (PDFBox / Leptonica(FFM) / external binaries only here)
-  └────▶ :observability ──▶ :domain
+  └────▶ :infrastructure ──▶ :port, :domain   (PDFBox / Leptonica(FFM) / external binaries only here)
 ```
+
+The `Throwable` → exit-code mapping and the CLI's fatal uncaught-exception handler come from the
+cross-app `:shared:observability` + `:shared:cli` modules.
 
 | module | role |
 | --- | --- |
@@ -114,16 +131,14 @@ JSpecify nullness vocabulary). Shared build conventions live in `build-logic/` a
 | `:port` | the interfaces the application drives and the infrastructure implements — `PageRegistrar`, `PdfImageExtractor`, `Jbig2Assembler`, `Reporter`/`ReporterFactory` — speaking only domain types and file paths (no `Pix`, no PDFBox crosses the boundary) |
 | `:application` | orchestration: the corpus `RegistrationService` (directory walk, fixed thread pool, the two-pass analyze → reference → render) and the `register pipeline` drivers (`PdfPipelineService`, `PdfBatchService`). Sees only `:domain` + `:port` |
 | `:infrastructure` | the adapters: `Leptonica` (the one FFM binding island) + `Pix` (RAII handle) + the pixel-pushing `LeptonicaPageRegistrar` / `MainColumnDetector`; the PDFBox + `pdfimages`/`jbig2` PDF wrappers; the opt-in `--diag` renderers; the native-tool/process helpers. The one module that uses PDFBox and crosses the FFM/process boundary; publishes the `TestImages` fixture |
-| `:observability` | the `Throwable` → exit-code mapping and the fatal uncaught-exception handler the CLI installs |
 | `:app` | the composition root and runnable artifact: `Main`, the Apache Commons CLI front end (`RegisterCommand`/`PipelineCommand`, shared parsing in `CliSupport`), and the self-contained jpackage app-image distribution (jlink + shadow + staged natives) |
 
 The project-wide JaCoCo coverage aggregation (`just coverage`) lives in the root build, not a module.
 
-`:domain` performs no directory or thread work and never touches Leptonica, so a future GUI could
-reuse it unchanged. The detection / planning logic (`ProjectionProfile`, `Reference`,
-`TransformPlanner`, `PaperSize`) is pure Java; the Leptonica adapter does the pixel work
-(`pixCountPixelsByRow/Column`, `pixDeskew`, `pixScaleToSize`, `pixRasterop`) behind the
-`PageRegistrar` port.
+`:domain` performs no directory or thread work and never touches Leptonica. The detection /
+planning logic (`ProjectionProfile`, `Reference`, `TransformPlanner`, `PaperSize`) is pure Java;
+the Leptonica adapter does the pixel work (`pixCountPixelsByRow/Column`, `pixDeskew`,
+`pixScaleToSize`, `pixRasterop`) behind the `PageRegistrar` port.
 
 ## Requirements
 

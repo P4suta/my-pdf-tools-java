@@ -12,18 +12,13 @@ import org.jspecify.annotations.Nullable;
 /**
  * An owning, {@link AutoCloseable} handle to a Leptonica {@code PIX}.
  *
- * <p>Every native {@code PIX *} that this process allocates is wrapped the instant it is created,
- * so {@link #close()} (which calls {@code pixDestroy}) is the single release path. Use it with
+ * <p>{@link #close()} (which calls {@code pixDestroy}) is the single release path. Use it with
  * try-with-resources; a {@code Pix} must not outlive its {@code close()}.
  *
- * <p>This is the cross-app SUPERSET of the two formerly-separate {@code Pix} wrappers, and it
- * exposes only PRIMITIVE pixel operations: read / write / metadata, the projection profiles, the
- * geometry (clip / blank canvas / blit), the raw orthogonal and arbitrary rotations, the raw skew
- * estimate, scaling, the raw size-select, and the boolean / morphological / counting ops. The
- * project POLICY that composes these — register's confidence-gated deskew (with its skew-confidence
- * threshold and {@code pixDeskew} bypass) and despeckle's {@code keepComponentsLargerThan} (its
- * {@code IF_EITHER}/{@code IF_GT} keep-condition) — deliberately stays app-side and is layered on
- * these primitives by the per-app infrastructure.
+ * <p>Exposes only primitive pixel operations: read / write / metadata, projection profiles,
+ * geometry (clip / blank canvas / blit), orthogonal and arbitrary rotation, the raw skew estimate,
+ * scaling, the raw size-select, and the boolean / morphological / counting ops. Policy that
+ * composes these — confidence-gated deskew, the despeckle keep-condition — lives app-side.
  *
  * <p>Instances are not thread-safe, but independent {@code Pix} values on different threads are:
  * Leptonica's per-{@code PIX} operations are reentrant and the only process-global state (message
@@ -31,9 +26,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class Pix implements AutoCloseable {
 
-    // Null only after close(); every operation goes through requireHandle(), which
-    // turns a use-after-close into a clear exception (and gives NullAway a checked
-    // non-null value to reason about).
+    // Null only after close(); requireHandle() turns a use-after-close into a clear exception and
+    // gives NullAway a checked non-null value.
     private @Nullable MemorySegment handle;
 
     private Pix(MemorySegment handle) {
@@ -41,11 +35,9 @@ public final class Pix implements AutoCloseable {
     }
 
     /**
-     * Read an image file into a new {@code Pix}.
-     *
-     * <p>Throws a plain {@link IllegalStateException} on an unreadable file: this shared module has
-     * no dependency on any app's domain exception model, so the per-app adapter that wraps this is
-     * free to translate the failure into its own {@code IMAGE_UNREADABLE} kind.
+     * Read an image file into a new {@code Pix}. Throws a plain {@link IllegalStateException} on an
+     * unreadable file (this module has no app domain exception model), which a per-app adapter can
+     * translate into its own error kind.
      */
     public static Pix read(Path path) {
         try (Arena arena = Arena.ofConfined()) {
@@ -71,10 +63,10 @@ public final class Pix implements AutoCloseable {
     }
 
     /**
-     * Write this image to {@code path} using the given Leptonica {@code IFF_*} format. The island's
-     * internal raster-write primitive: the public API is the named writers ({@link #writeWebp},
-     * {@link #writePng}, {@link #writeTiffG4}, {@link #writePbm}, {@link #writeSameAs}) that
-     * compose it, so no raw {@code IFF_*} code is ever named outside this package.
+     * Write this image to {@code path} using the given Leptonica {@code IFF_*} format. Internal;
+     * the public API is the named writers ({@link #writeWebp}, {@link #writePng}, {@link
+     * #writeTiffG4}, {@link #writePbm}, {@link #writeSameAs}), so no raw {@code IFF_*} code is
+     * named outside this package.
      */
     void write(Path path, int format) {
         MemorySegment h = requireHandle();
@@ -88,12 +80,12 @@ public final class Pix implements AutoCloseable {
         }
     }
 
-    /** Write this image as PNG. Used by diagnostics, which read it back with {@code ImageIO}. */
+    /** Write this image as PNG. */
     public void writePng(Path path) {
         write(path, Leptonica.IFF_PNG);
     }
 
-    /** Write this image as CCITT Group-4 TIFF — lossless for 1 bpp bitonal and compact. */
+    /** Write this image as CCITT Group-4 TIFF (lossless for 1 bpp bitonal). */
     public void writeTiffG4(Path path) {
         write(path, Leptonica.IFF_TIFF_G4);
     }
@@ -106,11 +98,7 @@ public final class Pix implements AutoCloseable {
     /** libwebp lossless effort (0–100, higher = smaller/slower); honored only with lossless=1. */
     private static final int WEBP_LOSSLESS_EFFORT = 75;
 
-    /**
-     * Write this image as lossless WebP — the standard format for the human-facing reports,
-     * diagnostics and previews. Lossless keeps line-art (charts, overlays) and bilevel text exact
-     * while beating PNG on size; bitonal page bodies keep CCITT G4 ({@link #writeTiffG4}) instead.
-     */
+    /** Write this image as lossless WebP. */
     public void writeWebp(Path path) {
         MemorySegment h = requireHandle();
         try (Arena arena = Arena.ofConfined()) {
@@ -124,11 +112,9 @@ public final class Pix implements AutoCloseable {
     }
 
     /**
-     * Write in the format the source page was read from ({@code --format same}). The source format
-     * is passed explicitly: a derived {@link Pix} (post-deskew/clean, created by Leptonica) reports
-     * {@link #inputFormat()} {@code == 0}, so the caller threads the original page's format here.
+     * Write in the format the source page was read from. The format is passed explicitly because a
+     * derived {@link Pix} (created by Leptonica) reports {@link #inputFormat()} {@code == 0}.
      *
-     * @param path the output path
      * @param sourceFormat the original {@code IFF_*} format to reproduce
      */
     public void writeSameAs(Path path, int sourceFormat) {
@@ -147,7 +133,7 @@ public final class Pix implements AutoCloseable {
         return Leptonica.pixGetHeight(requireHandle());
     }
 
-    /** The {@code IFF_*} format this image was read from (for {@code --format same}). */
+    /** The {@code IFF_*} format this image was read from. */
     public int inputFormat() {
         return Leptonica.pixGetInputFormat(requireHandle());
     }
@@ -161,9 +147,9 @@ public final class Pix implements AutoCloseable {
     }
 
     /**
-     * Stamp this image's resolution (both axes) in DPI, so a format that records it — TIFF, PNG —
-     * writes an accurate tag. A no-op on the pixel data; formats with no resolution field (PBM)
-     * simply ignore it.
+     * Set this image's resolution (both axes) in DPI, so a format that records it (TIFF, PNG)
+     * writes an accurate tag. No effect on pixel data; formats with no resolution field (PBM)
+     * ignore it.
      */
     public void setResolution(int dpi) {
         Leptonica.pixSetResolution(requireHandle(), dpi, dpi);
@@ -212,21 +198,15 @@ public final class Pix implements AutoCloseable {
         }
     }
 
-    /**
-     * Rotate by {@code quads} 90-degree turns clockwise into a fresh {@code Pix} (the raw {@code
-     * pixRotateOrth} primitive). A deskew policy composes this with {@link #findSkew()} and {@link
-     * #rotate(double)}; this wrapper itself applies no such policy.
-     */
+    /** Rotate by {@code quads} 90-degree turns clockwise into a fresh {@code Pix}. */
     public Pix rotateOrth(int quads) {
         return wrap(Leptonica.pixRotateOrth(requireHandle(), quads), "pixRotateOrth");
     }
 
     /**
-     * The RAW skew estimate of this image as Leptonica's row-projection finder reports it: the
-     * angle in degrees, the confidence ratio, and whether an estimate was made. This applies NO
-     * policy — no 90-degree horizontalization, no confidence gate, no angle clamp. A deskew policy
-     * builds on this by first orienting the page (via {@link #rotateOrth(int)}) and then deciding,
-     * on its own thresholds, whether to {@link #rotate(double)}.
+     * The raw skew estimate from Leptonica's row-projection finder: angle in degrees, confidence
+     * ratio, and whether an estimate was made. Applies no policy (no confidence gate, no angle
+     * clamp).
      */
     public SkewEstimate findSkew() {
         MemorySegment h = requireHandle();
@@ -239,9 +219,7 @@ public final class Pix implements AutoCloseable {
     }
 
     /**
-     * A raw skew estimate: {@code angleDeg} degrees, {@code conf} the confidence ratio, {@code
-     * found} whether Leptonica produced an estimate. No confidence gating or threshold policy is
-     * applied here — that is an app-side concern built on top of this record.
+     * A raw skew estimate.
      *
      * @param angleDeg the estimated skew angle in degrees
      * @param conf the confidence ratio Leptonica assigns the estimate
@@ -281,8 +259,7 @@ public final class Pix implements AutoCloseable {
 
     /**
      * Return a new {@code Pix} cropped to the rectangle at {@code (x, y)} of size {@code w x h}
-     * (clipped to this image's bounds). The geometry is passed as primitive ints — this shared
-     * module deliberately imports no app domain {@code Box} type.
+     * (clipped to this image's bounds).
      */
     public Pix clip(int x, int y, int w, int h) {
         MemorySegment src = requireHandle();
@@ -341,18 +318,14 @@ public final class Pix implements AutoCloseable {
     }
 
     /**
-     * Return a new {@code Pix} of the 8-connected (or as {@code connectivity} dictates) components
-     * that satisfy the RAW size constraint: select on {@code type} (one of {@code L_SELECT_WIDTH} /
-     * {@code L_SELECT_HEIGHT} / {@code L_SELECT_IF_EITHER} / {@code L_SELECT_IF_BOTH}) using {@code
-     * relation} (e.g. {@code L_SELECT_IF_GT}) against the {@code w x h} thresholds. This is the raw
-     * Leptonica primitive — the despeckle keep-condition policy is built on it app-side.
+     * Return a new {@code Pix} of the components that satisfy the size constraint: select on {@code
+     * type} ({@code L_SELECT_WIDTH} / {@code L_SELECT_HEIGHT} / {@code L_SELECT_IF_EITHER} / {@code
+     * L_SELECT_IF_BOTH}) using {@code relation} (e.g. {@code L_SELECT_IF_GT}) against the {@code w
+     * x h} thresholds.
      *
-     * @param w the width threshold
-     * @param h the height threshold
      * @param connectivity the component connectivity (e.g. {@code 8})
      * @param type the size dimension to test ({@code L_SELECT_*})
      * @param relation the comparison relation ({@code L_SELECT_IF_*})
-     * @return a fresh {@code Pix} of the components satisfying the constraint
      */
     public Pix selectBySize(int w, int h, int connectivity, int type, int relation) {
         MemorySegment src = requireHandle();

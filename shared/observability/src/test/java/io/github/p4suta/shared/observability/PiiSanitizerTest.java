@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
-/** Ported verbatim from tate-yoko-pdf's {@code PiiSanitizerTest}. */
+/** Coverage for {@link PiiSanitizer}. */
 final class PiiSanitizerTest {
 
     @Test

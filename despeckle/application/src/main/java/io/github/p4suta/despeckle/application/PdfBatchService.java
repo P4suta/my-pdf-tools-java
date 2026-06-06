@@ -5,15 +5,13 @@ import io.github.p4suta.despeckle.domain.model.BookStatus;
 import io.github.p4suta.despeckle.domain.model.ProcessOptions;
 import io.github.p4suta.despeckle.domain.service.PdfOutputNaming;
 import io.github.p4suta.despeckle.port.BatchReporter;
+import io.github.p4suta.shared.io.CorpusFiles;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,12 +33,7 @@ public final class PdfBatchService {
     private final PdfPipelineService pipeline;
     private final BatchReporter batchReporter;
 
-    /**
-     * Create a batch service over the injected per-book pipeline and batch reporter.
-     *
-     * @param pipeline the per-book PDF &rarr; PDF pipeline service
-     * @param batchReporter the batch-index reporter port
-     */
+    /** Create a batch service over the injected per-book pipeline and batch reporter. */
     public PdfBatchService(PdfPipelineService pipeline, BatchReporter batchReporter) {
         this.pipeline = pipeline;
         this.batchReporter = batchReporter;
@@ -86,8 +79,6 @@ public final class PdfBatchService {
     /**
      * Clean every top-level {@code *.pdf} under {@code inputDir} into {@code outputDir}.
      *
-     * @param config the batch configuration
-     * @return the run's roll-up
      * @throws IOException if the input cannot be listed or an output directory cannot be created
      */
     public Summary run(Config config) throws IOException {
@@ -172,20 +163,12 @@ public final class PdfBatchService {
         return reportDir != null && Files.exists(reportDir.resolve("index.html"));
     }
 
-    /** Top-level {@code *.pdf} files under {@code dir} (case-insensitive), in file-name order. */
+    /**
+     * Top-level {@code *.pdf} files under {@code dir} (case-insensitive), in file-name order.
+     * Delegates to the shared {@link CorpusFiles#listTopLevelPdfs} so the listing logic lives in
+     * one place.
+     */
     static List<Path> listPdfs(Path dir) throws IOException {
-        try (Stream<Path> entries = Files.list(dir)) {
-            return entries.filter(Files::isRegularFile)
-                    .filter(
-                            p -> {
-                                Path name = p.getFileName();
-                                return name != null
-                                        && name.toString()
-                                                .toLowerCase(Locale.ROOT)
-                                                .endsWith(".pdf");
-                            })
-                    .sorted(Comparator.comparing(Path::toString))
-                    .toList();
-        }
+        return CorpusFiles.listTopLevelPdfs(dir);
     }
 }

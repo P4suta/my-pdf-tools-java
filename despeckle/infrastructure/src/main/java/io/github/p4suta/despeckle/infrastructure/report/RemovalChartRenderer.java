@@ -11,13 +11,9 @@ import java.util.function.ToDoubleFunction;
 
 /**
  * Plots each page's despeckle intensity against page index, one panel for the black-pixel removal
- * rate and one for the connected-component drop. A low, flat point cloud means a gentle, consistent
- * clean; a spike names the page that lost the most — and on the top panel, a page that crosses the
- * 3% over-removal line (the same guardrail {@code Runner} warns on) is drawn in red, so the eye
- * goes straight to a page that may have eaten text. Pure rendering — no I/O.
- *
- * <p>This is the despeckle analogue of {@code register}'s residual chart: there the y-value is the
- * distance to the type-area grid; here it is how much ink the filter took.
+ * rate and one for the connected-component drop. On the top panel, a page that crosses the 3%
+ * over-removal line (the guardrail {@code Runner} warns on) is drawn in red. Pure rendering — no
+ * I/O.
  */
 final class RemovalChartRenderer {
 
@@ -40,7 +36,6 @@ final class RemovalChartRenderer {
      * Render the two-panel removal chart for a whole run.
      *
      * @param pages every page's stat, in reading order
-     * @return the chart image
      */
     static BufferedImage render(List<PageStat> pages) {
         int height = MARGIN + PANEL_H + GAP + PANEL_H + MARGIN;

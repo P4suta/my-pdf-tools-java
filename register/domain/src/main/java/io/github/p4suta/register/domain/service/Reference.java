@@ -29,7 +29,6 @@ public record Reference(Box recto, Box verso) {
      *
      * @param observations every successfully analyzed page (must be non-empty)
      * @param outlierRatio a box smaller than this fraction of the median area is excluded
-     * @return the recto/verso reference layout
      */
     public static Reference fromObservations(
             List<PageObservation> observations, double outlierRatio) {

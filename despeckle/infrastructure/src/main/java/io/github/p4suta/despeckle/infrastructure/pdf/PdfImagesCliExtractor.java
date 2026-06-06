@@ -6,16 +6,15 @@ import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Despeckle's {@link PdfImageExtractor} adapter — a thin port-implementing wrapper over the shared
- * {@code io.github.p4suta.shared.pdf.PdfImagesCliExtractor}, the cross-app {@code pdfimages}/{@code
- * pdfinfo} driver donated from this app. The wrapper exists only to bind that neutral capability to
- * despeckle's {@code :port} abstraction and to fix despeckle's own tool-override property keys
- * ({@code despeckle.pdfimages.path}, {@code despeckle.pdfinfo.path}), so packaged app-image runs
- * keep resolving the bundled binaries.
+ * Despeckle's {@link PdfImageExtractor} adapter — a wrapper over the shared {@code
+ * io.github.p4suta.shared.pdf.PdfImagesCliExtractor} ({@code pdfimages}/{@code pdfinfo} driver). It
+ * binds the shared capability to despeckle's {@code :port} abstraction and fixes the tool-override
+ * keys ({@code despeckle.pdfimages.path}, {@code despeckle.pdfinfo.path}), so a packaged app-image
+ * keeps resolving its bundled binaries.
  *
- * <p>All page-range chunking, {@code pdfimages -list}/{@code pdfinfo} parsing (now the shared
- * {@code PdfListingParser}), and parallel extraction live in the shared class; this adapter
- * forwards {@link #dominantDpi} and {@link #extract} unchanged.
+ * <p>The page-range chunking, {@code pdfimages -list}/{@code pdfinfo} parsing (the shared {@code
+ * PdfListingParser}), and parallel extraction live in the shared class; this adapter forwards
+ * {@link #dominantDpi} and {@link #extract} unchanged.
  */
 public final class PdfImagesCliExtractor implements PdfImageExtractor {
 
@@ -25,7 +24,6 @@ public final class PdfImagesCliExtractor implements PdfImageExtractor {
             new io.github.p4suta.shared.pdf.PdfImagesCliExtractor(
                     "despeckle.pdfimages.path", "despeckle.pdfinfo.path");
 
-    /** Creates an extractor that shells out to the {@code pdfimages}/{@code pdfinfo} tools. */
     public PdfImagesCliExtractor() {}
 
     /** The dominant x-ppi across the PDF's images, via {@code pdfimages -list}. */

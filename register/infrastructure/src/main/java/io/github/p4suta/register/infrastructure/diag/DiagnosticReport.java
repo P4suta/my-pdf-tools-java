@@ -37,7 +37,7 @@ final class DiagnosticReport {
         Files.writeString(file, summary(run, pages), StandardCharsets.UTF_8);
     }
 
-    // ----- JSONL -----
+    // JSONL
 
     private static String toJson(PageDiagnostic p) {
         return new Json()
@@ -107,7 +107,7 @@ final class DiagnosticReport {
                 .end();
     }
 
-    // ----- summary -----
+    // summary
 
     private static String summary(RunInfo run, List<PageDiagnostic> pages) {
         StringBuilder sb = new StringBuilder();

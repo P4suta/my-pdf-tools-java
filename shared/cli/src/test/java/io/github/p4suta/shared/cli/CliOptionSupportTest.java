@@ -38,7 +38,7 @@ final class CliOptionSupportTest {
         return new DefaultParser().parse(options(), args);
     }
 
-    // ---- parseInt ----------------------------------------------------------
+    // parseInt
 
     @Test
     void parseIntReturnsFallbackWhenAbsent() throws Exception {
@@ -59,7 +59,7 @@ final class CliOptionSupportTest {
                 .hasMessageContaining("integer");
     }
 
-    // ---- parseDouble -------------------------------------------------------
+    // parseDouble
 
     @Test
     void parseDoubleReturnsFallbackWhenAbsent() throws Exception {
@@ -81,7 +81,7 @@ final class CliOptionSupportTest {
                 .hasMessageContaining("number");
     }
 
-    // ---- parseEnum ---------------------------------------------------------
+    // parseEnum
 
     @Test
     void parseEnumReturnsFallbackWhenNull() throws Exception {
@@ -107,7 +107,7 @@ final class CliOptionSupportTest {
         assertThat(CliOptionSupport.validValues(Mode.class)).isEqualTo("rgb, gray, bitonal");
     }
 
-    // ---- requireNPositionals ----------------------------------------------
+    // requireNPositionals
 
     @Test
     void requireNPositionalsReturnsThemWhenCountMatches() throws Exception {
@@ -133,7 +133,7 @@ final class CliOptionSupportTest {
                 .hasMessageContaining("expected exactly 1 positional argument <file>");
     }
 
-    // ---- printHelp / usageError (touch the real System streams) ------------
+    // printHelp / usageError (touch the real System streams)
 
     @Test
     @ResourceLock(value = Resources.SYSTEM_OUT, mode = ResourceAccessMode.READ_WRITE)
@@ -152,11 +152,10 @@ final class CliOptionSupportTest {
     }
 
     /**
-     * The trailing-whitespace contract is exercised with an option whose description is long enough
-     * that Commons CLI's {@code TextHelpAppendable} wraps it across columns — the case that, before
-     * {@code printHelp} began stripping per line, padded continuation lines out to the column width
-     * (trailing spaces) and appended an extra blank line. A description-free option model would not
-     * trigger that padding, so the assertions below would pass vacuously.
+     * Uses an option whose description is long enough that Commons CLI's {@code TextHelpAppendable}
+     * wraps it across columns, which pads continuation lines to the column width (trailing spaces)
+     * and appends an extra blank line. A description-free option model would not trigger that
+     * padding, so the assertions below would pass vacuously.
      */
     @Test
     @ResourceLock(value = Resources.SYSTEM_OUT, mode = ResourceAccessMode.READ_WRITE)

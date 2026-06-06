@@ -23,7 +23,6 @@ public final class ProjectionProfile {
      * bridged, so the wide gutter that separates a running title from the body blocks the band. The
      * surviving on-run carrying the most ink wins.
      *
-     * @param counts the ink histogram (per row, or per column)
      * @param gapBridge bridge interior gaps shorter than this (e.g. {@code length / 32})
      * @param blockingGap never bridge a gap this wide or wider (e.g. {@code dpi / 8})
      * @return the densest band, or empty if the histogram has no ink
@@ -93,7 +92,6 @@ public final class ProjectionProfile {
      * one band spanning the whole printed width. Sparse marginalia on the orthogonal axis are still
      * kept out by the vertical-band clip in the {@code MainColumnDetector}.
      *
-     * @param counts the ink histogram (per row, or per column)
      * @return the {@code [first-on, last-on + 1)} range, or empty if the histogram has no ink
      */
     public static Optional<Band> inkBounds(int[] counts) {

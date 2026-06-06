@@ -7,6 +7,7 @@ import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,8 +16,8 @@ class CorpusFilesTest {
     @Test
     void collectFiltersByGlobAndSortsByFullPathString(@TempDir Path tmp) throws IOException {
         // A nested corpus with mixed extensions. The glob matches names only; the sort is by the
-        // FULL walked path's string, so a deep path under a directory that sorts early comes before
-        // a shallow sibling — exactly what register/despeckle E2E pins.
+        // full walked path's string, so a deep path under a directory that sorts early comes before
+        // a shallow sibling.
         Path sub = Files.createDirectories(tmp.resolve("aaa").resolve("deep"));
         Path b = Files.createFile(tmp.resolve("b.png"));
         Path deep = Files.createFile(sub.resolve("z.png"));
@@ -34,6 +35,35 @@ class CorpusFilesTest {
         Files.createFile(tmp.resolve("only.txt"));
 
         assertThat(CorpusFiles.collect(tmp, "*.tif")).isEmpty();
+    }
+
+    @Test
+    void listTopLevelPdfsSelectsFlatPdfsCaseInsensitivelyInPathOrder(@TempDir Path dir)
+            throws IOException {
+        // Created out of order; .pdf and .PDF both count, other files do not, nested PDFs are
+        // ignored (flat selection only).
+        Files.createFile(dir.resolve("b.pdf"));
+        Files.createFile(dir.resolve("a.pdf"));
+        Files.createFile(dir.resolve("C.PDF"));
+        Files.createFile(dir.resolve("notes.txt"));
+        Files.createFile(dir.resolve("scan.pdf.bak"));
+        Path sub = Files.createDirectories(dir.resolve("sub"));
+        Files.createFile(sub.resolve("deep.pdf"));
+
+        List<String> names =
+                CorpusFiles.listTopLevelPdfs(dir).stream()
+                        .map(p -> Objects.requireNonNull(p.getFileName()).toString())
+                        .toList();
+
+        // Sorted by path string: ASCII order, so uppercase 'C' precedes lowercase 'a'/'b'.
+        assertThat(names).containsExactly("C.PDF", "a.pdf", "b.pdf");
+    }
+
+    @Test
+    void listTopLevelPdfsReturnsEmptyForADirectoryWithNoPdfs(@TempDir Path dir) throws IOException {
+        Files.createFile(dir.resolve("only.txt"));
+
+        assertThat(CorpusFiles.listTopLevelPdfs(dir)).isEmpty();
     }
 
     @Test

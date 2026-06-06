@@ -13,32 +13,27 @@ import java.util.concurrent.TimeoutException;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A neutral capability over the {@code qpdf} binary's {@code --linearize} pass, generalized from
- * the two apps' best-of-breed qpdf adapters. It writes a linearized (Fast-Web-View) copy of an
- * input PDF to an output path, optionally bumping the {@code %PDF-x.y} header byte ({@code
- * --min-version}) and guaranteeing an EOL before every {@code endstream} ({@code
+ * Wraps the {@code qpdf} binary's {@code --linearize} pass. Writes a linearized (Fast-Web-View)
+ * copy of an input PDF to an output path, optionally bumping the {@code %PDF-x.y} header byte
+ * ({@code --min-version}) and guaranteeing an EOL before every {@code endstream} ({@code
  * --newline-before-endstream}, which PDF/A mandates after linearisation repacks streams).
  *
- * <p>This is a pure CAPABILITY: it RETURNS the shared {@link ProcessRunner.Result} (qpdf's exit
- * {@code 3} — "succeeded with warnings" — is baked in as acceptable, a qpdf fact both donor apps
- * relied on) and propagates {@link IOException} / {@link TimeoutException} / {@link
- * InterruptedException} unchanged. The FAILURE POLICY is deliberately NOT decided here: despeckle
- * degrades to the un-linearized PDF and warns, tate-yoko-pdf rethrows as a domain exception — each
- * app wraps {@link #linearize} with its own policy.
+ * <p>Returns the {@link ProcessRunner.Result} (qpdf's exit {@code 3}, "succeeded with warnings", is
+ * accepted) and propagates {@link IOException} / {@link TimeoutException} / {@link
+ * InterruptedException} unchanged. The failure policy is decided by the caller: each app wraps
+ * {@link #linearize} with its own.
  *
- * <p>The {@code qpdf} binary is resolved through the shared {@link ToolPath} island: an explicit
- * {@code -D<qpdfPropertyKey>} override wins (how a packaged app-image points at its bundled
- * binary), else the first {@code qpdf} on {@code PATH}. The property key is a constructor PARAMETER
- * (e.g. {@code despeckle.qpdf.path}), never a unified literal; {@link #isAvailable()} lets an app
- * probe resolution up front, and {@link #linearize} surfaces an unresolved binary as a plain {@link
- * IOException} so the "missing tool" policy stays with the app.
+ * <p>The {@code qpdf} binary is resolved through {@link ToolPath}: an explicit {@code
+ * -D<qpdfPropertyKey>} override wins, else the first {@code qpdf} on {@code PATH}. The property key
+ * is a constructor parameter (e.g. {@code despeckle.qpdf.path}). {@link #isAvailable()} probes
+ * resolution up front; {@link #linearize} surfaces an unresolved binary as a plain {@link
+ * IOException} so the missing-tool policy stays with the app.
  */
 public final class QpdfRunner {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2);
-    // qpdf exits 0 on success and 3 on "succeeded with warnings" — PDFBox's container routinely
-    // trips minor qpdf warnings yet the linearized output is valid, so 3 is accepted; any other
-    // non-zero exit surfaces as an IOException from the shared runner.
+    // qpdf exits 3 on "succeeded with warnings"; the linearized output is still valid, so 3 is
+    // accepted. Any other non-zero exit surfaces as an IOException from the runner.
     private static final Set<Integer> ACCEPTABLE_EXITS = Set.of(3);
 
     private final String qpdfPropertyKey;
@@ -59,8 +54,7 @@ public final class QpdfRunner {
 
     /**
      * A plain {@code --linearize} runner: no {@code --min-version}, no {@code
-     * --newline-before-endstream}, the default two-minute timeout. Despeckle's cosmetic
-     * linearize-only shape.
+     * --newline-before-endstream}, the default two-minute timeout.
      *
      * @param qpdfPropertyKey the {@code -D} override the app uses to point at its bundled {@code
      *     qpdf} (e.g. {@code despeckle.qpdf.path})
@@ -71,7 +65,7 @@ public final class QpdfRunner {
 
     /**
      * A runner that also rewrites the header to {@code minVersion} and (when {@code
-     * newlineBeforeEndstream}) adds the PDF/A EOL marker. Tate-yoko-pdf's modernizing shape.
+     * newlineBeforeEndstream}) adds the PDF/A EOL marker.
      *
      * @param qpdfPropertyKey the {@code -D} override the app uses to point at its bundled {@code
      *     qpdf}
@@ -103,7 +97,7 @@ public final class QpdfRunner {
      * other exit, a launch failure, or an unresolved binary throws an {@link IOException}.
      *
      * @param input the source PDF
-     * @param output the linearized PDF to write (a sibling temp + move stays the CALLER's job, to
+     * @param output the linearized PDF to write (any sibling temp + move is the caller's job, to
      *     avoid qpdf's {@code --replace-input} backup litter)
      * @return the finished process result (exit code, captured stdout/stderr, elapsed time)
      * @throws IOException if the binary is unresolved, cannot be started, or exits unacceptably

@@ -5,8 +5,11 @@ import io.github.p4suta.despeckle.domain.model.OutputFormat;
 import io.github.p4suta.despeckle.domain.model.ProcessOptions;
 import io.github.p4suta.despeckle.infrastructure.leptonica.LeptonicaPageCleaner;
 import io.github.p4suta.despeckle.infrastructure.report.HtmlReporterFactory;
+import io.github.p4suta.shared.cli.CliDocs;
 import io.github.p4suta.shared.cli.CliExceptionHandler;
+import io.github.p4suta.shared.cli.CliLogging;
 import io.github.p4suta.shared.cli.CliOptionSupport;
+import io.github.p4suta.shared.cli.CliVersion;
 import io.github.p4suta.shared.observability.ExitCodes;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -47,6 +50,11 @@ public final class DespeckleCli {
         if (args.length > 0 && "topdf".equals(args[0])) {
             return new TopdfCli().run(Arrays.copyOfRange(args, 1, args.length));
         }
+        // A bare invocation prints help and succeeds, so newcomers see usage rather than an error.
+        if (args.length == 0) {
+            CliOptionSupport.printHelp("despeckle", SYNTAX, DESCRIPTION, options);
+            return ExitCodes.OK;
+        }
 
         CommandLine cmd;
         try {
@@ -55,13 +63,29 @@ public final class DespeckleCli {
             return usageError(e);
         }
 
+        boolean verbose = cmd.hasOption(DespeckleOptions.VERBOSE);
+        if (verbose) {
+            CliLogging.enableDebug();
+        }
         if (cmd.hasOption(DespeckleOptions.HELP)) {
             CliOptionSupport.printHelp("despeckle", SYNTAX, DESCRIPTION, options);
             return ExitCodes.OK;
         }
         if (cmd.hasOption(DespeckleOptions.VERSION)) {
-            System.out.println(versionText());
+            System.out.println(CliVersion.line("despeckle", DespeckleCli.class));
             return ExitCodes.OK;
+        }
+        int docs =
+                CliDocs.handle(
+                        cmd,
+                        "despeckle",
+                        DespeckleCli.class,
+                        SYNTAX,
+                        DESCRIPTION,
+                        options,
+                        List.of("pipeline", "topdf"));
+        if (docs >= 0) {
+            return docs;
         }
 
         Parsed parsed;
@@ -80,7 +104,7 @@ public final class DespeckleCli {
                     .run(toConfig(parsed));
             return ExitCodes.OK;
         } catch (IOException | RuntimeException e) {
-            return new CliExceptionHandler(() -> false).handle(e);
+            return new CliExceptionHandler(() -> verbose).handle(e);
         }
     }
 
@@ -121,7 +145,7 @@ public final class DespeckleCli {
                 DespeckleOptions.optionalInt(cmd, DespeckleOptions.ISOLATED_DUST_SIZE);
 
         // Hole-filling and the isolated-dust pass are on by default; an --x flag opts in,
-        // a --no-x flag opts out, mirroring the old `optIn || !optOut` picocli wiring.
+        // a --no-x flag opts out (optIn || !optOut).
         boolean fillHoles =
                 cmd.hasOption(DespeckleOptions.FILL_HOLES)
                         || !cmd.hasOption(DespeckleOptions.NO_FILL_HOLES);
@@ -168,11 +192,6 @@ public final class DespeckleCli {
 
     private int usageError(ParseException cause) {
         return CliOptionSupport.usageError("despeckle", SYNTAX, "despeckle --help", cause);
-    }
-
-    private static String versionText() {
-        String version = DespeckleCli.class.getPackage().getImplementationVersion();
-        return "despeckle " + (version == null ? "(dev)" : version);
     }
 
     /** Parsed, type-converted command-line values, before {@link ProcessOptions} validation. */

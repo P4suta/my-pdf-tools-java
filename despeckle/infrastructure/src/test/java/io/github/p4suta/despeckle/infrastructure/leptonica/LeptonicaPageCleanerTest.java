@@ -50,8 +50,7 @@ final class LeptonicaPageCleanerTest {
         // Pins the keep-larger-than polarity (IF_EITHER, not IF_BOTH) at the pipeline level: a
         // 1px-wide, 18px-tall vertical stroke (a Japanese stroke) clears the > k test on height
         // alone and must survive, while a 2x2 dust speck fails on BOTH axes and must die. With
-        // IF_BOTH the stroke (narrow on one axis) would be erased — this is the exact case the
-        // deleted island-level test guarded. (k=3 at 300 dpi via speckSize.)
+        // IF_BOTH the stroke (narrow on one axis) would be erased. (k=3 at 300 dpi via speckSize.)
         Path src = dir.resolve("stroke.pbm");
         Path out = dir.resolve("stroke-out.pbm");
         boolean[][] img = TestImages.blank(32, 32);

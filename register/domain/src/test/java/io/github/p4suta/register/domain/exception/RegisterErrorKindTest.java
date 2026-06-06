@@ -8,9 +8,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * Pins {@link RegisterErrorKind} to section&nbsp;3.2 of the error-model spec — the spec table is
- * the oracle, not the enum's own code. Exit code, severity, client-fault flag, and message are
- * asserted per constant, plus the section&nbsp;1.3 invariant (clientFault &hArr; WARN).
+ * Pins {@link RegisterErrorKind}'s exit code, severity and client-fault flag per constant, plus the
+ * invariant clientFault &hArr; WARN. The category is presentation-free; user text lives in each
+ * surface's catalog, not here.
  */
 final class RegisterErrorKindTest {
 
@@ -20,7 +20,6 @@ final class RegisterErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(66);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage()).isEqualTo("入力ファイルまたはディレクトリが見つかりません。");
         assertThat(k.name()).isEqualTo("INPUT_NOT_FOUND");
     }
 
@@ -30,8 +29,6 @@ final class RegisterErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(65);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage())
-                .isEqualTo("画像を読み込めませんでした。対応していない形式か、ファイルが破損している可能性があります。");
         assertThat(k.name()).isEqualTo("IMAGE_UNREADABLE");
     }
 
@@ -41,7 +38,6 @@ final class RegisterErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(73);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage()).isEqualTo("出力先がすでに存在します。--force で上書きできます。");
         assertThat(k.name()).isEqualTo("OUTPUT_CONFLICT");
     }
 
@@ -51,14 +47,12 @@ final class RegisterErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(70);
         assertThat(k.severity()).isEqualTo(Severity.ERROR);
         assertThat(k.isClientFault()).isFalse();
-        assertThat(k.defaultUserMessage())
-                .isEqualTo("外部ツールの実行に失敗しました。pdfimages / pdfinfo / jbig2 がインストールされているか確認してください。");
         assertThat(k.name()).isEqualTo("NATIVE_TOOL_FAILED");
     }
 
     /**
-     * Section&nbsp;1.3 invariant: {@code isClientFault() == true} ⟹ {@code severity() == WARN}, and
-     * {@code isClientFault() == false} ⟹ {@code severity() == ERROR}. No constant may use INFO.
+     * Invariant: {@code isClientFault() == true} ⟹ {@code severity() == WARN}, {@code
+     * isClientFault() == false} ⟹ {@code severity() == ERROR}. No constant may use INFO.
      */
     @ParameterizedTest
     @EnumSource(RegisterErrorKind.class)

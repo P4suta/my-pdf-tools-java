@@ -9,8 +9,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Pins {@link DespeckleErrorKind} to section&nbsp;3.3 of the error-model spec — the spec table is
- * the oracle, not the enum's own code. Exit code, severity, client-fault flag, and message are
- * asserted per constant, plus the section&nbsp;1.3 invariant (clientFault &hArr; WARN).
+ * the oracle, not the enum's own code. Exit code, severity and client-fault flag are asserted per
+ * constant, plus the section&nbsp;1.3 invariant (clientFault &hArr; WARN). The category is
+ * presentation-free; user text lives in each surface's catalog.
  */
 final class DespeckleErrorKindTest {
 
@@ -20,7 +21,6 @@ final class DespeckleErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(66);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage()).isEqualTo("入力ファイルまたはディレクトリが見つかりません。");
         assertThat(k.name()).isEqualTo("INPUT_NOT_FOUND");
     }
 
@@ -30,8 +30,6 @@ final class DespeckleErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(65);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage())
-                .isEqualTo("画像を読み込めませんでした。対応していない形式か、ファイルが破損している可能性があります。");
         assertThat(k.name()).isEqualTo("IMAGE_UNREADABLE");
     }
 
@@ -41,7 +39,6 @@ final class DespeckleErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(73);
         assertThat(k.severity()).isEqualTo(Severity.WARN);
         assertThat(k.isClientFault()).isTrue();
-        assertThat(k.defaultUserMessage()).isEqualTo("出力先がすでに存在します。--force で上書きできます。");
         assertThat(k.name()).isEqualTo("OUTPUT_CONFLICT");
     }
 
@@ -51,10 +48,6 @@ final class DespeckleErrorKindTest {
         assertThat(k.exitCode()).isEqualTo(70);
         assertThat(k.severity()).isEqualTo(Severity.ERROR);
         assertThat(k.isClientFault()).isFalse();
-        assertThat(k.defaultUserMessage())
-                .isEqualTo(
-                        "外部ツールの実行に失敗しました。pdfimages / pdfinfo / jbig2 / qpdf"
-                                + " がインストールされているか確認してください。");
         assertThat(k.name()).isEqualTo("NATIVE_TOOL_FAILED");
     }
 
@@ -74,9 +67,8 @@ final class DespeckleErrorKindTest {
     }
 
     @Test
-    void everyKindHasANonBlankMessageAndName() {
+    void everyKindHasANonBlankName() {
         for (DespeckleErrorKind k : DespeckleErrorKind.values()) {
-            assertThat(k.defaultUserMessage()).isNotBlank();
             assertThat(k.name()).isNotBlank();
         }
     }

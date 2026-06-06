@@ -10,12 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * FFM smoke test plus functional coverage of the union of primitive ops on the shared {@link Pix}
- * wrapper. These require the native Leptonica library, which the dev container bundles.
+ * FFM smoke test plus functional coverage of the primitive ops on {@link Pix}. Requires the native
+ * Leptonica library, which the dev container bundles.
  */
 final class PixTest {
 
-    // ----- FFM smoke: load the library, round-trip a synthetic 1bpp PBM -----
+    // FFM smoke: round-trip a synthetic 1 bpp PBM
 
     @Test
     void pbmRoundTripIsPixelIdentical(@TempDir Path dir) throws Exception {
@@ -35,7 +35,7 @@ final class PixTest {
         }
     }
 
-    // ----- metadata: input format, resolution stamp survives a PNG round-trip -----
+    // metadata
 
     @Test
     void resolutionStampSurvivesPngAndInputFormatIsReported(@TempDir Path dir) throws Exception {
@@ -92,7 +92,7 @@ final class PixTest {
         }
     }
 
-    // ----- projection profiles -----
+    // projection profiles
 
     @Test
     void inkProfilesTrackTheForeground(@TempDir Path dir) throws Exception {
@@ -114,7 +114,7 @@ final class PixTest {
         }
     }
 
-    // ----- geometry: blank canvas + blit, clip, scale -----
+    // geometry: blank canvas + blit, clip, scale
 
     @Test
     void blankCanvasBlitClipAndScale(@TempDir Path dir) throws Exception {
@@ -143,7 +143,7 @@ final class PixTest {
         }
     }
 
-    // ----- rotation: orthogonal, arbitrary, and the raw skew estimate -----
+    // rotation: orthogonal, arbitrary, raw skew estimate
 
     @Test
     void rotateOrthAndRotatePreserveOrSwapDimensions(@TempDir Path dir) throws Exception {
@@ -168,8 +168,8 @@ final class PixTest {
 
     @Test
     void findSkewIsRawAndFinite(@TempDir Path dir) throws Exception {
-        // The shared findSkew is RAW: it runs Leptonica's row-projection finder directly on this
-        // page with no 90-degree horizontalization and no confidence gating (that is app policy).
+        // findSkew runs Leptonica's row-projection finder directly, with no confidence gating
+        // (that is app policy).
         Path pbm = dir.resolve("col.pbm");
         boolean[][] img = TestImages.blank(60, 80);
         TestImages.fillRect(img, 20, 10, 39, 69);
@@ -184,7 +184,7 @@ final class PixTest {
         }
     }
 
-    // ----- counting + size-select (raw flags) -----
+    // counting + size-select
 
     @Test
     void countingAndRawSelectBySize(@TempDir Path dir) throws Exception {
@@ -214,7 +214,7 @@ final class PixTest {
         }
     }
 
-    // ----- boolean / morphology ops -----
+    // boolean / morphology ops
 
     @Test
     void invertIsReversible(@TempDir Path dir) throws Exception {
@@ -270,7 +270,7 @@ final class PixTest {
         }
     }
 
-    // ----- negative / lifecycle branches (for the branch floor) -----
+    // negative / lifecycle branches
 
     @Test
     void readingAMissingFileThrows(@TempDir Path dir) {

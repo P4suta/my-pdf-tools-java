@@ -10,19 +10,14 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * Runs an external process to completion, bounding the wait by a timeout and capturing stdout and
- * stderr <em>separately</em>. Keeps the raw {@link ProcessBuilder} plumbing — start, wait, drain,
- * kill-on-timeout — out of the adapters, which are then left with only their tool-specific argument
- * and exit-code policy.
+ * stderr separately.
  *
- * <p>The caller decides which non-zero exits are acceptable by passing a set of codes: a tool's
- * "success with warnings" code (for example {@code qpdf}'s exit 3) is then tolerated without this
- * runner hardcoding it. Exit {@code 0} is always acceptable; any other code outside the set
- * surfaces as an {@link IOException} carrying the code and the captured stderr.
+ * <p>The caller decides which non-zero exits are acceptable by passing a set of codes (e.g. {@code
+ * qpdf}'s exit 3 for "success with warnings"). Exit {@code 0} is always acceptable; any other code
+ * outside the set surfaces as an {@link IOException} carrying the code and the captured stderr.
  *
- * <p>The two output streams are read after the process exits, so a command that floods a pipe
- * beyond the OS buffer could block — acceptable for the small {@code -version}/{@code
- * -list}/single-page outputs the p4suta tools shell out for, and a flood would trip the timeout
- * (and a kill) rather than hang forever.
+ * <p>The output streams are read after the process exits, so a command that floods a pipe beyond
+ * the OS buffer could block; a flood trips the timeout (and a kill) rather than hanging forever.
  */
 public final class ProcessRunner {
 

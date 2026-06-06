@@ -22,9 +22,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Adapter-level coverage for {@link PdfBoxJbig2Assembler}, driving the real {@code jbig2} binary
- * over a synthetic directory of 1-bit pages (mirrors despeckle's infra tests, which exercise the
- * adapter end-to-end against the bundled toolchain). The {@code jbig2} property key is a
- * constructor parameter, so the tests pass a throwaway key and rely on PATH resolution.
+ * over a synthetic directory of 1-bit pages. The {@code jbig2} property key is a constructor
+ * parameter, so the tests pass a throwaway key and rely on PATH resolution.
  */
 final class PdfBoxJbig2AssemblerTest {
 
@@ -147,21 +146,13 @@ final class PdfBoxJbig2AssemblerTest {
 
     @Test
     void missingJbig2BinaryFailsWithAClearMessage(@TempDir Path tmp) throws Exception {
-        // Point the property key at a non-existent binary AND ensure the name won't resolve on
-        // PATH: an absolute override that does not exist makes ToolPath return it, but the encode's
-        // ProcessBuilder.start() then fails. To exercise the resolve() orElseThrow branch instead,
-        // we use a property key whose value is blank-resolvable-to-nothing by pointing at a tool
-        // name that is not on PATH. Simplest deterministic path: a directory with one image and a
-        // bogus tool name via the key set to empty (so PATH lookup of a nonsense tool fails).
         Path imageDir = Files.createDirectory(tmp.resolve("images"));
         Path scratch = Files.createDirectory(tmp.resolve("scratch"));
         BufferedImage img = new BufferedImage(8, 8, BufferedImage.TYPE_BYTE_BINARY);
         ImageIO.write(img, "png", imageDir.resolve("p.png").toFile());
 
-        // A property key pointing at a path that does not exist: ToolPath returns it (override
-        // wins), and the local encode ProcessBuilder.start() then throws IOException. Either way
-        // the
-        // failure surfaces as IOException at the assemble() boundary.
+        // A property key pointing at a non-existent path: ToolPath returns it (override wins), and
+        // the encode's ProcessBuilder.start() then throws IOException at the assemble() boundary.
         String bogusKey = "shared.pdf.test.bogus.jbig2.path";
         System.setProperty(bogusKey, tmp.resolve("definitely-not-jbig2").toString());
         try {

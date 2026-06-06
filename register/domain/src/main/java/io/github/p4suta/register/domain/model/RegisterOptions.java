@@ -7,17 +7,12 @@ import org.jspecify.annotations.Nullable;
 /**
  * Per-run registration knobs.
  *
- * @param dpi the output resolution; this fixes the canvas pixel size for the chosen paper, so it is
- *     a single run-wide value (not per page). Empty means the run inherits the inputs' own scan
- *     resolution (the registration service resolves it before rendering), falling back to {@link
- *     #DEFAULT_DPI} only when the inputs carry none
- * @param paper the target paper size, or null to auto-detect it from the scanned page size (the
- *     registration service resolves it before rendering, via {@link PaperSize#fromScan})
- * @param deskew whether to straighten each page before detection
- * @param scale whether to scale each page's column to the reference height
+ * @param dpi the output resolution (run-wide, not per page). Empty means inherit the inputs' own
+ *     scan resolution, falling back to {@link #DEFAULT_DPI} only when the inputs carry none
+ * @param paper the target paper size, or null to auto-detect from the scanned page size (via {@link
+ *     PaperSize#fromScan})
  * @param outlierRatio a column smaller than this fraction of the reference area is centered, not
  *     registered (must be in {@code (0, 1]})
- * @param anchor where to place the main column on the canvas
  */
 public record RegisterOptions(
         OptionalInt dpi,
@@ -30,7 +25,6 @@ public record RegisterOptions(
     /** The output resolution assumed when none is given. */
     public static final int DEFAULT_DPI = 400;
 
-    /** Validates the option values. */
     public RegisterOptions {
         if (dpi.isPresent()) {
             Validators.requirePositive(dpi.getAsInt(), "dpi");

@@ -128,9 +128,8 @@ public class PdfBoxSpreadDocument implements SpreadDocument {
     @Override
     public void finalizePdfA() {
         // PDF/A-2 is built on ISO 32000-1 (PDF 1.7). Refuse to stamp the pdfaid marker onto any
-        // other
-        // version rather than emit a file that claims conformance it cannot meet (e.g. if TARGET is
-        // ever flipped to 2.0, which is the basis for PDF/A-4, not PDF/A-2).
+        // other version rather than emit a file claiming conformance it cannot meet (e.g. if TARGET
+        // is flipped to 2.0, the basis for PDF/A-4, not PDF/A-2).
         if (version != PdfVersion.PDF_1_7) {
             throw SpreadException.withDetail(
                     ErrorKind.INTERNAL,

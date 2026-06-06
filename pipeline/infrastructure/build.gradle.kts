@@ -17,6 +17,12 @@ dependencies {
     implementation(project(":pipeline:domain"))
     implementation(project(":pipeline:port"))
 
+    // Per-page progress: the stages bridge each app service's framework-free PageProgressListener
+    // (:shared:kernel) onto a PageProcessed event (:shared:progress) so the pipeline reports
+    // page-level progress, not just stage boundaries.
+    implementation(project(":shared:kernel"))
+    implementation(project(":shared:progress"))
+
     // Source: the shared pdfimages extractor (extract the scan's pages once).
     implementation(project(":shared:pdf"))
 

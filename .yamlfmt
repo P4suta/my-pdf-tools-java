@@ -18,3 +18,10 @@ exclude:
   - "**/.gradle/**"
   - "**/.gradle-home/**"
   - "**/artifacts/**"
+  # The SPA's vendored deps and pnpm's own generated files are not ours to reformat. node_modules
+  # also holds pnpm dot-files/dot-dirs (.modules.yaml, .pnpm/) that a plain **/node_modules/** glob
+  # skips (globs don't match dotted segments), so list those explicitly too.
+  - "**/node_modules/**"
+  - "**/.modules.yaml"
+  - "**/.pnpm/**"
+  - "**/pnpm-lock.yaml"

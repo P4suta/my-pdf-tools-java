@@ -8,18 +8,17 @@ import io.github.p4suta.shared.kernel.Validators;
  */
 public record Box(int x, int y, int w, int h) {
 
-    /** Validates the extents. */
     public Box {
         Validators.requirePositive(w, "w");
         Validators.requirePositive(h, "h");
     }
 
-    /** The exclusive right edge ({@code x + w}). */
+    /** The exclusive right edge. */
     public int right() {
         return x + w;
     }
 
-    /** The exclusive bottom edge ({@code y + h}). */
+    /** The exclusive bottom edge. */
     public int bottom() {
         return y + h;
     }

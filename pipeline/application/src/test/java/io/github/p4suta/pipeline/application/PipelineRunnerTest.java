@@ -1,11 +1,13 @@
 package io.github.p4suta.pipeline.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.p4suta.pipeline.domain.Corpus;
 import io.github.p4suta.pipeline.port.Sink;
 import io.github.p4suta.pipeline.port.Source;
 import io.github.p4suta.pipeline.port.Stage;
+import io.github.p4suta.shared.progress.ProgressEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,6 +71,84 @@ class PipelineRunnerTest {
         new PipelineRunner().run(source, List.of(), sink, output);
 
         assertThat(output).exists();
+    }
+
+    @Test
+    void emitsLifecycleEventsForSourceEveryStageAndSinkThenRunCompleted() throws IOException {
+        Source source =
+                workDir -> {
+                    Files.writeString(workDir.resolve("page-000.tif"), "img");
+                    return new Corpus(workDir, "*.tif", 600, 1);
+                };
+        Stage despeckle = fakeStage("despeckle", new ArrayList<>(), "*.tif");
+        Stage register = fakeStage("register", new ArrayList<>(), "*.tiff");
+        Sink sink = (corpus, out) -> Files.writeString(out, "%PDF-1.7");
+
+        List<ProgressEvent> events = new ArrayList<>();
+        new PipelineRunner()
+                .run(
+                        source,
+                        List.of(despeckle, register),
+                        sink,
+                        tmp.resolve("out.pdf"),
+                        events::add);
+
+        assertThat(events)
+                .containsExactly(
+                        new ProgressEvent.RunStarted(4),
+                        new ProgressEvent.StageStarted("source", 0, 4),
+                        new ProgressEvent.StageCompleted("source"),
+                        new ProgressEvent.StageStarted("despeckle", 1, 4),
+                        new ProgressEvent.StageCompleted("despeckle"),
+                        new ProgressEvent.StageStarted("register", 2, 4),
+                        new ProgressEvent.StageCompleted("register"),
+                        new ProgressEvent.StageStarted("sink", 3, 4),
+                        new ProgressEvent.StageCompleted("sink"),
+                        new ProgressEvent.RunCompleted());
+    }
+
+    @Test
+    void emitsRunFailedAndRethrowsWhenAStageThrows() throws IOException {
+        Source source =
+                workDir -> {
+                    Files.writeString(workDir.resolve("page-000.tif"), "img");
+                    return new Corpus(workDir, "*.tif", 300, 1);
+                };
+        Stage boom =
+                new Stage() {
+                    @Override
+                    public String name() {
+                        return "boom";
+                    }
+
+                    @Override
+                    public Corpus apply(Corpus input, Path workDir) throws IOException {
+                        throw new IOException("kaboom");
+                    }
+                };
+        Sink sink = (corpus, out) -> Files.writeString(out, "%PDF-1.7");
+
+        List<ProgressEvent> events = new ArrayList<>();
+        Path output = tmp.resolve("fail.pdf");
+
+        assertThatThrownBy(
+                        () ->
+                                new PipelineRunner()
+                                        .run(source, List.of(boom), sink, output, events::add))
+                .isInstanceOf(IOException.class)
+                .hasMessage("kaboom");
+
+        assertThat(events)
+                .containsExactly(
+                        new ProgressEvent.RunStarted(3),
+                        new ProgressEvent.StageStarted("source", 0, 3),
+                        new ProgressEvent.StageCompleted("source"),
+                        new ProgressEvent.StageStarted("boom", 1, 3),
+                        // A plain IOException resolves to the stable INTERNAL kind token (front
+                        // ends
+                        // localize from it), with the throwable message as the developer detail.
+                        new ProgressEvent.RunFailed("INTERNAL", "kaboom"));
+        assertThat(output).doesNotExist();
     }
 
     private static Stage fakeStage(String name, List<String> order, String outGlob) {

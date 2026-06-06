@@ -27,16 +27,9 @@ import com.tngtech.archunit.lang.ArchRule;
  * shared kernel island only, and a single nullness vocabulary. The graph is imported once
  * (production classes only).
  *
- * <p>The Foreign Function &amp; Memory island is no longer a register-local concern: the Leptonica
- * binding and its RAII {@code Pix} handle moved to the cross-app {@code
- * io.github.p4suta.shared.imaging} module (outside the {@code io.github.p4suta.register} package
- * this graph imports), so there is no in-graph FFM surface to confine here; that confinement is
- * enforced for the shared island by {@code :shared:arch-rules}.
- *
- * <p>Observability is no longer a register-local layer: the mapper, the fatal handler, the PII
- * sanitizer and the sysexits {@code ExitCodes} now live in the cross-app {@code
- * io.github.p4suta.shared.observability} module (outside the {@code io.github.p4suta.register}
- * package this graph imports), so there is no in-graph observability layer to pin here.
+ * <p>The FFM/Leptonica binding and the observability layer live in cross-app shared modules
+ * (outside the {@code io.github.p4suta.register} package this graph imports), so there is no
+ * in-graph FFM or observability surface to confine here.
  */
 @AnalyzeClasses(
         packages = "io.github.p4suta.register",
@@ -121,14 +114,9 @@ class ArchitectureTest {
     static final ArchRule packagesAreFreeOfCycles =
             slices().matching("io.github.p4suta.register.(*)..").should().beFreeOfCycles();
 
-    // The Foreign Function & Memory island (the Leptonica binding and its RAII Pix handle) no
-    // longer
-    // lives in this graph: it moved to the cross-app io.github.p4suta.shared.imaging module, which
-    // exposes only PRIMITIVE pixel ops, with the register-specific deskew POLICY (Deskewer) layered
-    // on top app-side. No class under io.github.p4suta.register touches java.lang.foreign or
-    // java.lang.invoke any more, so the FFM/MethodHandle-confinement rules that pinned the (now
-    // deleted) register leptonica package are vacuous and removed; that confinement is enforced for
-    // the shared island by :shared:arch-rules.
+    // No class under io.github.p4suta.register touches java.lang.foreign or java.lang.invoke: the
+    // Leptonica binding lives in the cross-app io.github.p4suta.shared.imaging module, where FFM
+    // confinement is enforced by :shared:arch-rules. Hence no FFM-confinement rule here.
 
     /**
      * The pure {@code domain} and the {@code port} contracts never touch the filesystem directly:
@@ -150,10 +138,8 @@ class ArchitectureTest {
      * The pure hexagon center may consume only the shared kernel primitives (value types / error
      * model): {@code domain} and {@code port} depend on {@code io.github.p4suta.shared.kernel} and
      * nothing else under {@code io.github.p4suta.shared}. The {@code imaging}, {@code pdf}, {@code
-     * process}, {@code io}, {@code observability} and {@code cli} shared islands are adapter-side —
-     * the Phase-3 refactor moved the FFM, PDFBox, ProcessBuilder, IO and Commons CLI surfaces out
-     * of the per-app onions into these cross-app islands, and this rule pins them out of the
-     * center.
+     * process}, {@code io}, {@code observability} and {@code cli} shared islands are adapter-side,
+     * pinned out of the center.
      */
     @ArchTest
     static final ArchRule domainAndPortDependOnlyOnSharedKernel =
@@ -180,12 +166,11 @@ class ArchitectureTest {
                                     + " observability and cli are adapter-side islands");
 
     /**
-     * Apache PDFBox is the one PDF toolkit, confined to {@code infrastructure}. This rule is
-     * VACUOUS for register today: the JBIG2 assembly and CLI extraction now delegate to {@code
-     * io.github.p4suta.shared.pdf} and no class under {@code io.github.p4suta.register} imports
-     * {@code org.apache.pdfbox}. It is kept as a cheap regression guard and to stay shape-identical
-     * with the cross-app canonical suite (where it is LIVE for the tate-yoko app, which still uses
-     * PDFBox directly in its own infrastructure).
+     * Apache PDFBox is the one PDF toolkit, confined to {@code infrastructure}. The rule is vacuous
+     * for register (JBIG2 assembly and CLI extraction delegate to {@code
+     * io.github.p4suta.shared.pdf}, so no register class imports {@code org.apache.pdfbox}); kept
+     * as a regression guard and to stay shape-identical with the cross-app suite, where it is live
+     * for the tate-yoko app.
      */
     @ArchTest
     static final ArchRule pdfBoxConfinedToInfrastructure =

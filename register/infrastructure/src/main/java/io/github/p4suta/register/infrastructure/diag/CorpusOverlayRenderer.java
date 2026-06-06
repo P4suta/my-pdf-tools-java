@@ -48,7 +48,6 @@ final class CorpusOverlayRenderer {
      * Render the before/after overlay for a whole run.
      *
      * @param pages every page's recorded diagnostic, in any order
-     * @return the composited overlay image
      */
     static BufferedImage render(List<PageDiagnostic> pages) {
         int width = MARGIN + LABEL_W + CELL_W + GAP + CELL_W + MARGIN;

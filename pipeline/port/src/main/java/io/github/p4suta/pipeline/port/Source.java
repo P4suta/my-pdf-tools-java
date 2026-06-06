@@ -12,6 +12,14 @@ import java.nio.file.Path;
 public interface Source {
 
     /**
+     * {@return a short, filesystem-safe label for this source's phase} Used to name the source's
+     * working subdirectory and to label its progress events; defaults to {@code "source"}.
+     */
+    default String name() {
+        return "source";
+    }
+
+    /**
      * Produces the first corpus, writing its page images under {@code workDir}.
      *
      * @param workDir the directory this source owns for its output

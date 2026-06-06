@@ -18,8 +18,7 @@ public class PdfBoxSourceDocument implements SourceDocument {
     private static final Logger log = LoggerFactory.getLogger(PdfBoxSourceDocument.class);
 
     // A page rotated a quarter or three-quarter turn presents its cropBox sideways, so the
-    // displayed
-    // width/height are swapped relative to the unrotated box.
+    // displayed width/height are swapped relative to the unrotated box.
     private static final int QUARTER_TURN_DEGREES = 90;
     private static final int THREE_QUARTER_TURN_DEGREES = 270;
 

@@ -11,11 +11,12 @@ import org.slf4j.event.Level;
 
 /**
  * Maps any throwable to a stable {@link ErrorCategory}, a process exit code, an slf4j {@link
- * Level}, a PII-safe user message, and an optional technical detail. Data-driven: the exit code and
+ * Level}, and an optional PII-safe (absolute-path-masked) technical detail. Facts only — no
+ * user-facing message; each surface localizes from the kind. Data-driven: the exit code and
  * severity are read OFF the {@code ErrorCategory} (no side table). This layer owns only the {@code
  * Severity -> Level} translation and the throwable&rarr;kind fallback.
  *
- * <p>The throwable&rarr;kind fallback (section&nbsp;5 of the error-model spec), first match wins:
+ * <p>The throwable&rarr;kind fallback, first match wins:
  *
  * <ol>
  *   <li>a {@link BaseAppException} carries its own kind;
@@ -25,28 +26,26 @@ import org.slf4j.event.Level;
  *   <li>anything else &rarr; {@link CommonErrorKind#INTERNAL} (70).
  * </ol>
  *
- * <p>An app may supply an extra {@code throwable -> ErrorCategory} rule (e.g. a future {@code
- * UncheckedIOException} unwrap); it is consulted BEFORE the shared baseline (but after the {@link
- * BaseAppException} short-circuit, which always wins because the exception already carries its
- * kind). Returning {@code null} from the rule falls through to the baseline.
+ * <p>An app may supply an extra {@code throwable -> ErrorCategory} rule; it is consulted before the
+ * shared baseline but after the {@link BaseAppException} short-circuit (which always wins, as the
+ * exception already carries its kind). Returning {@code null} from the rule falls through to the
+ * baseline.
  */
 public final class ExceptionMapper {
 
     /**
-     * The outcome of mapping a throwable.
+     * The outcome of mapping a throwable — facts only, no user-facing message. Each surface
+     * resolves the text it shows from {@link #kind()} (the CLI from its English catalog, the web UI
+     * from its Japanese one).
      *
      * @param kind the resolved error category
      * @param exitCode the process exit code ({@code kind.exitCode()})
      * @param level the slf4j log level ({@code kind.severity()} translated)
-     * @param safeUserMessage the user-facing message with absolute paths masked
-     * @param technicalDetail an optional diagnostic detail, or {@code null}
+     * @param technicalDetail an optional diagnostic detail with absolute paths masked, or {@code
+     *     null}
      */
     public record Mapping(
-            ErrorCategory kind,
-            int exitCode,
-            Level level,
-            String safeUserMessage,
-            @Nullable String technicalDetail) {}
+            ErrorCategory kind, int exitCode, Level level, @Nullable String technicalDetail) {}
 
     private ExceptionMapper() {}
 
@@ -58,10 +57,9 @@ public final class ExceptionMapper {
      */
     public static Mapping map(Throwable t) {
         if (t instanceof BaseAppException app) {
-            return mappingFor(app.kind(), app.userMessage(), app.technicalDetail());
+            return mappingFor(app.kind(), app.technicalDetail());
         }
-        ErrorCategory kind = fallbackKind(t);
-        return mappingFor(kind, kind.defaultUserMessage(), detailOf(t));
+        return mappingFor(fallbackKind(t), detailOf(t));
     }
 
     /**
@@ -76,11 +74,11 @@ public final class ExceptionMapper {
      */
     public static Mapping map(Throwable t, Function<Throwable, @Nullable ErrorCategory> extraRule) {
         if (t instanceof BaseAppException app) {
-            return mappingFor(app.kind(), app.userMessage(), app.technicalDetail());
+            return mappingFor(app.kind(), app.technicalDetail());
         }
         ErrorCategory extra = extraRule.apply(t);
         ErrorCategory kind = extra != null ? extra : fallbackKind(t);
-        return mappingFor(kind, kind.defaultUserMessage(), detailOf(t));
+        return mappingFor(kind, detailOf(t));
     }
 
     /** The shared baseline throwable&rarr;kind fallback; order matters, first match wins. */
@@ -106,14 +104,10 @@ public final class ExceptionMapper {
         return message != null ? message : t.getClass().getSimpleName();
     }
 
-    private static Mapping mappingFor(
-            ErrorCategory kind, String userMessage, @Nullable String technicalDetail) {
-        return new Mapping(
-                kind,
-                kind.exitCode(),
-                toLevel(kind.severity()),
-                PiiSanitizer.maskAbsolutePaths(userMessage),
-                technicalDetail);
+    private static Mapping mappingFor(ErrorCategory kind, @Nullable String technicalDetail) {
+        String maskedDetail =
+                technicalDetail == null ? null : PiiSanitizer.maskAbsolutePaths(technicalDetail);
+        return new Mapping(kind, kind.exitCode(), toLevel(kind.severity()), maskedDetail);
     }
 
     /** The single {@link Severity} &rarr; slf4j {@link Level} translation. */

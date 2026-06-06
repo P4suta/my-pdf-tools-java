@@ -42,10 +42,8 @@ final class DiagnosticRenderer {
      * Render the overlay for one page.
      *
      * @param page the (deskewed) page as an RGB image
-     * @param d the page's recorded diagnostic
      * @param rowInk the whole-page row-ink profile (length = page height)
      * @param columnInk the in-band column-ink profile (length = page width)
-     * @return the composited diagnostic image
      */
     static BufferedImage render(
             BufferedImage page, PageDiagnostic d, int[] rowInk, int[] columnInk) {

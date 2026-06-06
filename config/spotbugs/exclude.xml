@@ -67,4 +67,32 @@
     <Class name="io.github.p4suta.tateyokopdf.tools.RuntimeBenchmark"/>
   </Match>
 
+  <!-- ============================ shared:cli ============================ -->
+
+  <!-- Prompt is the interactive seam: its public constructor stores the caller-supplied Reader and
+       PrintStream on purpose (production passes the console's streams via Prompt.console(); tests
+       pass scripted ones). The whole point is to hold those references, and defensive-copying live
+       streams is impossible, so EI_EXPOSE_REP2 here flags the intended injection, not a leak. -->
+  <Match>
+    <Class name="io.github.p4suta.shared.cli.Prompt"/>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+
+  <!-- ============================ webapp ============================ -->
+
+  <!-- The web feature's use cases, adapters, and Spring wiring are all dependency-injection targets:
+       they store the injected ports / services / time source in fields. Those collaborators are
+       stateless adapters or effectively-immutable JDK value types (Clock, Duration), so
+       EI_EXPOSE_REP/REP2 here flags the idiomatic DI shape, not a real leak — the same call the
+       despeckle application package makes. (A genuine exposure of a mutable byte[]/collection would
+       still trip elsewhere.) -->
+  <Match>
+    <Or>
+      <Package name="io.github.p4suta.webapp.application"/>
+      <Package name="io.github.p4suta.webapp.infrastructure"/>
+      <Package name="io.github.p4suta.webapp.app"/>
+    </Or>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+  </Match>
+
 </FindBugsFilter>

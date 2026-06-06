@@ -2,7 +2,7 @@
 
 Rolling history of CI and local build wall-clock times. Phase 1 of the
 optimization plan sets this baseline so future phases can be evaluated
-quantitatively rather than by feel.
+quantitatively.
 
 CI numbers come from `gh run list --workflow=ci.yml --branch=main`. The
 `perf report` job in `.github/workflows/ci.yml` publishes a fresh median

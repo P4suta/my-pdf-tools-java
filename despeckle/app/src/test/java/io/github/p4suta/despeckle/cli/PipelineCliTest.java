@@ -21,8 +21,8 @@ final class PipelineCliTest {
     // ---- exit 2: usage / parse / type errors ----
 
     @Test
-    void noPositionalsIsUsageError() {
-        assertEquals(2, run("pipeline"));
+    void noArgsPrintsHelpAndExitsZero() {
+        assertEquals(0, run("pipeline"));
     }
 
     @Test

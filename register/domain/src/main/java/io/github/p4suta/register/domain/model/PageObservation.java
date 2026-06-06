@@ -6,7 +6,5 @@ package io.github.p4suta.register.domain.model;
  * io.github.p4suta.register.domain.service.Reference}.
  *
  * @param index 0-based page index in reading order
- * @param parity recto or verso
- * @param mainColumn the detected main-text-column bounding box
  */
 public record PageObservation(int index, Parity parity, Box mainColumn) {}

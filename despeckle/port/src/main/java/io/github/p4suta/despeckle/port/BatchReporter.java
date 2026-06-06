@@ -21,11 +21,7 @@ public interface BatchReporter {
      */
     void write(Path reportParent, List<BatchBook> books) throws IOException;
 
-    /**
-     * A batch reporter that writes nothing, for when batch reporting is disabled.
-     *
-     * @return a no-op batch reporter
-     */
+    /** A batch reporter that writes nothing, for when batch reporting is disabled. */
     static BatchReporter noOp() {
         return (p, b) -> {};
     }

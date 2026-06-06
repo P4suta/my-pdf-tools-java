@@ -5,8 +5,6 @@ import io.github.p4suta.tateyokopdf.domain.model.FirstPageMode;
 import io.github.p4suta.tateyokopdf.domain.model.MemoryMode;
 import io.github.p4suta.tateyokopdf.domain.model.OpeningSide;
 import io.github.p4suta.tateyokopdf.domain.model.ReadingDirection;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.ParseException;
@@ -25,7 +23,8 @@ record CliArguments(
         ReadingDirection direction,
         FirstPageMode firstPageMode,
         boolean pdfA,
-        boolean lowMemory) {
+        boolean lowMemory,
+        boolean force) {
 
     /**
      * Interprets a parsed {@link CommandLine} into validated intent. The caller must have already
@@ -37,23 +36,13 @@ record CliArguments(
                 parseDirection(directionValue != null ? directionValue : "RTL");
         FirstPageMode firstPageMode = resolveFirstPage(cmd.getOptionValue("first-page"), direction);
         return new CliArguments(
-                InputResolver.resolve(cmd.getArgList(), CliArguments::isPdf),
+                InputResolver.resolve(cmd.getArgList(), InputResolver.globFilter("*.pdf")),
                 cmd.getOptionValue("output"),
                 direction,
                 firstPageMode,
                 cmd.hasOption("pdf-a"),
-                cmd.hasOption("low-memory"));
-    }
-
-    /**
-     * The directory filter for {@code INPUT} expansion: a regular file whose name ends with {@code
-     * .pdf} (case-insensitive). Passed to the shared {@link InputResolver} rather than its {@code
-     * globFilter("*.pdf")} because a glob matcher is case-sensitive on Linux, which would silently
-     * drop {@code .PDF} files — this reproduces tate's prior behavior exactly.
-     */
-    private static boolean isPdf(Path path) {
-        return Files.isRegularFile(path)
-                && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
+                cmd.hasOption("low-memory"),
+                cmd.hasOption("force"));
     }
 
     /** The PDFBox stream-cache mode implied by {@code --low-memory}. */
