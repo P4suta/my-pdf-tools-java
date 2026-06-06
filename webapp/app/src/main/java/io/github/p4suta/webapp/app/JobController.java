@@ -121,20 +121,25 @@ public class JobController {
     }
 
     /**
-     * Downloads job {@code id}'s finished book PDF.
+     * Downloads job {@code id}'s finished book PDF. The optional trailing {@code filename} segment
+     * is ignored — it lets the SPA put the book's name at the end of the URL so a browser
+     * previewing the {@code inline} PDF downloads it as {@code <book>_book.pdf} rather than a
+     * generic name.
      *
      * @param id the job id
-     * @return the PDF as an attachment
+     * @return the PDF, served inline with the book filename in the Content-Disposition
      */
-    @GetMapping("/jobs/{id}/result")
+    @GetMapping({"/jobs/{id}/result", "/jobs/{id}/result/{filename}"})
     public ResponseEntity<Resource> result(@PathVariable String id) {
         JobId jobId = new JobId(id);
         Job job = conversions.get(jobId);
         Path result = conversions.result(jobId);
         return ResponseEntity.ok()
+                // inline (not attachment) so a browser opens the book in a new tab to preview it;
+                // the viewer's own Save still uses the suggested filename.
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + downloadName(job.originalFilename()) + "\"")
+                        "inline; filename=\"" + downloadName(job.originalFilename()) + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(new FileSystemResource(result));
     }

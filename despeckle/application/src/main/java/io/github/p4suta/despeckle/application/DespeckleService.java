@@ -8,6 +8,7 @@ import io.github.p4suta.despeckle.port.Reporter;
 import io.github.p4suta.despeckle.port.ReporterFactory;
 import io.github.p4suta.shared.io.CorpusFiles;
 import io.github.p4suta.shared.io.OutputDirs;
+import io.github.p4suta.shared.kernel.PageProgressListener;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -88,13 +89,26 @@ public final class DespeckleService {
     public record Summary(int pages, long componentsRemoved, int overRemovalWarnings) {}
 
     /**
-     * Execute a run.
+     * Execute a run, reporting no per-page progress.
      *
      * @param config run configuration
      * @return the aggregate summary
      * @throws IOException on filesystem failure
      */
     public Summary run(Config config) throws IOException {
+        return run(config, PageProgressListener.NO_OP);
+    }
+
+    /**
+     * Execute a run, reporting each finished page to {@code progress}.
+     *
+     * @param config run configuration
+     * @param progress called once per page as it completes (1-based count, total page count); may
+     *     be invoked from the worker threads, so it must be thread-safe
+     * @return the aggregate summary
+     * @throws IOException on filesystem failure
+     */
+    public Summary run(Config config, PageProgressListener progress) throws IOException {
         OutputDirs.prepare(config.outputDir(), config.force());
 
         List<Path> files = CorpusFiles.collect(config.inputDir(), config.glob());
@@ -119,6 +133,7 @@ public final class DespeckleService {
                         () -> {
                             PageOutcome outcome = processOne(src, config, report);
                             int n = done.incrementAndGet();
+                            progress.onPage(n, files.size());
                             if (n % PROGRESS_EVERY == 0 || n == files.size()) {
                                 LOG.info("{}/{}", n, files.size());
                             }

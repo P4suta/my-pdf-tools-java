@@ -16,6 +16,7 @@ import io.github.p4suta.register.port.ReporterFactory;
 import io.github.p4suta.shared.io.CorpusFiles;
 import io.github.p4suta.shared.io.OutputDirs;
 import io.github.p4suta.shared.kernel.Medians;
+import io.github.p4suta.shared.kernel.PageProgressListener;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -104,7 +105,7 @@ public final class RegistrationService {
     public record Summary(int pages, int analyzed) {}
 
     /**
-     * Execute a run.
+     * Execute a run, reporting no per-page progress.
      *
      * @param requested run configuration as given on the command line (its empty {@code --dpi} is
      *     resolved from the inputs before rendering)
@@ -112,6 +113,24 @@ public final class RegistrationService {
      * @throws IOException on filesystem failure
      */
     public Summary run(Config requested) throws IOException {
+        return run(requested, PageProgressListener.NO_OP);
+    }
+
+    /**
+     * Execute a run, reporting page progress across both passes to {@code progress}.
+     *
+     * <p>Registration is two-pass, so progress spans {@code 2 * pageCount} units: the analyze pass
+     * reports {@code 1..N} and the render pass {@code N+1..2N}. The bar therefore advances through
+     * the costly analyze pass instead of sitting idle until rendering begins.
+     *
+     * @param requested run configuration as given on the command line (its empty {@code --dpi} is
+     *     resolved from the inputs before rendering)
+     * @param progress called once per finished page in each pass (1-based count over {@code 2N},
+     *     total {@code 2N}); invoked from the worker threads, so it must be thread-safe
+     * @return the aggregate summary
+     * @throws IOException on filesystem failure
+     */
+    public Summary run(Config requested, PageProgressListener progress) throws IOException {
         OutputDirs.prepare(requested.outputDir(), requested.force());
 
         List<Path> files = CorpusFiles.collect(requested.inputDir(), requested.glob());
@@ -124,6 +143,12 @@ public final class RegistrationService {
         // fixed default.
         Config config = inheritScanDpi(requested, files);
         LOG.info("registering {} page(s) with {} thread(s)", files.size(), config.jobs());
+
+        // Per-page progress spans both passes: analyze reports 1..N, render reports N+1..2N, so the
+        // bar advances across the whole stage rather than sitting idle through the costly analyze
+        // pass. Each PageProcessed the composing stage emits carries this 2N denominator.
+        int progressTotal = files.size() * 2;
+        AtomicInteger pageProgress = new AtomicInteger();
 
         Path diagDir = config.diagDir();
         boolean recordDiagnostics = diagDir != null;
@@ -139,7 +164,15 @@ public final class RegistrationService {
         try {
             // ----- Pass 1: deskew once, detect, cache the deskewed page for pass two -----
             List<AnalyzedPage> pages =
-                    analyzePass(files, scratchDir, config, recordDiagnostics, pool);
+                    analyzePass(
+                            files,
+                            scratchDir,
+                            config,
+                            recordDiagnostics,
+                            pool,
+                            progress,
+                            pageProgress,
+                            progressTotal);
             List<PageObservation> observations = toObservations(pages);
             int analyzed = observations.size();
 
@@ -167,7 +200,17 @@ public final class RegistrationService {
 
             // ----- Pass 2: place every (already deskewed) page against the reference -----
             List<Path> outputs =
-                    renderPass(pages, reference, canvas, config, recordDiagnostics, reporter, pool);
+                    renderPass(
+                            pages,
+                            reference,
+                            canvas,
+                            config,
+                            recordDiagnostics,
+                            reporter,
+                            pool,
+                            progress,
+                            pageProgress,
+                            progressTotal);
 
             if (recordDiagnostics) {
                 RunInfo info =
@@ -210,7 +253,10 @@ public final class RegistrationService {
             Path scratchDir,
             Config config,
             boolean recordDiagnostics,
-            ExecutorService pool)
+            ExecutorService pool,
+            PageProgressListener progress,
+            AtomicInteger pageProgress,
+            int progressTotal)
             throws IOException {
         List<Callable<AnalyzedPage>> tasks = new ArrayList<>(files.size());
         for (int i = 0; i < files.size(); i++) {
@@ -222,7 +268,11 @@ public final class RegistrationService {
                         PageAnalysis analysis =
                                 pageRegistrar.analyze(
                                         src, scratch, config.options(), recordDiagnostics);
-                        return new AnalyzedPage(index, Parity.of(index), src, scratch, analysis);
+                        AnalyzedPage analyzed =
+                                new AnalyzedPage(index, Parity.of(index), src, scratch, analysis);
+                        // The analyze pass occupies the first N of the 2N progress units.
+                        progress.onPage(pageProgress.incrementAndGet(), progressTotal);
+                        return analyzed;
                     });
         }
         return awaitAll(pool, tasks);
@@ -254,7 +304,10 @@ public final class RegistrationService {
             Config config,
             boolean recordDiagnostics,
             Reporter reporter,
-            ExecutorService pool)
+            ExecutorService pool,
+            PageProgressListener progress,
+            AtomicInteger pageProgress,
+            int progressTotal)
             throws IOException {
         AtomicInteger done = new AtomicInteger();
         int total = pages.size();
@@ -271,6 +324,9 @@ public final class RegistrationService {
                                         recordDiagnostics,
                                         reporter);
                         int n = done.incrementAndGet();
+                        // The render pass occupies the second N of the 2N progress units; the local
+                        // count drives the human log at its own N denominator.
+                        progress.onPage(pageProgress.incrementAndGet(), progressTotal);
                         if (n % PROGRESS_EVERY == 0 || n == total) {
                             LOG.info("{}/{}", n, total);
                         }

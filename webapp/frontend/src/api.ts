@@ -42,6 +42,26 @@ export async function submitJob(file: File, options: ConversionOptions): Promise
   return accepted.jobId;
 }
 
+export type JobState = "QUEUED" | "RUNNING" | "DONE" | "FAILED";
+
+export interface JobStatus {
+  state: JobState;
+  errorKind: string | null;
+  errorMessage: string | null;
+}
+
+// The authoritative job state. The `runCompleted` progress event means pdfbook finished writing,
+// but the result is only downloadable once the server has reaped the subprocess and flipped the
+// job to DONE — so the UI confirms readiness here rather than trusting the progress stream.
+export async function getStatus(jobId: string): Promise<JobStatus> {
+  const response = await fetch(`/api/v1/jobs/${jobId}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message ?? `status failed (HTTP ${response.status})`);
+  }
+  return (await response.json()) as JobStatus;
+}
+
 export function streamProgress(
   jobId: string,
   onEvent: (event: ProgressEvent) => void,
@@ -59,6 +79,11 @@ export function streamProgress(
   return source;
 }
 
-export function resultUrl(jobId: string): string {
-  return `/api/v1/jobs/${jobId}/result`;
+// The result URL ends in the desired download filename: a browser previewing an `inline` PDF names
+// the download from the URL's last path segment, so `.../result/<name>_book.pdf` downloads as that
+// rather than a generic "result.pdf". The server ignores the trailing segment (the job id alone
+// authorizes); it is purely there to name the file.
+export function resultUrl(jobId: string, filename?: string): string {
+  const base = `/api/v1/jobs/${jobId}/result`;
+  return filename ? `${base}/${encodeURIComponent(filename)}` : base;
 }

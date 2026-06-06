@@ -16,6 +16,10 @@ plugins {
 dependencies {
     implementation(project(":despeckle:domain"))
     implementation(project(":despeckle:port"))
+    // PageProgressListener: the framework-free per-page progress callback the service reports into
+    // (NO_OP by default). A kernel primitive, so the service stays decoupled from the pipeline/web
+    // progress vocabulary — the composing stage bridges it.
+    implementation(project(":shared:kernel"))
     // The corpus-walking FS helpers (output-dir preparation, glob-based file collection,
     // mirror-destination path mapping) live in :shared:io; DespeckleService delegates to them so the
     // implementations are no longer duplicated here. Static calls returning java.base types only, so

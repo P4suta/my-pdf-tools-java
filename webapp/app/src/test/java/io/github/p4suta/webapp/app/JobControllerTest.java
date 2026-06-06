@@ -108,7 +108,7 @@ class JobControllerTest {
     }
 
     @Test
-    void resultServesThePdfAsAnAttachment() {
+    void resultServesThePdfInlineWithItsBookFilename() {
         Job done =
                 Job.queued(new JobId("job-1"), REQUEST, "scan.pdf", Instant.EPOCH)
                         .toRunning()
@@ -120,7 +120,9 @@ class JobControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PDF);
+        // inline so the browser previews the book in a new tab; the suggested filename is kept.
         assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .startsWith("inline")
                 .contains("scan_book.pdf");
     }
 

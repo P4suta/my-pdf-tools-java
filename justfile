@@ -6,10 +6,10 @@
 # recipes call ./gradlew directly inside the container instead of re-entering
 # Docker. Host machines need nothing but Docker.
 #
-# NOTE: there is no root Gradle build yet — each app (register/, despeckle/,
-# tate-yoko-pdf/) is still its own standalone build. These recipes are the
-# scaffolding for the unified composite build that Phase 3 introduces; until a
-# root settings.gradle.kts + gradlew exist, run the per-app justfiles.
+# The root is now a single Gradle composite build (settings.gradle.kts + ./gradlew):
+# the four PDF features (register / despeckle / tate-yoko-pdf / pipeline), the web
+# layer (:webapp), and the shared modules. Every recipe drives that one build —
+# there are no per-app justfiles anymore.
 
 inside := env_var_or_default("INSIDE_CONTAINER", "0")
 
@@ -32,6 +32,9 @@ lefthook := if inside == "1" { "lefthook" } else { docker_run + " lefthook" }
 # to the flags the per-app builds + CI run, so they cannot drift.
 gradle_flags := "--no-daemon --console=plain -Dorg.gradle.java.installations.auto-download=false"
 
+# Host port the web server publishes (override: `WEB_PORT=9090 just web-serve`).
+web_port := env_var_or_default("WEB_PORT", "8080")
+
 default:
     @just --list
 
@@ -51,14 +54,60 @@ check:
 assemble:
     {{gradlew}} assemble {{gradle_flags}}
 
+# Delete all build outputs.
+clean:
+    {{gradlew}} clean {{gradle_flags}}
+
 # Open an interactive shell in the dev container.
 shell:
     {{docker_run}} bash
 
 # Passthrough: run an arbitrary Gradle invocation in the dev container.
-#   just gradle :register:app:installDist
+#   just gradle :pipeline:app:installDist
 gradle *ARGS:
     {{gradlew}} {{ARGS}} {{gradle_flags}}
+
+# ----- pdfbook CLI + local web app -----
+
+# Build the pdfbook CLI launcher (pipeline/app/build/install/pdfbook/bin/pdfbook).
+pdfbook-install:
+    {{gradlew}} :pipeline:app:installDist {{gradle_flags}}
+
+# Run the built pdfbook CLI in the dev container (needs the native toolchain).
+#   just pdfbook scan.pdf -o scan_book.pdf
+pdfbook *ARGS: pdfbook-install
+    {{docker_run}} pipeline/app/build/install/pdfbook/bin/pdfbook {{ARGS}}
+
+# Run the pdfbook web server (Spring Boot, :8080) — pair with `just web-ui`.
+web-serve: pdfbook-install
+    #!/usr/bin/env bash
+    set -uo pipefail
+    # Bundles the freshly built pdfbook on PATH and binds 0.0.0.0 so the server is
+    # reachable via VSCode port-forwarding or the host IP (override host port: WEB_PORT).
+    # NOTE: this server holds the dev container's Gradle-home lock for its whole
+    # lifetime — stop it (Ctrl-C, or `just web-stop`) before any other gradle recipe.
+    run='export PATH="$PWD/pipeline/app/build/install/pdfbook/bin:$PATH"; export SERVER_ADDRESS=0.0.0.0; exec ./gradlew :webapp:app:bootRun {{gradle_flags}}'
+    if [ "{{inside}}" = "1" ]; then
+        exec bash -lc "$run"
+    fi
+    docker rm -f pdfbook-web >/dev/null 2>&1 || true
+    exec docker compose run --rm --name pdfbook-web -p {{web_port}}:8080 dev bash -lc "$run"
+
+# Stop the web server container started by `just web-serve` (frees the Gradle lock).
+web-stop:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    # `docker rm -f` exits 0 even for a missing container, so check existence first
+    # to report honestly.
+    if [ -n "$(docker ps -aq --filter name=^pdfbook-web$)" ]; then
+        docker rm -f pdfbook-web >/dev/null && echo "web server stopped"
+    else
+        echo "no web server running"
+    fi
+
+# Start the SPA's Vite dev server (host pnpm; proxies /api to the :8080 server).
+web-ui:
+    cd webapp/frontend && pnpm install && pnpm dev --host 0.0.0.0
 
 # ----- format / lint (mirrors CI + the lefthook gates) -----
 
@@ -85,9 +134,7 @@ typos:
 typos-check:
     {{typos}}
 
-# Lint every GitHub Actions workflow in the repo. Per-app .github/ is kept until
-# the CI/Docker cutover, so workflows live at <app>/.github/workflows/; this finds
-# them at any depth (a future root .github/workflows is covered too).
+# Lint every GitHub Actions workflow in the repo (.github/workflows/; depth-agnostic find).
 actionlint:
     #!/usr/bin/env bash
     set -uo pipefail

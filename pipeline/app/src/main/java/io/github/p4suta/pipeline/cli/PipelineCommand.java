@@ -4,6 +4,7 @@ import io.github.p4suta.pipeline.application.PipelineRunner;
 import io.github.p4suta.pipeline.infrastructure.DespeckleStage;
 import io.github.p4suta.pipeline.infrastructure.PdfExtractSource;
 import io.github.p4suta.pipeline.infrastructure.RegisterStage;
+import io.github.p4suta.pipeline.infrastructure.SourceMetadata;
 import io.github.p4suta.pipeline.infrastructure.SpreadPackSink;
 import io.github.p4suta.pipeline.port.Sink;
 import io.github.p4suta.pipeline.port.Source;
@@ -13,6 +14,7 @@ import io.github.p4suta.shared.cli.CliExceptionHandler;
 import io.github.p4suta.shared.cli.CliOptionSupport;
 import io.github.p4suta.shared.cli.InputResolver;
 import io.github.p4suta.shared.observability.ExitCodes;
+import io.github.p4suta.shared.progress.ProgressSink;
 import io.github.p4suta.tateyokopdf.domain.model.DocumentMetadata;
 import io.github.p4suta.tateyokopdf.domain.model.FirstPageMode;
 import io.github.p4suta.tateyokopdf.domain.model.MemoryMode;
@@ -197,28 +199,41 @@ public final class PipelineCommand {
 
     private static void runOne(Path input, Path output, Config config, @Nullable Path progressFile)
             throws IOException {
+        if (progressFile == null) {
+            runWith(input, output, config, ProgressSink.NO_OP);
+        } else {
+            try (JsonlFileProgressSink progress = new JsonlFileProgressSink(progressFile)) {
+                runWith(input, output, config, progress);
+            }
+        }
+    }
+
+    // Builds the source/stages/sink with the progress sink resolved first, so the stages and the
+    // sink report page-level PageProcessed events into the same sink that PipelineRunner reports
+    // the
+    // stage boundaries into. With no --progress-file the sink is NO_OP and every emit is a no-op.
+    private static void runWith(Path input, Path output, Config config, ProgressSink progress)
+            throws IOException {
         List<Stage> stages = new ArrayList<>();
         if (config.despeckle()) {
-            stages.add(new DespeckleStage(config.jobs()));
+            stages.add(new DespeckleStage(config.jobs(), progress));
         }
         if (config.register()) {
-            stages.add(new RegisterStage(config.jobs(), config.deskew(), config.scale()));
+            stages.add(new RegisterStage(config.jobs(), config.deskew(), config.scale(), progress));
         }
         Source source = new PdfExtractSource(input, config.jobs());
+        // Carry the source book's title/author/etc. onto the output, matching the standalone tate
+        // CLI (best-effort; empty if the source has none or cannot be read).
+        DocumentMetadata metadata = SourceMetadata.read(input);
         Sink sink =
                 new SpreadPackSink(
                         config.direction(),
                         config.firstPage(),
                         config.pdfA(),
                         MemoryMode.IN_MEMORY,
-                        DocumentMetadata.empty());
-        if (progressFile == null) {
-            new PipelineRunner().run(source, stages, sink, output);
-        } else {
-            try (JsonlFileProgressSink progress = new JsonlFileProgressSink(progressFile)) {
-                new PipelineRunner().run(source, stages, sink, output, progress);
-            }
-        }
+                        metadata,
+                        progress);
+        new PipelineRunner().run(source, stages, sink, output, progress);
     }
 
     private static String outputName(Path input) {
