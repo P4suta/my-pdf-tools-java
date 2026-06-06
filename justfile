@@ -17,6 +17,10 @@ docker_run := if dev_running == "0" { "docker compose run --rm dev" } else { "do
 
 gradlew := if inside == "1" { "./gradlew" } else { docker_run + " ./gradlew" }
 
+# Shell prefix for tools that live in the SPA's pnpm toolchain (Prettier): run directly when already
+# in the container, else enter the dev container.
+sh_run := if inside == "1" { "sh -lc" } else { docker_run + " sh -lc" }
+
 # Language-agnostic quality tools, routed through the same dev container as
 # ./gradlew (the dev image bundles typos/taplo/biome/yamlfmt/actionlint/lefthook).
 typos := if inside == "1" { "typos" } else { docker_run + " typos" }
@@ -134,7 +138,8 @@ web-image:
 fmt:
     {{gradlew}} spotlessApply {{gradle_flags}}
     {{taplo}} fmt
-    {{biome}} format --write .
+    {{biome}} check --write .
+    {{sh_run}} 'cd webapp/frontend && pnpm install --frozen-lockfile && pnpm run format'
     {{yamlfmt}}
     {{typos}} --write-changes
 
@@ -142,7 +147,8 @@ fmt:
 fmt-check:
     {{gradlew}} spotlessCheck {{gradle_flags}}
     {{taplo}} fmt --check
-    {{biome}} format .
+    {{biome}} ci --error-on-warnings .
+    {{sh_run}} 'cd webapp/frontend && pnpm install --frozen-lockfile && pnpm run format:check'
     {{yamlfmt}} --lint
 
 # Spell-check and fix in place.

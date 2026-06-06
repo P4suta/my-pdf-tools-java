@@ -39,28 +39,13 @@
       "**/*.ts",
       "**/*.js",
       "**/*.mjs",
-      "**/*.svelte",
-      "!**/build/**",
-      "!**/.gradle/**",
-      "!**/.gradle-home/**",
-      "!**/artifacts/**",
-      "!**/node_modules/**",
-      "!**/dist/**",
-      "!**/resources/static/**"
+      "!**/build",
+      "!**/.gradle",
+      "!**/.gradle-home",
+      "!**/artifacts",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/resources/static"
     ]
-  },
-  "overrides": [
-    {
-      "includes": ["**/*.svelte"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnusedVariables": "off",
-            "noUnusedImports": "off",
-            "noUnusedFunctionParameters": "off"
-          }
-        }
-      }
-    }
-  ]
+  }
 }

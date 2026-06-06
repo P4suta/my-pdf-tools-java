@@ -77,6 +77,28 @@ jobs:
             **/build/test-results/
           if-no-files-found: ignore
 
+  web:
+    name: web frontend (prettier / svelte-check / build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      # The SPA's Node + pnpm toolchain lives in the dev image at pinned versions (same as the build
+      # job), so Prettier, svelte-check, and the vite build all run there rather than against a
+      # different host toolchain. See the build job for the uid/gid rationale.
+      - name: export host uid/gid for compose
+        run: |
+          echo "UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      - name: pull or build dev image
+        run: docker compose pull dev || docker compose build dev
+      # format:check is Prettier over the Svelte + CSS (Biome owns js/ts/json in the lint job);
+      # `build` is svelte-check (strict tsconfig) followed by the vite production build.
+      - name: pnpm install + format + svelte-check + build
+        run: >-
+          docker compose run --rm dev sh -lc
+          'cd webapp/frontend && pnpm install --frozen-lockfile && pnpm run format:check && pnpm run build'
+
   lint:
     name: lint (yaml / json / toml / spell / actions)
     runs-on: ubuntu-latest
@@ -102,9 +124,13 @@ jobs:
           ACTIONLINT_VERSION=1.7.12
           curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
             | sudo tar xz -C /usr/local/bin actionlint
-      - run: biome format .
+      # `biome ci` runs the formatter, linter, and import-sort in check mode (not just format),
+      # and --error-on-warnings makes any lint warning fail — the JS/TS/JSON gate is zero-tolerance.
+      - run: biome ci --error-on-warnings .
       - run: taplo fmt --check
-      - run: yamlfmt --lint .
+      # No path arg: a path overrides .yamlfmt's include/exclude, so `yamlfmt --lint .` would lint
+      # pnpm-lock.yaml / node_modules. Bare `--lint` honors the config globs (matches `just fmt-check`).
+      - run: yamlfmt --lint
       - run: actionlint -color
 
   rewrite-advisory:

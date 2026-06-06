@@ -183,10 +183,8 @@
 
   .panel {
     width: 100%;
-    /* Fill the .view height: the grid row stretches (grid-template-rows: 1fr) so the drop area +
-       controls fill it instead of leaving an empty bottom. On narrow 1-col the controls row stays
-       auto and the drop area takes the slack; min-height:0 lets the card shrink and .view scroll on
-       short screens. */
+    /* Empty state: one column, one stretched row, so the lone drop area fills the whole frame.
+       min-height:0 lets the card shrink and .view scroll on short screens. */
     flex: 1;
     min-height: 0;
     display: grid;
@@ -200,10 +198,18 @@
     box-shadow: var(--shadow-card);
   }
 
-  /* Wide screens: a two-column setup — the drop area beside the options + submit. */
+  /* File picked: the drop area takes its natural height and the options expand below it, top-packed. */
+  .panel.has-file {
+    grid-template-rows: auto;
+    align-content: start;
+  }
+
+  /* Wide screens, file picked: two columns — the drop area beside the options + submit. */
   @media (min-width: 52rem) {
-    .panel {
+    .panel.has-file {
       grid-template-columns: 1.2fr 1fr;
+      grid-template-rows: 1fr;
+      align-content: stretch;
       align-items: stretch;
     }
   }
@@ -228,11 +234,14 @@
     text-align: center;
     min-height: clamp(12.5rem, 34vh, 27.5rem);
     padding: var(--spacing-lg);
-    border: var(--border-dashed) dashed color-mix(in srgb, var(--color-accent) var(--tint-border), var(--color-line));
+    border: var(--border-dashed) dashed
+      color-mix(in srgb, var(--color-accent) var(--tint-border), var(--color-line));
     border-radius: var(--radius-md);
     background: var(--color-panel-2);
     cursor: pointer;
-    transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+    transition:
+      border-color var(--duration-fast) ease,
+      background var(--duration-fast) ease;
   }
 
   .dropzone:hover {
@@ -345,7 +354,9 @@
     border-radius: var(--radius-md);
     font: inherit;
     cursor: pointer;
-    transition: filter var(--duration-fast) ease, background var(--duration-fast) ease,
+    transition:
+      filter var(--duration-fast) ease,
+      background var(--duration-fast) ease,
       border-color var(--duration-fast) ease;
   }
 
@@ -643,7 +654,8 @@
        column rather than let flex leave it left-aligned. */
     align-self: center;
     background: color-mix(in srgb, var(--color-error) var(--tint-surface), var(--color-panel));
-    border: var(--border) solid color-mix(in srgb, var(--color-error) var(--tint-border-soft), var(--color-line));
+    border: var(--border) solid
+      color-mix(in srgb, var(--color-error) var(--tint-border-soft), var(--color-line));
     border-radius: var(--radius-lg);
     padding: var(--spacing-pad);
     color: var(--color-error);

@@ -11,7 +11,8 @@ insert_final_newline = true
 [*.{md,markdown}]
 trim_trailing_whitespace = false
 
-[*.{json,toml,yaml,yml}]
+# The web/data family is 2-space: Biome formats js/ts/json at 2, Prettier formats svelte/css at 2.
+[*.{json,jsonc,toml,yaml,yml,ts,js,mjs,svelte,css}]
 indent_size = 2
 
 [justfile]
