@@ -98,7 +98,7 @@ verification.
 
 - **Actions** — `ci` (build + check, lint), `distribution` (per-OS jpackage /
   installDist + smoke), `docs`, `dev-image`, `freshness`.
-- **Javadoc (Pages)** — https://p4suta.github.io/my-pdf-tools-java/
+- **Project page (Pages)** — https://p4suta.github.io/my-pdf-tools-java/ (API docs / Javadoc at [`/javadoc/`](https://p4suta.github.io/my-pdf-tools-java/javadoc/))
 - **dev image (GHCR)** — `ghcr.io/p4suta/my-pdf-tools-java-dev:latest`
 
 ## License
