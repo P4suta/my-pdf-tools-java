@@ -21,6 +21,10 @@ public enum OutputFormat {
             case SAME -> null;
             case PBM -> "pbm";
             case PNG -> "png";
+            // ".tif" (not ".tiff") is deliberate: the unified pipeline tells despeckle's stage
+            // output apart from register's by extension, so this MUST stay distinct from register's
+            // OutputFormat.TIFF -> "tiff". Unifying the two enums would silently break the
+            // pipeline.
             case TIFF -> "tif";
             case WEBP -> "webp";
         };

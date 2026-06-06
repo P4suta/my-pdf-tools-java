@@ -58,7 +58,7 @@ public final class DespeckleStage implements Stage {
     @Override
     public Corpus apply(Corpus input, Path workDir) throws IOException {
         // Bridge the service's framework-free per-page callback into this stage's progress event,
-        // labelling it with name() so it matches the StageStarted label PipelineRunner emits.
+        // labeling it with name() so it matches the StageStarted label PipelineRunner emits.
         PageProgressListener pages =
                 (done, total) ->
                         progress.emit(new ProgressEvent.PageProcessed(name(), done, total));

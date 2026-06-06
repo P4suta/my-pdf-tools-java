@@ -46,7 +46,7 @@ class PipelineFlowTest {
         Path output = tmp.resolve("book.pdf");
 
         // Capture page-level progress so the stage/sink bridges are exercised end-to-end: each
-        // stage must report PageProcessed events labelled with its own name(). The list is shared
+        // stage must report PageProcessed events labeled with its own name(). The list is shared
         // across the stages' worker pools, so guard it.
         List<ProgressEvent> events = Collections.synchronizedList(new ArrayList<>());
         ProgressSink sink = events::add;

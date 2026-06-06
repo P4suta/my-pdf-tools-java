@@ -167,7 +167,7 @@ class JsonlProgressCodecTest {
 
     @Test
     void rejectsUnterminatedString() {
-        assertThatThrownBy(() -> JsonlProgressCodec.read("{\"type\":\"runComplet"))
+        assertThatThrownBy(() -> JsonlProgressCodec.read("{\"type\":\"runComplete"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unterminated string");
     }

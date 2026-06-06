@@ -105,9 +105,11 @@ took.
 
 ## Architecture
 
-Six Gradle modules under `io.github.p4suta.despeckle`, a hexagonal (ports &
+Five Gradle modules under `io.github.p4suta.despeckle`, a hexagonal (ports &
 adapters) graph in which a layer violation does not compile — the boundary is
-the *absence* of a `project()` dependency, not a runtime check:
+the *absence* of a `project()` dependency, not a runtime check (the exit-code
+mapping + fatal uncaught handler now come from the cross-app `:shared:observability`
++ `:shared:cli`, which used to be a per-app `:observability` module):
 
 | module            | role                                                                        |
 | ----------------- | --------------------------------------------------------------------------- |
@@ -115,7 +117,6 @@ the *absence* of a `project()` dependency, not a runtime check:
 | `:port`           | the adapter interfaces — `PageCleaner`, `Reporter`, `PdfImageExtractor`, `Jbig2Assembler`, `PdfLinearizer` |
 | `:application`    | orchestration over the ports: `DespeckleService`, `PdfPipelineService`, `PdfBatchService`, `Jbig2PackService` |
 | `:infrastructure` | the adapters: `Leptonica` (FFM island) + `Pix`, PDFBox + `jbig2`/`qpdf`, the WebP `HtmlReporter` |
-| `:observability`  | exit-code mapping + the fatal uncaught handler                              |
 | `:app`            | Apache Commons CLI front end, `Main`, the composition root, distribution, the ArchUnit suite |
 
 `:domain`/`:port`/`:application` never see `:infrastructure`, so PDFBox, the FFM

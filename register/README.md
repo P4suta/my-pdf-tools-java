@@ -95,7 +95,7 @@ bilevel output:
 
 ## Architecture
 
-Six Gradle modules under `io.github.p4suta.register`, a **hexagonal (ports & adapters) graph** in
+Five Gradle modules under `io.github.p4suta.register`, a **hexagonal (ports & adapters) graph** in
 which a layer violation does not compile — the inter-module dependency edges put the offending class
 off the classpath. ArchUnit (in `:app`) pins the intra-module rules the module graph cannot express
 (the FFM island, PDFBox / `ProcessBuilder` / `System.out` / filesystem confinement, the single
@@ -104,9 +104,12 @@ JSpecify nullness vocabulary). Shared build conventions live in `build-logic/` a
 
 ```
 :app ──▶ :application ──▶ :port ──▶ :domain   (pure; no project or third-party runtime deps)
-  ├────▶ :infrastructure ──▶ :port, :domain   (PDFBox / Leptonica(FFM) / external binaries only here)
-  └────▶ :observability ──▶ :domain
+  └────▶ :infrastructure ──▶ :port, :domain   (PDFBox / Leptonica(FFM) / external binaries only here)
 ```
+
+The `Throwable` → exit-code mapping and the fatal uncaught-exception handler the CLI installs now
+come from the cross-app `:shared:observability` + `:shared:cli` modules (they used to be a per-app
+`:observability` module).
 
 | module | role |
 | --- | --- |
@@ -114,7 +117,6 @@ JSpecify nullness vocabulary). Shared build conventions live in `build-logic/` a
 | `:port` | the interfaces the application drives and the infrastructure implements — `PageRegistrar`, `PdfImageExtractor`, `Jbig2Assembler`, `Reporter`/`ReporterFactory` — speaking only domain types and file paths (no `Pix`, no PDFBox crosses the boundary) |
 | `:application` | orchestration: the corpus `RegistrationService` (directory walk, fixed thread pool, the two-pass analyze → reference → render) and the `register pipeline` drivers (`PdfPipelineService`, `PdfBatchService`). Sees only `:domain` + `:port` |
 | `:infrastructure` | the adapters: `Leptonica` (the one FFM binding island) + `Pix` (RAII handle) + the pixel-pushing `LeptonicaPageRegistrar` / `MainColumnDetector`; the PDFBox + `pdfimages`/`jbig2` PDF wrappers; the opt-in `--diag` renderers; the native-tool/process helpers. The one module that uses PDFBox and crosses the FFM/process boundary; publishes the `TestImages` fixture |
-| `:observability` | the `Throwable` → exit-code mapping and the fatal uncaught-exception handler the CLI installs |
 | `:app` | the composition root and runnable artifact: `Main`, the Apache Commons CLI front end (`RegisterCommand`/`PipelineCommand`, shared parsing in `CliSupport`), and the self-contained jpackage app-image distribution (jlink + shadow + staged natives) |
 
 The project-wide JaCoCo coverage aggregation (`just coverage`) lives in the root build, not a module.

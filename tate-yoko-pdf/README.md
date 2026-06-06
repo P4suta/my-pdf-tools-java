@@ -142,13 +142,14 @@ just docker-clean     # 本プロジェクトの Docker artifacts を一掃
 
 ## アーキテクチャ
 
-ヘキサゴナル（Ports & Adapters）を採用し、ドメインロジックを PDF ライブラリから完全に隔離しています。v2.0.0 で各レイヤを **6つの Gradle モジュール**に物理分割し、PDFBox/qpdf の封じ込めやドメイン純粋性は ArchUnit ではなく**クラスパス上に相手が存在しないこと**でコンパイル時に強制されます。
+ヘキサゴナル（Ports & Adapters）を採用し、ドメインロジックを PDF ライブラリから完全に隔離しています。v2.0.0 で各レイヤを **5つの Gradle モジュール**に物理分割し、PDFBox/qpdf の封じ込めやドメイン純粋性は ArchUnit ではなく**クラスパス上に相手が存在しないこと**でコンパイル時に強制されます。
 
 ```
 :app ──▶ :application ──▶ :port ──▶ :domain（純粋・依存なし）
-  ├────▶ :infrastructure ──▶ :port, :domain（PDFBox / qpdf はここだけ）
-  └────▶ :observability ──▶ :domain
+  └────▶ :infrastructure ──▶ :port, :domain（PDFBox / qpdf はここだけ）
 ```
+
+例外→終了コードのマッピングと致命的例外ハンドラは、かつての各アプリ `:observability` モジュールに代わり、現在は横断共有の `:shared:observability` + `:shared:cli` が担います。
 
 設計の俯瞰・各モジュールの責務・判断の背景（ADR）は **[docs/architecture.md](docs/architecture.md)** と **[docs/adr/](docs/adr/)** を参照してください。
 
@@ -161,7 +162,7 @@ just docker-clean     # 本プロジェクトの Docker artifacts を一掃
 | 言語 | Java | 25 |
 | PDF操作 | Apache PDFBox | 3.0.7 |
 | CLI | Apache Commons CLI | 1.11.0 |
-| ロギング | SLF4J + Logback | 1.5.33 |
+| ロギング | SLF4J + slf4j-simple | 2.0.18 |
 | ビルド | Gradle (Kotlin DSL) | 9.5.1 |
 | Fat JAR | Shadow Plugin | 9.4.2 |
 | 配布 | jlink + jpackage (Liberica JDK Full 25 同梱) | OpenJDK 25 |
@@ -180,7 +181,7 @@ just test     # テストのみ
 ```
 
 テストは多層構成:
-- **Unit** (`domain.*`, `application`, `domain.exception`, `observability`) — 純粋ロジック、外部依存なし
+- **Unit** (`domain.*`, `application`, `domain.exception`) — 純粋ロジック、外部依存なし
 - **Property-based** (`jqwik`) — Pagination / SpreadLayoutCalculator の不変条件を多数ケースで検証
 - **Integration** (`infrastructure.pdfbox` / `infrastructure.qpdf`) — 実 PDFBox / qpdf 経由で破損・暗号化・回転 PDF や linearize を扱う
 - **Architecture** (`architecture`、`:app`) — ArchUnit で残る2点（`domain.strategy` の直接生成禁止・パッケージ循環禁止）を強制。他の境界はモジュール分割によりコンパイル時に強制される

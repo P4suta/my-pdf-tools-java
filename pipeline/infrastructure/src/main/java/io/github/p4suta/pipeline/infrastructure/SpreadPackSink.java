@@ -102,7 +102,7 @@ public final class SpreadPackSink implements Sink {
 
     /**
      * Bridges tate's per-spread {@link ProgressListener} onto this sink's progress channel: each
-     * finished spread becomes a {@code PageProcessed} event labelled with {@link #name()}. The
+     * finished spread becomes a {@code PageProcessed} event labeled with {@link #name()}. The
      * start/complete callbacks carry nothing the channel needs (the stage boundary is emitted by
      * {@code PipelineRunner}), so they are ignored.
      */
