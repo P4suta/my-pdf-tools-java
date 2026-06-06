@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.p4suta.webapp.port.QueueFullException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
 class BoundedConversionExecutorTest {
@@ -39,6 +40,35 @@ class BoundedConversionExecutorTest {
                     .hasMessageContaining("queue is full");
 
             release.countDown();
+        }
+    }
+
+    @Test
+    void reportsQueueStatistics() throws InterruptedException {
+        try (BoundedConversionExecutor executor = new BoundedConversionExecutor(2)) {
+            assertThat(executor.capacity()).isEqualTo(2);
+            assertThat(executor.queued()).isZero();
+            assertThat(executor.active()).isZero();
+            assertThat(executor.remainingCapacity()).isEqualTo(2);
+            assertThat(executor.completed()).isZero();
+
+            CountDownLatch started = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            executor.submit(
+                    () -> {
+                        started.countDown();
+                        await(release);
+                    });
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue(); // worker busy
+            executor.submit(() -> {}); // a second task waits in the queue
+
+            assertThat(executor.active()).isEqualTo(1);
+            assertThat(executor.queued()).isEqualTo(1);
+            assertThat(executor.remainingCapacity()).isEqualTo(1);
+
+            release.countDown();
+            Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> executor.completed() == 2L);
+            assertThat(executor.queued()).isZero();
         }
     }
 

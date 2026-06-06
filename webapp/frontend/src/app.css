@@ -1,438 +1,690 @@
-:root {
-  color-scheme: light dark;
-  --bg: #eef1f5;
-  --panel: #ffffff;
-  --panel-2: #f8fafc;
-  --ink: #1c2024;
-  --muted: #6b7280;
-  --line: #e3e7ec;
-  --accent: #2563eb;
-  --accent-ink: #ffffff;
-  --ok: #15803d;
-  --error: #b91c1c;
-  --radius: 16px;
-  --pad: clamp(1rem, 2.4vw, 2rem);
-  --gap: clamp(0.85rem, 1.6vw, 1.25rem);
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 30px rgba(15, 23, 42, 0.08);
-  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-  font-synthesis: none;
-  -webkit-text-size-adjust: 100%;
+@import "tailwindcss";
+
+/* Design system — the single source of truth. Every value below is a rational scale token (also a
+   Tailwind @theme value, so utilities like bg-bg / text-sm / rounded-md / p-md / gap-gap are
+   generated for new work). Components consume only these tokens — no scattered magic numbers. */
+@theme {
+  /* ----- color ----- */
+  --color-bg: #eef1f5;
+  --color-panel: #ffffff;
+  --color-panel-2: #f8fafc;
+  --color-ink: #1c2024;
+  --color-muted: #6b7280;
+  --color-line: #e3e7ec;
+  --color-accent: #2563eb;
+  --color-accent-2: #22d3ee; /* the cyan end of the progress gradient */
+  --color-accent-ink: #ffffff;
+  --color-ok: #15803d;
+  --color-error: #b91c1c;
+
+  /* ----- spacing (0.25rem grid) + two fluid section tokens ----- */
+  --spacing-2xs: 0.25rem;
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-gap: clamp(0.75rem, 1.6vw, 1.25rem); /* fluid in-section gap */
+  --spacing-pad: clamp(1rem, 2.4vw, 2rem); /* fluid section padding */
+
+  /* ----- type scale (static steps + fluid display sizes) ----- */
+  --text-xs: 0.8rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-title: clamp(1.25rem, 1rem + 1.2vw, 1.75rem); /* topbar h1 */
+  --text-status: clamp(1.4rem, 1.1rem + 1.4vw, 2rem); /* run status word + dropzone icon */
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ----- radius (controls/boxes = md, surfaces = lg, bars = full; circles use 50%) ----- */
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* ----- borders + control sizing ----- */
+  --border: 1px;
+  --border-dashed: 2px;
+  --control-height: 2.75rem;
+  --size-bar: 0.375rem; /* progress bar / track height */
+
+  /* ----- motion ----- */
+  --duration-fast: 150ms; /* hovers, focus, control transitions */
+  --duration-base: 300ms; /* progress bar width */
+  --duration-pulse: 1200ms; /* active-step + liveness pulse */
+  --duration-sweep: 1500ms; /* indeterminate bar sweep */
+
+  /* ----- tint strengths (color-mix percentages, rationalized to a small set) ----- */
+  --tint-surface: 8%; /* subtle filled surfaces (active/failed step, error box) */
+  --tint-track: 14%; /* progress bar tracks */
+  --tint-drag: 12%; /* dropzone while dragging */
+  --tint-border: 50%; /* strong accent/error borders (dashed / filled / active / failed) */
+  --tint-border-soft: 40%; /* softer error border + stale-liveness text */
+
+  /* ----- elevation + type family ----- */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 30px rgba(15, 23, 42, 0.08);
+  --font-sans: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
 }
 
+/* Dark theme: swap the token values; every utility and component reading them follows. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1115;
-    --panel: #1a1d23;
-    --panel-2: #14171c;
-    --ink: #e6e8eb;
-    --muted: #9aa3af;
-    --line: #2a2f37;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.4);
+    --color-bg: #0f1115;
+    --color-panel: #1a1d23;
+    --color-panel-2: #14171c;
+    --color-ink: #e6e8eb;
+    --color-muted: #9aa3af;
+    --color-line: #2a2f37;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.4);
   }
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One consistent keyboard-focus ring across every interactive element. */
+  :where(.primary, .ghost, select, .check input):focus-visible,
+  .dropzone:focus-within {
+    outline: var(--border-dashed) solid var(--color-accent);
+    outline-offset: var(--spacing-2xs);
+  }
 }
 
-html,
-body,
-#app {
-  height: 100%;
+@layer components {
+  /* ---------- app shell: fills the viewport, header + a single full-bleed screen ---------- */
+
+  .shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .topbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    /* Horizontal gutter MUST match .view's so the logo/title left edge lines up with the content
+       column below it (both use --spacing-gap, including the safe-area fallback). */
+    padding: var(--spacing-sm) var(--spacing-gap);
+    padding-top: max(var(--spacing-sm), env(safe-area-inset-top));
+    padding-left: max(var(--spacing-gap), env(safe-area-inset-left));
+    padding-right: max(var(--spacing-gap), env(safe-area-inset-right));
+    background: var(--color-panel);
+    border-bottom: var(--border) solid var(--color-line);
+    z-index: 1;
+  }
+
+  .topbar .logo {
+    font-size: var(--text-status);
+    line-height: 1;
+  }
+
+  .brand h1 {
+    margin: 0;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--text-title);
+    letter-spacing: 0.01em;
+  }
+
+  .tagline {
+    margin: var(--spacing-2xs) 0 0;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+
+  /* The screen is a single stacking area; phase views cross-fade in the same cell. */
+  .screen {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+  }
+
+  /* Shared frame for every phase: one consistent page gutter, full-bleed (stretched) children, and
+     top-anchored content that scrolls when tall. It's a flex column, so children stack from the top
+     (no vertical jump between phases) and the done view's preview — the only flex:1 child — is what
+     grows to fill the height; every other phase keeps its natural height at the top. */
+  .view {
+    grid-area: 1 / 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-gap);
+    overflow-y: auto;
+    padding: var(--spacing-gap);
+    padding-left: max(var(--spacing-gap), env(safe-area-inset-left));
+    padding-right: max(var(--spacing-gap), env(safe-area-inset-right));
+    padding-bottom: max(var(--spacing-gap), env(safe-area-inset-bottom));
+  }
+
+  /* ---------- setup view (idle) ---------- */
+
+  .panel {
+    width: 100%;
+    /* Fill the screen height (like the done view): the card grows to the full .view height, and its
+       grid row stretches (grid-template-rows: 1fr) so the drop area + controls fill it instead of
+       leaving an empty bottom. On narrow 1-col the controls row stays auto (always visible) and the
+       drop area takes the slack; min-height:0 lets the card shrink and .view scroll on short screens. */
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    gap: var(--spacing-pad);
+    background: var(--color-panel);
+    border: var(--border) solid var(--color-line);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-pad);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Wide screens: a generous two-column setup — the large drop area beside the options + submit —
+     so the screen is used with room to breathe instead of a small centered card. */
+  @media (min-width: 52rem) {
+    .panel {
+      grid-template-columns: 1.2fr 1fr;
+      align-items: stretch;
+    }
+  }
+
+  .setup-controls {
+    display: flex;
+    flex-direction: column;
+    /* Center the options + submit as a group: on wide screens the column is stretched to the drop
+       area's height, so centering keeps the submit button from floating with empty space below it. */
+    justify-content: center;
+    gap: var(--spacing-gap);
+    min-width: 0;
+  }
+
+  .dropzone {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    text-align: center;
+    min-height: clamp(12.5rem, 34vh, 27.5rem);
+    padding: var(--spacing-lg);
+    border: var(--border-dashed) dashed color-mix(in srgb, var(--color-accent) var(--tint-border), var(--color-line));
+    border-radius: var(--radius-md);
+    background: var(--color-panel-2);
+    cursor: pointer;
+    transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+  }
+
+  .dropzone:hover {
+    border-color: var(--color-accent);
+  }
+
+  .dropzone.dragging {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) var(--tint-drag), var(--color-panel-2));
+  }
+
+  .dropzone.filled {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--color-accent) var(--tint-border), var(--color-line));
+  }
+
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .dz-icon {
+    font-size: var(--text-status);
+    color: var(--color-accent);
+  }
+
+  .dz-title {
+    font-weight: var(--font-weight-semibold);
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .dz-hint {
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+  }
+
+  .field-error {
+    margin: 0;
+    color: var(--color-error);
+    font-size: var(--text-sm);
+  }
+
+  /* ---------- form ---------- */
+
+  fieldset {
+    border: var(--border) solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin: 0;
+    display: grid;
+    gap: var(--spacing-sm);
+    min-width: 0;
+  }
+
+  legend {
+    font-weight: var(--font-weight-semibold);
+    padding: 0 var(--spacing-2xs);
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xs);
+    min-width: 0;
+  }
+
+  .field > span {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+  }
+
+  .checks {
+    display: grid;
+    gap: var(--spacing-xs);
+  }
+
+  .check input {
+    width: var(--spacing-md);
+    height: var(--spacing-md);
+    flex: none;
+    accent-color: var(--color-accent);
+  }
+
+  /* ---------- controls: buttons + select share one shape ---------- */
+
+  .primary,
+  .ghost,
+  select {
+    min-height: var(--control-height);
+    border-radius: var(--radius-md);
+    font: inherit;
+    cursor: pointer;
+    transition: filter var(--duration-fast) ease, background var(--duration-fast) ease,
+      border-color var(--duration-fast) ease;
+  }
+
+  .primary,
+  .ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--spacing-md);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: none;
+  }
+
+  .primary {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    border: var(--border) solid transparent;
+  }
+
+  .primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .primary.block {
+    width: 100%;
+  }
+
+  .ghost {
+    background: transparent;
+    color: var(--color-ink);
+    border: var(--border) solid var(--color-line);
+  }
+
+  .ghost:hover {
+    background: var(--color-panel-2);
+  }
+
+  select {
+    width: 100%;
+    padding: 0 var(--spacing-sm);
+    border: var(--border) solid var(--color-line);
+    background: var(--color-panel);
+    color: var(--color-ink);
+  }
+
+  /* ---------- run view: pipeline stepper + liveness header (children of the shared .view) ---------- */
+
+  .run-head {
+    flex: none; /* stays its natural height at the top; the stepper below takes the slack */
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .run-status {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+  }
+
+  .status-word {
+    font-size: var(--text-status);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.01em;
+  }
+
+  .status-word.is-failed {
+    color: var(--color-error);
+  }
+
+  .elapsed {
+    flex: none;
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-sm);
+  }
+
+  .overall {
+    height: var(--size-bar);
+    background: color-mix(in srgb, var(--color-accent) var(--tint-track), transparent);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .overall-fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(
+      90deg,
+      var(--color-accent),
+      color-mix(in srgb, var(--color-accent) 65%, var(--color-accent-2))
+    );
+    border-radius: inherit;
+    transition: width var(--duration-base) ease;
+  }
+
+  /* Nothing determinate yet (e.g. the silent extract step): sweep the bar so it reads as working. */
+  .overall.indeterminate .overall-fill {
+    width: 35% !important;
+    animation: sweep var(--duration-sweep) ease-in-out infinite;
+  }
+
+  .liveness {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
+    min-height: 1.2em;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .liveness.stale {
+    color: color-mix(in srgb, var(--color-error) var(--tint-border-soft), var(--color-muted));
+  }
+
+  .liveness.failed {
+    color: var(--color-error);
+  }
+
+  .liveness .dot {
+    flex: none;
+    width: var(--spacing-xs);
+    height: var(--spacing-xs);
+    border-radius: 50%;
+    background: var(--color-accent);
+    animation: pulse var(--duration-pulse) ease-in-out infinite;
+  }
+
+  /* ---------- stepper ---------- */
+
+  .stepper {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* Fill the remaining height and distribute the pipeline steps down the screen so the running
+       view uses the full height instead of clustering at the top. (Distribution tuned live — this
+       spreads compact step cards; switch to `.step { flex: 1 }` if equal-height cards read better.) */
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: var(--spacing-xs);
+  }
+
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: var(--border) solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-panel);
+  }
+
+  .step.active {
+    border-color: color-mix(in srgb, var(--color-accent) var(--tint-border), var(--color-line));
+    background: color-mix(in srgb, var(--color-accent) var(--tint-surface), var(--color-panel));
+  }
+
+  .step.failed {
+    border-color: color-mix(in srgb, var(--color-error) var(--tint-border), var(--color-line));
+    background: color-mix(in srgb, var(--color-error) var(--tint-surface), var(--color-panel));
+  }
+
+  .step-icon {
+    flex: none;
+    width: var(--spacing-lg);
+    height: var(--spacing-lg);
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: var(--border) solid var(--color-line);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    line-height: 1;
+  }
+
+  .step.active .step-icon {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    animation: pulse var(--duration-pulse) ease-in-out infinite;
+  }
+
+  .step.done .step-icon {
+    border-color: var(--color-ok);
+    background: var(--color-ok);
+    color: var(--color-accent-ink);
+  }
+
+  .step.failed .step-icon {
+    border-color: var(--color-error);
+    background: var(--color-error);
+    color: var(--color-accent-ink);
+  }
+
+  .step-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .step-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+  }
+
+  .step-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .step.active .step-name {
+    color: var(--color-ink);
+  }
+
+  .step.failed .step-name {
+    color: var(--color-error);
+  }
+
+  .step-meta {
+    flex: none;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .step-bar {
+    height: var(--size-bar);
+    background: color-mix(in srgb, var(--color-accent) var(--tint-track), transparent);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .step-fill {
+    height: 100%;
+    width: 0;
+    background: var(--color-accent);
+    border-radius: inherit;
+    transition: width var(--duration-base) ease;
+  }
+
+  .step-bar.indeterminate .step-fill {
+    width: 40%;
+    animation: sweep var(--duration-sweep) ease-in-out infinite;
+  }
+
+  /* ---------- result: full-bleed preview (children of the shared .view) ---------- */
+
+  .result-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  .result-bar .ok {
+    color: var(--color-ok);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .result-bar .grow {
+    flex: 1;
+    min-width: var(--spacing-xs);
+  }
+
+  .preview {
+    flex: 1;
+    width: 100%;
+    min-height: clamp(20rem, 50vh, 100%);
+    border: var(--border) solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background: #fff;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ---------- error ---------- */
+
+  .errbox {
+    width: 100%;
+    max-width: 36rem;
+    /* Keep a readable measure (don't stretch error prose full-bleed) but center it in the .view
+       column instead of letting flex stretch leave it left-aligned. */
+    align-self: center;
+    background: color-mix(in srgb, var(--color-error) var(--tint-surface), var(--color-panel));
+    border: var(--border) solid color-mix(in srgb, var(--color-error) var(--tint-border-soft), var(--color-line));
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-pad);
+    color: var(--color-error);
+    text-align: left;
+    box-shadow: var(--shadow-card);
+  }
+
+  .errbox strong {
+    display: block;
+    margin-bottom: var(--spacing-2xs);
+  }
+
+  .errbox p {
+    margin: 0 0 var(--spacing-sm);
+    color: var(--color-ink);
+    overflow-wrap: anywhere;
+  }
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+/* ---------- animations ---------- */
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
 }
 
-/* ---------- app shell: fills the viewport, header + a single full-bleed screen ---------- */
-
-.shell {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  overflow: hidden;
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
-
-.topbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: clamp(0.7rem, 1.6vw, 1.15rem) var(--pad);
-  padding-top: max(clamp(0.7rem, 1.6vw, 1.15rem), env(safe-area-inset-top));
-  padding-left: max(var(--pad), env(safe-area-inset-left));
-  padding-right: max(var(--pad), env(safe-area-inset-right));
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  z-index: 1;
-}
-
-.topbar .logo {
-  font-size: 1.7rem;
-  line-height: 1;
-}
-
-.brand h1 {
-  margin: 0;
-  font-size: clamp(1.25rem, 1rem + 1.2vw, 1.75rem);
-  letter-spacing: 0.01em;
-}
-
-.tagline {
-  margin: 0.05rem 0 0;
-  color: var(--muted);
-  font-size: clamp(0.78rem, 0.72rem + 0.3vw, 0.92rem);
-}
-
-/* The screen is a single stacking area; phase views cross-fade in the same cell. */
-.screen {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: grid;
-}
-
-.view {
-  grid-area: 1 / 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-/* ---------- setup view (idle) ---------- */
-
-.setup {
-  display: grid;
-  place-items: center;
-  overflow-y: auto;
-  padding: var(--gap);
-  padding-left: max(var(--gap), env(safe-area-inset-left));
-  padding-right: max(var(--gap), env(safe-area-inset-right));
-  padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
-}
-
-.panel {
-  width: 100%;
-  max-width: 36rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--pad);
-  box-shadow: var(--shadow);
-}
-
-.dropzone {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  text-align: center;
-  min-height: clamp(140px, 22vh, 220px);
-  padding: 1.2rem;
-  border: 2px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
-  border-radius: 12px;
-  background: var(--panel-2);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.dropzone:hover {
-  border-color: var(--accent);
-}
-
-.dropzone.dragging {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
-}
-
-.dropzone.filled {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-}
-
-.dropzone input[type="file"] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.dz-icon {
-  font-size: 1.7rem;
-  color: var(--accent);
-}
-
-.dz-title {
-  font-weight: 600;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-
-.dz-hint {
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.field-error {
-  margin: -0.4rem 0 0;
-  color: var(--error);
-  font-size: 0.85rem;
-}
-
-fieldset {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.9rem 1rem 1rem;
-  margin: 0;
-  display: grid;
-  gap: 0.85rem;
-  min-width: 0;
-}
-
-legend {
-  font-weight: 600;
-  padding: 0 0.35rem;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.85rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-}
-
-.field > span {
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-select {
-  width: 100%;
-  padding: 0.55rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  font: inherit;
-}
-
-.checks {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  cursor: pointer;
-}
-
-.check input {
-  width: 1.15rem;
-  height: 1.15rem;
-  flex: none;
-  accent-color: var(--accent);
-}
-
-/* ---------- buttons ---------- */
-
-.primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.9rem;
-  padding: 0.7rem 1.25rem;
-  background: var(--accent);
-  color: var(--accent-ink);
-  border: none;
-  border-radius: 10px;
-  font: inherit;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: filter 0.15s ease;
-}
-
-.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.primary.block {
-  width: 100%;
-}
-
-.ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.9rem;
-  padding: 0.7rem 1.1rem;
-  background: transparent;
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ghost:hover {
-  background: var(--panel-2);
-}
-
-/* ---------- work view: running + result + error ---------- */
-
-.work {
-  display: flex;
-  flex-direction: column;
-}
-
-.centered {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: var(--pad);
-  text-align: center;
-}
-
-.running .rnum {
-  font-size: clamp(3.5rem, 12vw, 8rem);
-  font-weight: 800;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-}
-
-.running .rnum .unit {
-  font-size: 0.4em;
-  font-weight: 700;
-  color: var(--muted);
-  margin-left: 0.1em;
-}
-
-.running .rlabel {
-  margin: 0;
-  color: var(--muted);
-  font-size: clamp(0.9rem, 0.8rem + 0.5vw, 1.1rem);
-  overflow-wrap: anywhere;
-}
-
-.bar {
-  height: 14px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.bar.wide {
-  width: min(680px, 90vw);
-}
-
-.fill {
-  height: 100%;
-  width: 0;
-  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 65%, #22d3ee));
-  border-radius: inherit;
-  transition: width 0.3s ease;
-}
-
-/* ---------- result: full-bleed preview ---------- */
-
-.result {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-  padding: var(--gap);
-  padding-left: max(var(--gap), env(safe-area-inset-left));
-  padding-right: max(var(--gap), env(safe-area-inset-right));
-  padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
-}
-
-.result-bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.result-bar .ok {
-  color: var(--ok);
-  font-weight: 700;
-}
-
-.result-bar .grow {
-  flex: 1;
-  min-width: 0.5rem;
-}
-
-.preview {
-  flex: 1;
-  width: 100%;
-  min-height: clamp(320px, 50vh, 100%);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #fff;
-  box-shadow: var(--shadow);
-}
-
-/* ---------- error ---------- */
-
-.errbox {
-  width: 100%;
-  max-width: 36rem;
-  background: color-mix(in srgb, var(--error) 8%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--error) 35%, var(--line));
-  border-radius: var(--radius);
-  padding: var(--pad);
-  color: var(--error);
-  text-align: left;
-  box-shadow: var(--shadow);
-}
-
-.errbox strong {
-  display: block;
-  margin-bottom: 0.3rem;
-}
-
-.errbox p {
-  margin: 0 0 0.9rem;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-/* ---------- motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   * {

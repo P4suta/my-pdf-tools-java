@@ -1,4 +1,4 @@
-# Unified monorepo dev service — one container that can build all three apps'
+# Unified monorepo dev service — one container that can build all five features'
 # full gates. Mirrors register/despeckle's compose conventions (the warm path):
 # a single `dev` service, the whole repo bind-mounted at /workspace, the Gradle
 # user-home living in the host-owned ./.gradle-home (git-ignored) via the bind

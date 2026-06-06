@@ -1,7 +1,9 @@
 # my-pdf-tools-java
 
-A monorepo of three command-line tools for self-scanned (自炊) Japanese-book PDFs
-and the bitonal page images inside them, built on a shared hexagonal core.
+A monorepo of command-line tools for self-scanned (自炊) Japanese-book PDFs and the
+bitonal page images inside them — three focused tools, the unified `pdfbook`
+pipeline that chains them, and a Spring Boot web layer — built on a shared
+hexagonal core.
 
 ## Tools
 
@@ -25,12 +27,22 @@ pipeline/app/build/install/pdfbook/bin/pdfbook scan.pdf -o book.pdf   # one book
 pipeline/app/build/install/pdfbook/bin/pdfbook scans/ -o out/          # batch a directory
 ```
 
+## Web app
+
+[`webapp`](webapp/) is a Spring Boot web front end for `pdfbook`: upload a scan,
+watch per-page progress over SSE, and download the finished book. It runs pdfbook
+out-of-process, so it has **zero** compile dependency on `pipeline`; a Svelte SPA
+(`webapp/frontend/`) drives the API. See ADR
+[0009](docs/adr/0009-spring-boot-web-layer-and-deployment.md).
+
 ## Layout
 
-Each app — and the unified `pipeline` — is a hexagonal stack of five modules —
-`domain`, `port`, `application`, `infrastructure`, `app` (composition root +
-runnable artifact); the pipeline's infrastructure wraps the three apps' services as
-pipeline stages. Cross-cutting code lives in seven shared modules:
+Each feature — the three tools, the unified `pipeline`, and the `webapp` — is a
+hexagonal stack of five modules — `domain`, `port`, `application`,
+`infrastructure`, `app` (composition root + runnable artifact); the pipeline's
+infrastructure wraps the three tools' services as pipeline stages, and `webapp`
+shells out to the packaged pdfbook binary. Cross-cutting code lives in eight shared
+modules:
 
 ```
 shared/
@@ -41,6 +53,7 @@ shared/
   process        external-process execution
   pdf            PDFBox-based PDF helpers
   io             filesystem / stream helpers
+  progress       conversion progress / lifecycle events (SSE / JSONL)
 ```
 
 `register` and `despeckle` reach Leptonica through the Java FFM API (Linux-only
@@ -54,7 +67,7 @@ image (root `Dockerfile`) carries the entire toolchain (Liberica JDK 25 Full,
 Leptonica, the PDF toolbox, fonts, and the linters).
 
 ```sh
-docker compose run --rm dev ./gradlew build   # full quality gate, all 27 modules
+docker compose run --rm dev ./gradlew build   # full quality gate, every module
 docker compose run --rm dev just build        # same, via the justfile
 docker compose run --rm dev just lint          # peripheral linters
 ```

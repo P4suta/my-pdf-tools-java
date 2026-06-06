@@ -6,6 +6,8 @@ import io.github.p4suta.webapp.domain.Direction;
 import io.github.p4suta.webapp.domain.FirstPage;
 import io.github.p4suta.webapp.domain.Job;
 import io.github.p4suta.webapp.domain.JobId;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -20,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -35,6 +38,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @RestController
 @RequestMapping("/api/v1")
+@Tag(name = "jobs", description = "Submit conversions and fetch their status, progress, and result")
 public class JobController {
 
     private final Conversions conversions;
@@ -68,6 +72,10 @@ public class JobController {
      */
     @PostMapping(path = "/jobs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(
+            summary = "Queue a conversion",
+            description =
+                    "Accepts a scanned PDF upload and starts a conversion; returns the job id.")
     public JobAccepted submit(
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "RTL") String direction,
@@ -98,11 +106,47 @@ public class JobController {
     }
 
     /**
+     * Probes the result cache so a client can skip uploading a file whose conversion is already
+     * cached. Given the SHA-256 of the PDF and the same options it would submit, a hit mints a
+     * ready job and returns it; a miss returns 204 so the client uploads via {@link #submit}.
+     *
+     * @param body the content hash and conversion options
+     * @return the ready job on a hit, or {@code 204 No Content} on a miss
+     * @throws IOException if a hit's cached result cannot be materialized
+     */
+    @PostMapping(path = "/jobs/probe", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(
+            summary = "Probe the result cache",
+            description =
+                    "Given a PDF's SHA-256 and the conversion options, returns a ready job id if"
+                        + " the result is already cached (so the client can skip the upload), or"
+                        + " 204 if not.")
+    public ResponseEntity<JobAccepted> probe(@RequestBody ProbeRequest body) throws IOException {
+        ConversionRequest request =
+                new ConversionRequest(
+                        direction(body.direction() == null ? "RTL" : body.direction()),
+                        firstPage(body.firstPage() == null ? "right" : body.firstPage()),
+                        body.despeckle(),
+                        body.register(),
+                        body.deskew(),
+                        body.scale(),
+                        body.pdfA(),
+                        defaultJobs); // the worker count does not affect the cache key
+        String sha = requireSha256(body.sha256());
+        String filename = sanitizeFilename(body.originalFilename());
+        return conversions
+                .probe(sha, request, filename)
+                .map(id -> ResponseEntity.ok(new JobAccepted(id.value(), "DONE")))
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /**
      * {@return the status of job {@code id}}
      *
      * @param id the job id
      */
     @GetMapping("/jobs/{id}")
+    @Operation(summary = "Get job status", description = "Returns the job's lifecycle state.")
     public JobStatusResponse status(@PathVariable String id) {
         return JobStatusResponse.from(conversions.get(new JobId(id)));
     }
@@ -115,6 +159,10 @@ public class JobController {
      * @return the SSE stream
      */
     @GetMapping("/jobs/{id}/events")
+    @Operation(
+            summary = "Stream job progress (SSE)",
+            description =
+                    "Server-Sent Events of the job's progress, replaying anything already sent.")
     public SseEmitter events(@PathVariable String id) {
         Job job = conversions.get(new JobId(id));
         return publisher.openStream(job);
@@ -130,6 +178,9 @@ public class JobController {
      * @return the PDF, served inline with the book filename in the Content-Disposition
      */
     @GetMapping({"/jobs/{id}/result", "/jobs/{id}/result/{filename}"})
+    @Operation(
+            summary = "Download the finished book PDF",
+            description = "Serves the composed book inline once the job is DONE.")
     public ResponseEntity<Resource> result(@PathVariable String id) {
         JobId jobId = new JobId(id);
         Job job = conversions.get(jobId);
@@ -153,6 +204,14 @@ public class JobController {
             throw new IllegalArgumentException(
                     "only application/pdf uploads are accepted, got " + contentType);
         }
+    }
+
+    private static String requireSha256(@Nullable String value) {
+        if (value == null || !value.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException(
+                    "sha256 must be a 64-character lowercase hex string");
+        }
+        return value;
     }
 
     private static Direction direction(String value) {

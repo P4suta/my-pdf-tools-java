@@ -5,20 +5,33 @@ import {
   type Direction,
   type FirstPage,
   getStatus,
+  probe,
   type ProgressEvent,
   resultUrl,
+  sha256Hex,
   streamProgress,
   submitJob,
 } from "./api";
 
 type Phase = "idle" | "uploading" | "running" | "done" | "failed";
+type StepKey = "extract" | "despeckle" | "register" | "spread";
+type StepStatus = "pending" | "active" | "done" | "failed";
 
-interface Progress {
-  fraction: number;
+interface Step {
+  key: StepKey;
   label: string;
-  stageCount: number;
-  index: number;
+  status: StepStatus;
+  done: number;
+  total: number;
+  indeterminate: boolean; // extract reports no per-page events, so its bar can't be determinate
 }
+
+const STEP_LABELS: Record<StepKey, string> = {
+  extract: "抽出",
+  despeckle: "ノイズ除去",
+  register: "整列",
+  spread: "製本",
+};
 
 let file = $state<File | null>(null);
 let fileNote = $state<string | null>(null);
@@ -32,13 +45,121 @@ let options = $state<ConversionOptions>({
   scale: true,
   pdfA: false,
 });
+
 let phase = $state<Phase>("idle");
-let progress = $state<Progress>({ fraction: 0, label: "", stageCount: 0, index: 0 });
+let steps = $state<Step[]>([]);
 let jobId = $state<string | null>(null);
 let error = $state<string | null>(null);
+let errorKind = $state<string | null>(null);
+let queued = $state(false);
+let fromCache = $state(false); // served instantly from the result cache (upload skipped)
 let source: EventSource | null = null;
 
-const percent = $derived(Math.round(progress.fraction * 100));
+// Liveness clock: `now` ticks once a second while a job is in flight, so the elapsed time and the
+// "last update" readout keep moving even when no progress event arrives — the extract step is
+// silent, and a slow or hung step would otherwise look identical to a fast one.
+let now = $state(Date.now());
+let startedAt = $state<number | null>(null);
+let lastEventAt = $state<number | null>(null);
+
+$effect(() => {
+  if (phase !== "uploading" && phase !== "running") {
+    return;
+  }
+  now = Date.now();
+  const id = setInterval(() => {
+    now = Date.now();
+  }, 1000);
+  return () => clearInterval(id);
+});
+
+const elapsedMs = $derived(startedAt === null ? 0 : Math.max(0, now - startedAt));
+const sinceEventMs = $derived(lastEventAt === null ? null : Math.max(0, now - lastEventAt));
+const allDone = $derived(steps.length > 0 && steps.every((s) => s.status === "done"));
+const stale = $derived(phase === "running" && sinceEventMs !== null && sinceEventMs > 20000);
+
+// Overall progress = average of per-step completion. A done step counts as full; the active step
+// contributes its page ratio (extract is indeterminate, so it contributes nothing to the bar — the
+// stepper and the elapsed clock carry the signal while it runs).
+const overall = $derived.by(() => {
+  if (steps.length === 0) {
+    return 0;
+  }
+  let acc = 0;
+  for (const s of steps) {
+    if (s.status === "done") {
+      acc += 1;
+    } else if (s.status === "active" && !s.indeterminate && s.total > 0) {
+      acc += Math.min(1, s.done / s.total);
+    }
+  }
+  return acc / steps.length;
+});
+const percent = $derived(Math.round(overall * 100));
+
+const statusWord = $derived(
+  phase === "uploading"
+    ? "アップロード中"
+    : queued
+      ? "順番待ち"
+      : phase === "done"
+        ? "完了"
+        : phase === "failed"
+          ? "失敗"
+          : allDone
+            ? "仕上げ中"
+            : "製本中",
+);
+
+function fmtDuration(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function stepPercent(step: Step): number {
+  if (step.total <= 0) {
+    return 0;
+  }
+  return Math.min(100, Math.round((step.done / step.total) * 100));
+}
+
+// The full milestone list is known up front from the submitted options (extract and spread always
+// run; despeckle/register are optional), so the stepper shows the whole pipeline from the start.
+function buildSteps(o: ConversionOptions): Step[] {
+  const keys: StepKey[] = ["extract"];
+  if (o.despeckle) {
+    keys.push("despeckle");
+  }
+  if (o.register) {
+    keys.push("register");
+  }
+  keys.push("spread");
+  return keys.map((key) => ({
+    key,
+    label: STEP_LABELS[key],
+    status: "pending" as StepStatus,
+    done: 0,
+    total: 0,
+    indeterminate: key === "extract",
+  }));
+}
+
+function stepOf(stage: string): Step | undefined {
+  return steps.find((s) => s.key === stage);
+}
+
+function markFailedStep() {
+  const target =
+    steps.find((s) => s.status === "active") ?? steps.find((s) => s.status === "pending");
+  if (target) {
+    target.status = "failed";
+  }
+}
 
 // Mirror the server's download name (JobController.downloadName): "<base>_book.pdf". Used as the
 // result URL's last segment so the browser names the download after the source book, not "result".
@@ -49,50 +170,64 @@ function bookName(original: string): string {
 const downloadName = $derived(file ? bookName(file.name) : "book.pdf");
 
 function advance(event: ProgressEvent) {
+  lastEventAt = Date.now();
+  queued = false; // any progress event means the worker has picked the job up
   switch (event.type) {
     case "runStarted":
-      progress = { fraction: 0, label: "準備中…", stageCount: event.stageCount, index: 0 };
+      for (const s of steps) {
+        s.status = "pending";
+        s.done = 0;
+      }
       break;
-    case "stageStarted":
-      progress = {
-        fraction: event.stageCount === 0 ? 0 : event.index / event.stageCount,
-        label: `${event.stage}…`,
-        stageCount: event.stageCount,
-        index: event.index,
-      };
+    case "stageStarted": {
+      let reached = false;
+      for (const s of steps) {
+        if (s.key === event.stage) {
+          s.status = "active";
+          reached = true;
+        } else if (!reached && s.status !== "done") {
+          s.status = "done";
+          if (s.total > 0) {
+            s.done = s.total;
+          }
+        }
+      }
       break;
+    }
     case "pageProcessed": {
-      const stages = progress.stageCount === 0 ? 1 : progress.stageCount;
-      const within = event.total === 0 ? 0 : event.done / event.total;
-      progress = {
-        ...progress,
-        // The pages complete on a worker pool, so `done` arrives out of order (e.g. 2,1,4,3…);
-        // clamp the bar to never step backward while still letting the label show the live page.
-        fraction: Math.max(progress.fraction, (progress.index + within) / stages),
-        label: `${event.stage} (${event.done}/${event.total})`,
-      };
+      const s = stepOf(event.stage);
+      if (s) {
+        s.status = "active";
+        s.total = event.total;
+        s.done = Math.max(s.done, event.done); // pages finish out of order; never step back
+      }
       break;
     }
     case "stageCompleted": {
-      const stages = progress.stageCount === 0 ? 1 : progress.stageCount;
-      progress = {
-        ...progress,
-        fraction: (progress.index + 1) / stages,
-        label: `${event.stage} 完了`,
-      };
+      const s = stepOf(event.stage);
+      if (s) {
+        s.status = "done";
+        if (s.total > 0) {
+          s.done = s.total;
+        }
+      }
       break;
     }
     case "runCompleted":
       // pdfbook finished writing, but the server may still be reaping the subprocess; don't show
       // the result until the job is actually DONE, or the preview races a 409 not-ready response.
-      progress = { ...progress, fraction: 1, label: "仕上げ中…" };
+      for (const s of steps) {
+        s.status = "done";
+      }
       source?.close();
       if (jobId) {
         void finalize(jobId);
       }
       break;
     case "runFailed":
+      markFailedStep();
       error = event.message;
+      errorKind = event.kind;
       phase = "failed";
       source?.close();
       break;
@@ -121,6 +256,8 @@ async function finalize(id: string) {
       }
       if (status.state === "FAILED") {
         error = status.errorMessage ?? "変換に失敗しました";
+        errorKind = status.errorKind;
+        markFailedStep();
         phase = "failed";
         return;
       }
@@ -135,21 +272,78 @@ async function finalize(id: string) {
   }
 }
 
+// Until the first progress event arrives the SSE stream is silent whether the job is queued behind
+// another conversion or already running (the extract step emits nothing). Poll the authoritative
+// status so the header can say "順番待ち" instead of sitting at a stalled-looking 0%.
+async function watchQueue(id: string) {
+  for (let i = 0; i < 400; i++) {
+    if (jobId !== id || lastEventAt !== null) {
+      return;
+    }
+    try {
+      const status = await getStatus(id);
+      if (jobId !== id || lastEventAt !== null) {
+        return;
+      }
+      if (status.state === "QUEUED") {
+        queued = true;
+      } else if (status.state === "RUNNING") {
+        queued = false;
+      } else if (status.state === "DONE") {
+        phase = "done";
+        return;
+      } else if (status.state === "FAILED") {
+        error = status.errorMessage ?? "変換に失敗しました";
+        errorKind = status.errorKind;
+        markFailedStep();
+        phase = "failed";
+        return;
+      }
+    } catch {
+      /* transient network error; keep polling */
+    }
+    await delay(1500);
+  }
+}
+
 async function start() {
   if (!file) {
     return;
   }
   source?.close();
   error = null;
+  errorKind = null;
+  queued = false;
+  fromCache = false;
+  steps = buildSteps(options);
+  startedAt = Date.now();
+  now = Date.now();
+  lastEventAt = null;
   phase = "uploading";
-  progress = { fraction: 0, label: "アップロード中…", stageCount: 0, index: 0 };
   try {
+    // Fast path: if this exact file + options is already cached, the server returns a ready job and
+    // we skip uploading the file entirely. Falls through to a normal upload when local hashing is
+    // unavailable (an insecure, non-HTTPS context) or the result is not cached.
+    const sha = await sha256Hex(file);
+    if (sha) {
+      const cachedId = await probe(sha, options, file.name);
+      if (cachedId) {
+        jobId = cachedId;
+        for (const s of steps) {
+          s.status = "done";
+        }
+        fromCache = true;
+        phase = "done";
+        return;
+      }
+    }
     const id = await submitJob(file, options);
     jobId = id;
     phase = "running";
     source = streamProgress(id, advance, () => {
       /* transient; the server replays on reconnect */
     });
+    void watchQueue(id);
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause);
     phase = "failed";
@@ -187,9 +381,14 @@ function onDrop(event: DragEvent) {
 function reset() {
   source?.close();
   phase = "idle";
-  progress = { fraction: 0, label: "", stageCount: 0, index: 0 };
+  steps = [];
   jobId = null;
   error = null;
+  errorKind = null;
+  queued = false;
+  fromCache = false;
+  startedAt = null;
+  lastEventAt = null;
 }
 </script>
 
@@ -205,7 +404,7 @@ function reset() {
   <main class="screen">
     {#if phase === "idle"}
       <!-- Setup: the only phase where the controls exist. -->
-      <section class="view setup" in:fade={{ duration: 180 }} out:fade={{ duration: 140 }}>
+      <section class="view" in:fade={{ duration: 180 }} out:fade={{ duration: 140 }}>
         <form
           class="panel"
           onsubmit={(e) => {
@@ -228,91 +427,150 @@ function reset() {
               {file ? "クリックで別のファイルに変更" : "またはクリックして選択 (application/pdf)"}
             </span>
           </label>
-          {#if fileNote}
-            <p class="field-error">{fileNote}</p>
-          {/if}
+          <div class="setup-controls">
+            {#if fileNote}
+              <p class="field-error">{fileNote}</p>
+            {/if}
 
-          <fieldset>
-            <legend>オプション</legend>
-            <div class="grid">
-              <label class="field">
-                <span>綴じ方向</span>
-                <select
-                  value={options.direction}
-                  onchange={(e) => (options.direction = e.currentTarget.value as Direction)}
-                >
-                  <option value="RTL">右綴じ (RTL)</option>
-                  <option value="LTR">左綴じ (LTR)</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>1ページ目</span>
-                <select
-                  value={options.firstPage}
-                  onchange={(e) => (options.firstPage = e.currentTarget.value as FirstPage)}
-                >
-                  <option value="right">右始まり</option>
-                  <option value="left">左始まり (先頭空白)</option>
-                  <option value="cover">表紙単独</option>
-                </select>
-              </label>
-            </div>
-            <div class="checks">
-              <label class="check">
-                <input type="checkbox" bind:checked={options.despeckle} />
-                <span>ノイズ除去 (despeckle)</span>
-              </label>
-              <label class="check">
-                <input type="checkbox" bind:checked={options.register} />
-                <span>整列 (register)</span>
-              </label>
-              <label class="check">
-                <input type="checkbox" bind:checked={options.pdfA} />
-                <span>PDF/A-2b 準拠</span>
-              </label>
-            </div>
-          </fieldset>
+            <fieldset>
+              <legend>オプション</legend>
+              <div class="grid">
+                <label class="field">
+                  <span>綴じ方向</span>
+                  <select
+                    value={options.direction}
+                    onchange={(e) => (options.direction = e.currentTarget.value as Direction)}
+                  >
+                    <option value="RTL">右綴じ (RTL)</option>
+                    <option value="LTR">左綴じ (LTR)</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>1ページ目</span>
+                  <select
+                    value={options.firstPage}
+                    onchange={(e) => (options.firstPage = e.currentTarget.value as FirstPage)}
+                  >
+                    <option value="right">右始まり</option>
+                    <option value="left">左始まり (先頭空白)</option>
+                    <option value="cover">表紙単独</option>
+                  </select>
+                </label>
+              </div>
+              <div class="checks">
+                <label class="check">
+                  <input type="checkbox" bind:checked={options.despeckle} />
+                  <span>ノイズ除去 (despeckle)</span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" bind:checked={options.register} />
+                  <span>整列 (register)</span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" bind:checked={options.pdfA} />
+                  <span>PDF/A-2b 準拠</span>
+                </label>
+              </div>
+            </fieldset>
 
-          <button class="primary block" type="submit" disabled={!file}>製本する</button>
+            <button class="primary block" type="submit" disabled={!file}>製本する</button>
+          </div>
         </form>
       </section>
+    {:else if phase === "done" && jobId}
+      <!-- Done: the result fills the screen. The section is the shared .view (a flex column), so the
+           preview (flex: 1) is the one child that grows to fill the height; the bar sits above it. -->
+      <section class="view" in:fade={{ duration: 240 }}>
+        <div class="result-bar">
+          <span class="ok">✓ 製本が完了しました{fromCache ? "（キャッシュ）" : `（所要 ${fmtDuration(elapsedMs)}）`}</span>
+          <span class="grow"></span>
+          <a class="primary" href={resultUrl(jobId, downloadName)} target="_blank" rel="noopener">
+            新規タブで開く
+          </a>
+          <button class="ghost" type="button" onclick={reset}>もう一冊</button>
+        </div>
+        <iframe
+          class="preview"
+          src={resultUrl(jobId, downloadName)}
+          title="製本PDFプレビュー"
+        ></iframe>
+      </section>
     {:else}
-      <!-- Work: controls are gone; only progress, then the result, fills the screen. -->
-      <section class="view work" in:fade={{ duration: 240 }}>
-        {#if phase === "done" && jobId}
-          <div class="result" in:fade={{ duration: 240 }}>
-            <div class="result-bar">
-              <span class="ok">✓ 製本が完了しました</span>
-              <span class="grow"></span>
-              <a
-                class="primary"
-                href={resultUrl(jobId, downloadName)}
-                target="_blank"
-                rel="noopener"
-              >
-                新規タブで開く
-              </a>
-              <button class="ghost" type="button" onclick={reset}>もう一冊</button>
-            </div>
-            <iframe
-              class="preview"
-              src={resultUrl(jobId, downloadName)}
-              title="製本PDFプレビュー"
-            ></iframe>
+      <!-- Work: controls are gone; the pipeline stepper shows the whole flow, current step, and
+           liveness. The same view (with the failed step in red) shows on failure. -->
+      <section class="view" in:fade={{ duration: 200 }}>
+        <div class="run-head">
+          <div class="run-status">
+            <span class="status-word" class:is-failed={phase === "failed"}>{statusWord}</span>
+            <span class="elapsed">{fmtDuration(elapsedMs)} 経過</span>
           </div>
-        {:else if phase === "failed"}
-          <div class="centered" in:fade={{ duration: 200 }}>
-            <div class="errbox">
-              <strong>変換に失敗しました</strong>
-              <p>{error}</p>
-              <button class="ghost" type="button" onclick={reset}>戻る</button>
-            </div>
+          <div class="overall" class:indeterminate={percent === 0 && phase !== "failed"}>
+            <div class="overall-fill" style:width={`${percent}%`}></div>
           </div>
-        {:else}
-          <div class="centered running" in:fade={{ duration: 200 }}>
-            <div class="rnum">{percent}<span class="unit">%</span></div>
-            <div class="bar wide"><div class="fill" style:width={`${percent}%`}></div></div>
-            <p class="rlabel">{progress.label}</p>
+          <div class="liveness" class:stale class:failed={phase === "failed"}>
+            {#if queued}
+              順番待ち（他の変換の完了を待っています）
+            {:else if phase === "failed"}
+              失敗しました
+            {:else if sinceEventMs === null}
+              準備中…
+            {:else if sinceEventMs < 5000}
+              <span class="dot" aria-hidden="true"></span> 処理中
+            {:else}
+              更新 {Math.floor(sinceEventMs / 1000)} 秒前{#if stale} ・ この工程は時間がかかることがあります（処理は継続中）{/if}
+            {/if}
+          </div>
+        </div>
+
+        <ol class="stepper">
+          {#each steps as step (step.key)}
+            <li
+              class="step"
+              class:active={step.status === "active"}
+              class:done={step.status === "done"}
+              class:failed={step.status === "failed"}
+            >
+              <span class="step-icon" aria-hidden="true">
+                {#if step.status === "done"}✓{:else if step.status === "failed"}✕{:else if step.status === "active"}▶{:else}○{/if}
+              </span>
+              <div class="step-body">
+                <div class="step-row">
+                  <span class="step-name">{step.label}</span>
+                  <span class="step-meta">
+                    {#if step.status === "done"}
+                      完了
+                    {:else if step.status === "failed"}
+                      失敗
+                    {:else if step.status === "active"}
+                      {#if step.indeterminate || step.total <= 0}
+                        処理中…
+                      {:else}
+                        {step.done} / {step.total} ページ
+                      {/if}
+                    {:else}
+                      待機中
+                    {/if}
+                  </span>
+                </div>
+                {#if step.status === "active"}
+                  {#if step.indeterminate || step.total <= 0}
+                    <div class="step-bar indeterminate"><div class="step-fill"></div></div>
+                  {:else}
+                    <div class="step-bar">
+                      <div class="step-fill" style:width={`${stepPercent(step)}%`}></div>
+                    </div>
+                  {/if}
+                {/if}
+              </div>
+            </li>
+          {/each}
+        </ol>
+
+        {#if phase === "failed"}
+          <div class="errbox">
+            <strong>変換に失敗しました{#if errorKind}（{errorKind}）{/if}</strong>
+            <p>{error}</p>
+            <button class="ghost" type="button" onclick={reset}>戻る</button>
           </div>
         {/if}
       </section>

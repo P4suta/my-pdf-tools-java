@@ -1,10 +1,9 @@
 # my-pdf-tools-java (monorepo root) — task entry points.
 #
-# Routes through the unified dev container unless INSIDE_CONTAINER=1, mirroring
-# the per-app justfiles (register/justfile, despeckle/justfile). The dev image
-# (./Dockerfile: register-dev + fontconfig) sets INSIDE_CONTAINER=1, so the same
-# recipes call ./gradlew directly inside the container instead of re-entering
-# Docker. Host machines need nothing but Docker.
+# Routes through the unified dev container unless INSIDE_CONTAINER=1. The dev image
+# (./Dockerfile) sets INSIDE_CONTAINER=1, so the same recipes call ./gradlew
+# directly inside the container instead of re-entering Docker. Host machines need
+# nothing but Docker.
 #
 # The root is now a single Gradle composite build (settings.gradle.kts + ./gradlew):
 # the four PDF features (register / despeckle / tate-yoko-pdf / pipeline), the web
@@ -34,6 +33,9 @@ gradle_flags := "--no-daemon --console=plain -Dorg.gradle.java.installations.aut
 
 # Host port the web server publishes (override: `WEB_PORT=9090 just web-serve`).
 web_port := env_var_or_default("WEB_PORT", "8080")
+
+# Host port the SPA dev server (Vite) publishes (override: `UI_PORT=5174 just web-ui`).
+ui_port := env_var_or_default("UI_PORT", "5173")
 
 default:
     @just --list
@@ -81,19 +83,21 @@ pdfbook *ARGS: pdfbook-install
 # Run the pdfbook web server (Spring Boot, :8080) — pair with `just web-ui`.
 web-serve: pdfbook-install
     #!/usr/bin/env bash
-    set -uo pipefail
-    # Bundles the freshly built pdfbook on PATH and binds 0.0.0.0 so the server is
-    # reachable via VSCode port-forwarding or the host IP (override host port: WEB_PORT).
-    # NOTE: this server holds the dev container's Gradle-home lock for its whole
-    # lifetime — stop it (Ctrl-C, or `just web-stop`) before any other gradle recipe.
-    run='export PATH="$PWD/pipeline/app/build/install/pdfbook/bin:$PATH"; export SERVER_ADDRESS=0.0.0.0; exec ./gradlew :webapp:app:bootRun {{gradle_flags}}'
+    set -euo pipefail
+    # Build the server jar first — a Gradle step that COMPLETES (and releases the Gradle-home lock) —
+    # then run it as a plain `java -jar` process, NOT `gradlew bootRun`. A running `java` server holds
+    # no Gradle lock, so `just build` and every other recipe keep working while it serves; the dev
+    # loop is just `edit -> just build -> just web-serve` with nothing to stop first. Binds 0.0.0.0
+    # for VSCode port-forwarding / the host IP; override the published host port with WEB_PORT.
+    {{gradlew}} :webapp:app:bootJar {{gradle_flags}}
+    run='jar=$(ls -t webapp/app/build/libs/*.jar | grep -v -- -plain | head -1); export PATH="$PWD/pipeline/app/build/install/pdfbook/bin:$PATH"; exec java -jar "$jar" --server.address=0.0.0.0'
     if [ "{{inside}}" = "1" ]; then
         exec bash -lc "$run"
     fi
     docker rm -f pdfbook-web >/dev/null 2>&1 || true
     exec docker compose run --rm --name pdfbook-web -p {{web_port}}:8080 dev bash -lc "$run"
 
-# Stop the web server container started by `just web-serve` (frees the Gradle lock).
+# Stop the web server container started by `just web-serve`.
 web-stop:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -105,18 +109,33 @@ web-stop:
         echo "no web server running"
     fi
 
-# Start the SPA's Vite dev server (host pnpm; proxies /api to the :8080 server).
+# Start the SPA's Vite dev server INSIDE the dev container (corepack pnpm — no host Node needed;
+# pnpm's version is pinned by the frontend's packageManager field). Proxies /api to the :8080 server,
+# so pair it with `just web-serve` in another terminal. Publishes Vite's port to the host.
 web-ui:
-    cd webapp/frontend && pnpm install && pnpm dev --host 0.0.0.0
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run='cd webapp/frontend && pnpm install && pnpm dev --host 0.0.0.0'
+    if [ "{{inside}}" = "1" ]; then
+        exec bash -lc "$run"
+    fi
+    exec docker compose run --rm -p {{ui_port}}:5173 dev bash -lc "$run"
+
+# Build the self-contained runtime image: the SPA (node stage) embedded in the bootJar, plus pdfbook
+# and its native toolbox. Run it with `docker run --rm -p 127.0.0.1:8080:8080 pdfbook-web`.
+web-image:
+    docker build -f webapp/app/Dockerfile -t pdfbook-web .
 
 # ----- format / lint (mirrors CI + the lefthook gates) -----
 
-# Auto-format everything in place (spelling included).
+# Auto-format everything in place (spelling included). yamlfmt gets NO path arg: a path overrides
+# the .yamlfmt include/exclude (so it would reformat node_modules / pnpm-lock.yaml); with no arg it
+# honors the config's globs.
 fmt:
     {{gradlew}} spotlessApply {{gradle_flags}}
     {{taplo}} fmt
     {{biome}} format --write .
-    {{yamlfmt}} .
+    {{yamlfmt}}
     {{typos}} --write-changes
 
 # Verify formatting without writing (what CI checks).
@@ -124,7 +143,7 @@ fmt-check:
     {{gradlew}} spotlessCheck {{gradle_flags}}
     {{taplo}} fmt --check
     {{biome}} format .
-    {{yamlfmt}} --lint .
+    {{yamlfmt}} --lint
 
 # Spell-check and fix in place.
 typos:
@@ -144,6 +163,22 @@ actionlint:
 
 # Aggregated lint gate (mirrors CI's lint-peripheral plus Spotless).
 lint: fmt-check typos-check actionlint
+
+# ----- coverage / dependencies / rewrite -----
+
+# Whole-build aggregated JaCoCo coverage report (build/reports/jacoco/testCodeCoverageReport/).
+coverage:
+    {{gradlew}} testCodeCoverageReport {{gradle_flags}}
+
+# Report dependency + Gradle updates (ben-manes) and diff non-Gradle pinned versions.
+# ben-manes 0.54 is not configuration-cache safe, so it runs with --no-configuration-cache.
+outdated:
+    {{gradlew}} dependencyUpdates {{gradle_flags}} --no-configuration-cache
+
+# Run the advisory OpenRewrite recipes in place, then re-impose the google-java-format layout.
+rewrite:
+    {{gradlew}} rewriteRun {{gradle_flags}}
+    {{gradlew}} spotlessApply {{gradle_flags}}
 
 # ----- git hooks -----
 
@@ -188,7 +223,11 @@ _hook-yamlfmt +files:
     #!/usr/bin/env bash
     set -uo pipefail
     echo "▶ yamlfmt — formatting YAML"
-    {{yamlfmt}} {{files}} && exit 0
+    # Explicit paths bypass the .yamlfmt exclude globs, so drop pnpm's lockfile here — it is valid
+    # YAML but pnpm owns its layout and reformatting it would corrupt the install.
+    files=$(printf '%s\n' {{files}} | grep -vE '(^|/)pnpm-lock\.yaml$' || true)
+    [ -z "$files" ] && { echo "  (no YAML to format after exclusions)"; exit 0; }
+    {{yamlfmt}} $files && exit 0
     echo "✗ yamlfmt failed to format YAML (see above)." >&2
     exit 1
 

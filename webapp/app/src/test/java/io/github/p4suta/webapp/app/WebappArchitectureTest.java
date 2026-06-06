@@ -47,6 +47,28 @@ class WebappArchitectureTest {
                     .resideInAPackage("org.springframework..");
 
     /**
+     * Observability is an app-layer concern too: Micrometer and Actuator (which is {@code
+     * org.springframework.boot} so {@link #springIsConfinedToTheAppLayer} already covers it, but
+     * {@code io.micrometer} is not) stay in the shell. The telemetry seam ({@code QueueStats}) is
+     * plain Java, so the core never sees a metrics type.
+     */
+    @ArchTest
+    static final ArchRule observabilityIsConfinedToTheAppLayer =
+            noClasses()
+                    .that()
+                    .resideInAnyPackage(
+                            "..webapp.domain..",
+                            "..webapp.port..",
+                            "..webapp.application..",
+                            "..webapp.infrastructure..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "io.micrometer..",
+                            "org.springframework.boot.actuate..",
+                            "org.springframework.boot.health..");
+
+    /**
      * The whole feature treats pdfbook as an external tool, so nothing in {@code webapp} ever
      * compiles against the pipeline's or tate's code.
      */

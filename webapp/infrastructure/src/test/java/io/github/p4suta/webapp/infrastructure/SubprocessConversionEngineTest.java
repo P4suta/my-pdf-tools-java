@@ -18,7 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Drives the real subprocess + progress-file tail against fake pdfbook scripts (the dev image has
- * bash), covering success with mid-run draining, failure, timeout, unparseable lines, and the full
+ * bash), covering success with mid-run draining, failure, timeout, unparsable lines, and the full
  * option-to-flag mapping.
  */
 class SubprocessConversionEngineTest {
@@ -159,7 +159,7 @@ class SubprocessConversionEngineTest {
     }
 
     @Test
-    void skipsUnparseableProgressLines() throws IOException {
+    void skipsUnparsableProgressLines() throws IOException {
         engine(GARBAGE, Duration.ofSeconds(10))
                 .convert(REQUEST, input(), tmp.resolve("out.pdf"), events::add);
 

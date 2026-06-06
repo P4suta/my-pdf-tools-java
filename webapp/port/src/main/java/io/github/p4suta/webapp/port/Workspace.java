@@ -22,13 +22,29 @@ public interface Workspace {
     void allocate(JobId id) throws IOException;
 
     /**
-     * Stores the uploaded PDF for {@code id}, consuming {@code pdf}.
+     * Stores the uploaded PDF for {@code id}, consuming {@code pdf}, and returns its content hash.
+     * The bytes are verified to begin with the PDF magic ({@code %PDF-}) and digested as they are
+     * written, so a single streaming pass both validates and hashes a multi-hundred-megabyte upload
+     * without buffering it in memory.
      *
      * @param id the job id
      * @param pdf the uploaded bytes
+     * @return the lowercase-hex SHA-256 of the stored bytes
      * @throws IOException if the upload cannot be written
+     * @throws IllegalArgumentException if the upload is not a PDF
      */
-    void storeUpload(JobId id, InputStream pdf) throws IOException;
+    String storeUpload(JobId id, InputStream pdf) throws IOException;
+
+    /**
+     * Places {@code source} as {@code id}'s result, hard-linking it where possible (same
+     * filesystem) and copying otherwise. Used to serve a cached result through the normal result
+     * path without re-running the conversion.
+     *
+     * @param id the job id
+     * @param source the finished result to expose as this job's output
+     * @throws IOException if the result cannot be placed
+     */
+    void placeResult(JobId id, Path source) throws IOException;
 
     /**
      * {@return the path the upload is (or will be) stored at}

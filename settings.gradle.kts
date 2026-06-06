@@ -8,7 +8,7 @@ plugins {
 
 rootProject.name = "my-pdf-tools-java"
 
-// Each of the three apps keeps its hexagonal (ports & adapters) graph — one Gradle module per layer.
+// Each of the four PDF features keeps its hexagonal (ports & adapters) graph — one Gradle module per layer.
 // Gradle maps the dotted project paths to directories automatically: :register:domain -> register/domain,
 // :despeckle:port -> despeckle/port, and so on. The inter-module dependency edges declared in each
 // module's build script enforce the layering at compile time; ArchUnit (in each :app) pins the
@@ -26,7 +26,7 @@ listOf("register", "despeckle", "tate-yoko-pdf", "pipeline").forEach { app ->
 }
 
 // Cross-app shared modules. The first is :shared:kernel — the framework-free primitives (the
-// dpi<->px/mm Resolution and the exception-neutral Validators) that the three apps duplicate today.
+// dpi<->px/mm Resolution and the exception-neutral Validators) that the features would otherwise duplicate.
 // Gradle maps :shared:kernel -> shared/kernel/ automatically; the empty :shared parent project it
 // implies needs no build script.
 include(":shared:kernel")

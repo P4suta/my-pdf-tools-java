@@ -45,7 +45,8 @@
       "!**/.gradle-home/**",
       "!**/artifacts/**",
       "!**/node_modules/**",
-      "!**/dist/**"
+      "!**/dist/**",
+      "!**/resources/static/**"
     ]
   },
   "overrides": [

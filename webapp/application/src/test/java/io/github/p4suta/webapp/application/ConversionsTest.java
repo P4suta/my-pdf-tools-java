@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.p4suta.shared.progress.ProgressEvent;
+import io.github.p4suta.webapp.domain.CacheKey;
 import io.github.p4suta.webapp.domain.ConversionRequest;
 import io.github.p4suta.webapp.domain.Direction;
 import io.github.p4suta.webapp.domain.FirstPage;
@@ -22,9 +23,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,14 +49,16 @@ class ConversionsTest {
     private final JobIdGenerator ids = () -> ID;
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private FakeWorkspace workspace;
+    private FakeResultCache cache;
 
     @BeforeEach
     void setUp() {
         workspace = new FakeWorkspace(tmp);
+        cache = new FakeResultCache(tmp.resolve("cache"));
     }
 
     private Conversions conversions(ConversionEngine engine, ConversionExecutor executor) {
-        return new Conversions(store, engine, executor, workspace, publisher, ids, clock);
+        return new Conversions(store, engine, executor, workspace, cache, publisher, ids, clock);
     }
 
     private static InputStream upload() {
@@ -77,6 +85,65 @@ class ConversionsTest {
                 .containsExactly(new ProgressEvent.RunStarted(1), new ProgressEvent.RunCompleted());
         assertThat(publisher.closed).containsExactly(id);
         assertThat(Files.readString(workspace.inputPdf(id))).isEqualTo("%PDF-1.7");
+    }
+
+    @Test
+    void submitServesACachedResultWithoutRunningTheEngine() throws IOException {
+        // Preseed the cache for these exact bytes + options; the engine must not be invoked.
+        cache.seed(CacheKey.of(sha256Hex("%PDF-1.7"), REQUEST), "%PDF cached book");
+        AtomicBoolean engineRan = new AtomicBoolean();
+        ConversionEngine engine = (req, in, out, sink) -> engineRan.set(true);
+
+        Conversions conversions = conversions(engine, Runnable::run);
+        JobId id = conversions.submit(REQUEST, "scan.pdf", upload());
+
+        assertThat(engineRan).isFalse();
+        assertThat(store.find(id).orElseThrow().state()).isEqualTo(JobState.DONE);
+        assertThat(Files.readString(conversions.result(id))).isEqualTo("%PDF cached book");
+        assertThat(publisher.eventsFor(id)).containsExactly(new ProgressEvent.RunCompleted());
+        assertThat(publisher.closed).containsExactly(id);
+    }
+
+    @Test
+    void aSuccessfulConversionIsStoredInTheCacheForNextTime() throws IOException {
+        ConversionEngine engine =
+                (req, in, out, sink) -> {
+                    Files.writeString(out, "%PDF book");
+                    sink.emit(new ProgressEvent.RunCompleted());
+                };
+
+        conversions(engine, Runnable::run).submit(REQUEST, "scan.pdf", upload());
+
+        assertThat(cache.find(CacheKey.of(sha256Hex("%PDF-1.7"), REQUEST))).isPresent();
+    }
+
+    @Test
+    void probeMintsAReadyJobWhenTheResultIsCached() throws IOException {
+        cache.seed(CacheKey.of(sha256Hex("%PDF-1.7"), REQUEST), "%PDF cached book");
+        Conversions conversions = conversions((req, in, out, sink) -> {}, Runnable::run);
+
+        Optional<JobId> id = conversions.probe(sha256Hex("%PDF-1.7"), REQUEST, "scan.pdf");
+
+        assertThat(id).contains(ID);
+        assertThat(store.find(ID).orElseThrow().state()).isEqualTo(JobState.DONE);
+        assertThat(Files.readString(conversions.result(ID))).isEqualTo("%PDF cached book");
+    }
+
+    @Test
+    void probeReturnsEmptyAndLeavesNoJobWhenNotCached() throws IOException {
+        Conversions conversions = conversions((req, in, out, sink) -> {}, Runnable::run);
+
+        assertThat(conversions.probe(sha256Hex("%PDF-1.7"), REQUEST, "scan.pdf")).isEmpty();
+        assertThat(store.find(ID)).isEmpty();
+    }
+
+    private static String sha256Hex(String text) {
+        try {
+            return HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

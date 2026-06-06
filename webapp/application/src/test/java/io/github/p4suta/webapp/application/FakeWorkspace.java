@@ -6,6 +6,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Optional;
 
 /** A filesystem-backed {@link Workspace} rooted at a temp dir, with a switch to fail removal. */
@@ -28,8 +32,23 @@ final class FakeWorkspace implements Workspace {
     }
 
     @Override
-    public void storeUpload(JobId id, InputStream pdf) throws IOException {
-        Files.copy(pdf, inputPdf(id));
+    public String storeUpload(JobId id, InputStream pdf) throws IOException {
+        byte[] bytes = pdf.readAllBytes(); // tests use tiny inputs
+        Files.write(inputPdf(id), bytes);
+        return sha256Hex(bytes);
+    }
+
+    @Override
+    public void placeResult(JobId id, Path source) throws IOException {
+        Files.copy(source, outputPdf(id), StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override

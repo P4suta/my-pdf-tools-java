@@ -198,7 +198,7 @@ public final class SubprocessConversionEngine implements ConversionEngine {
             try {
                 sink.emit(JsonlProgressCodec.read(line));
             } catch (RuntimeException e) {
-                log.warn("skipping unparseable progress line: {}", line);
+                log.warn("skipping unparsable progress line: {}", line);
             }
         }
     }

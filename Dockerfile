@@ -1,9 +1,9 @@
-# Unified monorepo dev image — self-contained, builds ALL THREE apps' full gates
-# from one image. No longer an overlay on any per-app image: this Dockerfile
+# Unified monorepo dev image — self-contained, builds ALL FIVE features' full
+# gates from one image. No longer an overlay on any per-app image: this Dockerfile
 # carries the complete toolchain so the monorepo stands alone.
 #
-# It is register's full image (the richest of the three) merged with
-# tate-yoko-pdf's font stack:
+# It consolidates register's full toolchain (the richest of the original per-app
+# images) with tate-yoko-pdf's font stack:
 #   - Liberica JDK 25 Full (BellSoft). The **Full** flavor ships the jmods/
 #     directory that jlink/jpackage consume to assemble the bundled JRE for the
 #     `just package` app-image distribution; Temurin's image omits jmods. FFM is
@@ -161,6 +161,22 @@ RUN curl -fsSL "https://github.com/google/yamlfmt/releases/download/v${YAMLFMT_V
 ARG ACTIONLINT_VERSION=1.7.12
 RUN curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
     | tar xz -C /usr/local/bin actionlint
+
+# ----- Node.js + pnpm (the SPA toolchain) -----
+# The webapp/frontend SPA builds and runs INSIDE this container like everything else
+# (build-runs-only-in-docker) — there is no host Node, so no host-vs-container pnpm split and nothing
+# about the lockfile to keep in sync by hand. pnpm is baked in at a pinned version (NOT corepack:
+# corepack resolves the version at runtime and verifies a signature against keys bundled in Node,
+# which go stale and fail — exactly the kind of thing the build should never make anyone babysit).
+# PNPM_VERSION must equal the frontend's `packageManager` field; pnpm itself warns loudly on drift.
+# node rides the latest Active LTS line (a build toolchain should ride LTS, not the Current line);
+# checkExtraVersions tracks the latest LTS. pnpm must equal the frontend's packageManager field.
+ARG NODE_VERSION=24.16.0
+ARG PNPM_VERSION=11.5.1
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" \
+        | tar xz -C /usr/local --strip-components=1 \
+    && npm install -g "pnpm@${PNPM_VERSION}" \
+    && npm cache clean --force
 
 # Match host UID so bind-mounted files don't end up root-owned. The ubuntu base
 # already has a user/group at 1000 (`ubuntu`); reuse it when the requested IDs

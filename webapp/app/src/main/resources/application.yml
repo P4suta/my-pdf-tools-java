@@ -1,12 +1,28 @@
 server:
-  # Bind to loopback by default: this is a personal/local tool. To expose it on the LAN, override
-  # with SERVER_ADDRESS=0.0.0.0 (and add authentication first).
+  # Bind to loopback by default: this is a personal/local tool. The `prod` profile (the Docker
+  # runtime) binds 0.0.0.0; add authentication before any LAN exposure.
   address: 127.0.0.1
   port: 8080
+  # On SIGTERM, stop accepting new requests and let in-flight HTTP requests (and SSE streams) finish
+  # within the lifecycle timeout below. (A long-running background conversion on the worker pool is
+  # NOT drained — it is a daemon thread; graceful shutdown is about the HTTP surface.)
+  shutdown: graceful
 
 spring:
   application:
     name: pdfbook-web
+  # Java 25 + Boot 4: serve each request on a virtual thread. Cheap blocking I/O (the SSE waits, the
+  # result file streaming) no longer ties up a platform thread.
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  mvc:
+    problemdetails:
+      # Render framework errors (415/400/405/...) as RFC 9457 application/problem+json too, so the
+      # whole API speaks one error shape. The domain failures are mapped in ApiExceptionHandler.
+      enabled: true
   servlet:
     multipart:
       # Scanned books are large; the 1MB default rejects them.
@@ -22,11 +38,33 @@ app:
   conversion-timeout: 30m
   # A job (and its files + SSE buffer) is removed this long after it was created.
   job-ttl: 6h
-  # How often the reaper sweeps expired jobs.
+  # A cached result is evicted this long after it was last written. Longer than job-ttl on purpose:
+  # the content-addressed cache outlives the jobs that fill it, so re-converting the same PDF with
+  # the same options skips pdfbook (and, with the client probe, the upload too).
+  cache-ttl: 30d
+  # How often the reaper sweeps expired jobs and cache entries.
   reaper-interval-ms: 900000
   # The pdfbook executable. Leave unset to resolve it via -Dp4suta.pdfbook.binary or the PATH.
   # pdfbook-binary: /path/to/pdfbook
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # Observability surface: liveness/build info, Micrometer metrics, and the Prometheus scrape.
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      # Safe on the loopback dev default; the prod profile drops this (LAN-exposed, no auth).
+      show-details: always
+      probes:
+        enabled: true
+
 logging:
   level:
     io.github.p4suta: INFO
+  pattern:
+    # Surface the per-job correlation id (set on the worker thread's MDC in Conversions) in the dev
+    # console. Boot splices logging.pattern.correlation into its default console pattern; the prod
+    # `ecs` structured format (application-prod.yml) serializes MDC entries as JSON fields instead.
+    correlation: "[%X{jobId:-}] "

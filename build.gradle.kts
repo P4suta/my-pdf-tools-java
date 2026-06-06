@@ -10,17 +10,18 @@ import org.gradle.testing.jacoco.tasks.JacocoReport
 // No production code lives at the root. Per-module Java/test/quality/native config is in the shared
 // build-logic convention plugins (p4suta.*-conventions); each app's runnable artifact and jpackage
 // distribution live in its own :<app>:app module. This root build owns only the CROSS-MODULE,
-// cross-app tooling that spans all three apps (register, despeckle, tate-yoko-pdf):
+// cross-app tooling that spans all five features (register, despeckle, tate-yoko-pdf, pipeline,
+// webapp):
 //
-//   * The whole-build JaCoCo coverage aggregation over all 18 modules (`just coverage`).
+//   * The whole-build JaCoCo coverage aggregation over every module (`just coverage`).
 //   * ben-manes dependencyUpdates + checkExtraVersions (`just outdated`).
 //   * OpenRewrite (advisory; rewrite.yml at the root, deliberately NOT wired into `build`).
 //   * aggregateJavadoc for GitHub Pages.
 //
 // MANDATORY apply-false block: the shared Spotless/Error Prone/SpotBugs plugins are loaded ONCE here
-// at the root scope so the convention plugins that apply them across all 18 sibling modules share a
-// single plugin classloader — and, critically, a single Spotless SpotlessTaskService. Without it an
-// 18-module build fails with "Cannot set the value of task ':<m>:spotlessJava' property
+// at the root scope so the convention plugins that apply them across all sibling modules share a
+// single plugin classloader — and, critically, a single Spotless SpotlessTaskService. Without it a
+// multi-module build fails with "Cannot set the value of task ':<m>:spotlessJava' property
 // 'taskService'". (despeckle's pattern; register's root spotless{} configuration is deliberately NOT
 // merged in — you cannot both `apply false` the plugin and configure its extension.)
 // =============================================================================
@@ -95,7 +96,7 @@ configurations.all {
 
 // -----------------------------------------------------------------------------
 // OpenRewrite (advisory) — root rewrite.yml is auto-discovered. Applied at the root, it visits the
-// source sets of every subproject across all three apps. Deliberately NOT wired into `build`, so a
+// source sets of every subproject across all five features. Deliberately NOT wired into `build`, so a
 // recipe never blocks a commit. After rewriteRun, `just rewrite` runs spotlessApply so
 // google-java-format re-imposes the AOSP layout.
 // -----------------------------------------------------------------------------
@@ -119,10 +120,10 @@ dependencies {
     // its transitive rewrite-core.
     rewrite(libs.rewrite.java.security)
 
-    // Every production module across all three apps feeds the aggregated coverage report: 3 apps x 5
-    // modules = 15, plus the seven PRODUCTION cross-app shared modules (:shared:kernel +
+    // Every production module across all five features feeds the aggregated coverage report: 5
+    // features x 5 modules = 25, plus the eight PRODUCTION cross-app shared modules (:shared:kernel +
     // :shared:observability + :shared:imaging + :shared:cli + :shared:process + :shared:pdf +
-    // :shared:io) = 22.
+    // :shared:io + :shared:progress) = 33.
     // The per-app observability modules were removed; the cross-cutting
     // mapper/sanitizer/handler/exit-codes now live in :shared:observability, the two duplicated
     // Leptonica FFM islands now live in :shared:imaging, the app-layer CLI scaffolding (input/output
@@ -178,7 +179,7 @@ tasks.withType<JacocoReport>().configureEach {
 }
 
 // -----------------------------------------------------------------------------
-// aggregateJavadoc — Javadoc for GitHub Pages (despeckle's pattern, extended to all three apps).
+// aggregateJavadoc — Javadoc for GitHub Pages (despeckle's pattern, extended to all five features).
 // The root has no sources, so each module writes its own build/docs/javadoc; this collects them
 // under build/docs/javadoc/<app>/<module> (the path the docs workflow uploads) behind a small
 // landing index. A Copy — not a cross-project Javadoc task — keeps it configuration-cache-safe: it
@@ -315,6 +316,8 @@ tasks.register("checkExtraVersions") {
                 "BIOME_VERSION",
                 "YAMLFMT_VERSION",
                 "ACTIONLINT_VERSION",
+                "NODE_VERSION",
+                "PNPM_VERSION",
             )
 
         val stableRe = Regex("^[0-9]+(\\.[0-9]+)*$")
@@ -360,6 +363,17 @@ tasks.register("checkExtraVersions") {
                     ?.groupValues
                     ?.get(1) ?: return null
             return tag.removePrefix("v")
+        }
+
+        // Latest Active LTS from the Node release index (entries whose "lts" is a codename string,
+        // not false). A build toolchain should track LTS, not the Current line.
+        fun latestNodeLts(): String? {
+            val body = fetch("https://nodejs.org/dist/index.json") ?: return null
+            return Regex("\"version\"\\s*:\\s*\"v([^\"]+)\"[^}]*?\"lts\"\\s*:\\s*\"[^\"]+\"")
+                .findAll(body)
+                .map { it.groupValues[1] }
+                .filter { stableRe.matches(it) }
+                .maxWithOrNull(versionComparator)
         }
 
         fun latestMaven(
@@ -441,6 +455,11 @@ tasks.register("checkExtraVersions") {
         println("=== Extra pinned versions (non-Gradle; current read from gradle/libs.versions.toml) ===")
         report("typos", dockerArg("TYPOS_VERSION"), latestGitHub("crate-ci/typos"))
         report("just", dockerArg("JUST_VERSION"), latestGitHub("casey/just"))
+        // The SPA toolchain baked into the dev image. node tracks the latest Active LTS (a build
+        // toolchain should ride LTS, not the Current line); pnpm must equal the frontend's
+        // packageManager field.
+        report("node", dockerArg("NODE_VERSION"), latestNodeLts())
+        report("pnpm", dockerArg("PNPM_VERSION"), latestGitHub("pnpm/pnpm"))
         // google-java-format: the unified p4suta.quality-conventions reads it via
         // findVersion("google-java-format"); the literal lives in the catalog.
         report(

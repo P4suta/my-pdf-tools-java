@@ -35,11 +35,21 @@ pnpm run build         # type-check + emit dist/
 
 ## Production bundle
 
-Serve `dist/` however you like. The simplest option is to copy it into the server's static resources
-so the bootJar serves the UI itself:
+The runtime Docker image builds this SPA in a dedicated node stage and embeds `dist/` into the
+bootJar's static resources, so the server serves the UI at its own origin — one artifact, no separate
+static host:
 
 ```bash
-cp -r dist/* ../app/src/main/resources/static/
+just web-image                                  # docker build -f webapp/app/Dockerfile -t pdfbook-web .
+docker run --rm -p 127.0.0.1:8080:8080 pdfbook-web
 ```
 
-(Then the SPA is available at the server's own origin, e.g. http://127.0.0.1:8080.)
+To serve the UI from a locally built bootJar instead, build it and drop it into the server's static
+resources (git-ignored) before `just web-serve`:
+
+```bash
+pnpm build && cp -r dist/* ../app/src/main/resources/static/
+```
+
+(Then the SPA is available at the server's own origin, e.g. http://127.0.0.1:8080 — otherwise use
+`just web-ui` for the Vite dev server, which proxies `/api` to the running server.)

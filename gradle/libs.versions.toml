@@ -44,6 +44,9 @@ shadow = "9.4.2"
 # Framework 7) baselines Java 17 with first-class Java 25 support. Applied only in :webapp:app via
 # `alias(libs.plugins.springBoot)`; it imports its own dependency BOM for spring-boot-starter-*.
 spring-boot = "4.0.4"
+# springdoc-openapi (Swagger UI + /v3/api-docs) for the :webapp:app REST API. The 3.0.x line targets
+# Spring Boot 4 / Jackson 3 (2.8.x is the Boot 3 line). App-only dep; not BOM-managed by Spring Boot.
+springdoc = "3.0.3"
 rewrite-plugin = "7.34.0"
 rewrite-recipe-bom = "3.32.0"
 # rewrite-java-security is the one recipe module not managed by the recipe BOM, so its version is
@@ -79,6 +82,7 @@ pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 xmpbox = { module = "org.apache.pdfbox:xmpbox", version.ref = "pdfbox" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

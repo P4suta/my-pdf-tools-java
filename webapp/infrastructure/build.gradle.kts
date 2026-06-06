@@ -23,7 +23,7 @@ dependencies {
 }
 
 // Infra-grade floor: four adapters are fully unit-tested; SubprocessConversionEngine is exercised
-// end-to-end against a fake pdfbook script (success / failure / timeout / unparseable line) in the
+// end-to-end against a fake pdfbook script (success / failure / timeout / unparsable line) in the
 // dev image. The branch floor is set modestly because the interrupt arm cannot be provoked
 // deterministically, the same way the other apps' infra floors absorb their untestable catch arms.
 tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {

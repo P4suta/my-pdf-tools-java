@@ -1,0 +1,25 @@
+package io.github.p4suta.webapp.app;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+/**
+ * The whole bean graph wires: {@link WebappConfig}'s use cases and adapters, the {@code @Scheduled}
+ * reaper, and Boot's web autoconfiguration all start in one mock servlet context. The pdfbook
+ * binary is pointed at a present executable so the {@code conversionEngine} bean resolves; the work
+ * dir is redirected to a throwaway temp subtree so the test never touches the real one.
+ */
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+        properties = {
+            "app.pdfbook-binary=/bin/true",
+            "app.work-dir=${java.io.tmpdir}/pdfbook-web-test/jobs"
+        })
+class WebApplicationSmokeTest {
+
+    @Test
+    void contextLoads() {
+        // The test fails if the application context cannot be built (a missing bean, a bad
+        // @ConfigurationProperties binding, a validation failure, ...).
+    }
+}

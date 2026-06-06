@@ -1,0 +1,12 @@
+# pnpm 11 reads its settings from here (the package.json "pnpm" field is no longer read).
+#
+# pnpm blocks dependency build/install scripts by default as supply-chain hardening; allow only the
+# ones we trust. esbuild (pulled in by Vite) installs its native binary via a build script, so it
+# must be allowed or `vite build` has no esbuild binary to run.
+allowBuilds:
+  esbuild: true
+
+# Never block on a TTY prompt when pnpm decides to re-create node_modules (e.g. the first install
+# after this toolchain moved into the dev container). Keeps `just web-ui` / CI / the Docker build
+# non-interactive — nobody has to answer a prompt.
+confirmModulesPurge: false

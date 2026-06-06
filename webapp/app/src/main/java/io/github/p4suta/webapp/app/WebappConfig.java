@@ -4,6 +4,7 @@ import io.github.p4suta.shared.process.ToolPath;
 import io.github.p4suta.webapp.application.Conversions;
 import io.github.p4suta.webapp.application.JobReaper;
 import io.github.p4suta.webapp.infrastructure.BoundedConversionExecutor;
+import io.github.p4suta.webapp.infrastructure.FilesystemResultCache;
 import io.github.p4suta.webapp.infrastructure.FilesystemWorkspace;
 import io.github.p4suta.webapp.infrastructure.InMemoryJobStore;
 import io.github.p4suta.webapp.infrastructure.SubprocessConversionEngine;
@@ -11,13 +12,17 @@ import io.github.p4suta.webapp.infrastructure.UuidJobIdGenerator;
 import io.github.p4suta.webapp.port.ConversionEngine;
 import io.github.p4suta.webapp.port.JobIdGenerator;
 import io.github.p4suta.webapp.port.JobStore;
+import io.github.p4suta.webapp.port.ResultCache;
 import io.github.p4suta.webapp.port.Workspace;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Optional;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -49,6 +54,15 @@ public class WebappConfig {
     }
 
     @Bean
+    FilesystemResultCache resultCache(WebappProperties properties) throws IOException {
+        // A sibling of the per-job work dir, so a cached result hard-links into a job's workspace
+        // (same filesystem) rather than being copied.
+        Path cacheRoot = properties.workDir().resolveSibling("cache");
+        Files.createDirectories(cacheRoot);
+        return new FilesystemResultCache(cacheRoot);
+    }
+
+    @Bean
     BoundedConversionExecutor conversionExecutor(WebappProperties properties) {
         return new BoundedConversionExecutor(properties.queueCapacity());
     }
@@ -59,18 +73,24 @@ public class WebappConfig {
     }
 
     @Bean
-    ConversionEngine conversionEngine(WebappProperties properties) {
-        Path binary =
-                ToolPath.resolve("pdfbook", "p4suta.pdfbook.binary")
-                        .or(() -> Optional.ofNullable(properties.pdfbookBinary()))
-                        .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "pdfbook binary not found; set"
-                                                    + " -Dp4suta.pdfbook.binary,"
-                                                    + " app.pdfbook-binary, or put pdfbook on the"
-                                                    + " PATH"));
-        return new SubprocessConversionEngine(binary, properties.conversionTimeout());
+    Path pdfbookBinary(WebappProperties properties) {
+        return ToolPath.resolve("pdfbook", "p4suta.pdfbook.binary")
+                .or(() -> Optional.ofNullable(properties.pdfbookBinary()))
+                .orElseThrow(
+                        () ->
+                                new IllegalStateException(
+                                        "pdfbook binary not found; set -Dp4suta.pdfbook.binary,"
+                                            + " app.pdfbook-binary, or put pdfbook on the PATH"));
+    }
+
+    @Bean
+    ConversionEngine conversionEngine(
+            Path pdfbookBinary, WebappProperties properties, MeterRegistry registry) {
+        ConversionEngine engine =
+                new SubprocessConversionEngine(pdfbookBinary, properties.conversionTimeout());
+        // Decorate so every conversion is timed and tagged success/failure (see
+        // MeteredConversionEngine).
+        return new MeteredConversionEngine(engine, registry);
     }
 
     @Bean
@@ -84,15 +104,36 @@ public class WebappConfig {
             ConversionEngine engine,
             BoundedConversionExecutor executor,
             Workspace workspace,
+            ResultCache cache,
             SseProgressPublisher publisher,
             JobIdGenerator ids,
             Clock clock) {
-        return new Conversions(store, engine, executor, workspace, publisher, ids, clock);
+        return new Conversions(store, engine, executor, workspace, cache, publisher, ids, clock);
     }
 
     @Bean
     JobReaper jobReaper(
             JobStore store, Workspace workspace, Clock clock, WebappProperties properties) {
         return new JobReaper(store, workspace, clock, properties.jobTtl());
+    }
+
+    @Bean
+    MeterBinder pdfbookMetrics(BoundedConversionExecutor executor, JobStore store) {
+        return new PdfbookMetrics(executor, store);
+    }
+
+    @Bean
+    HealthIndicator pdfbookBinaryHealthIndicator(Path pdfbookBinary) {
+        return new PdfbookBinaryHealthIndicator(pdfbookBinary);
+    }
+
+    @Bean
+    HealthIndicator workDirHealthIndicator(WebappProperties properties) {
+        return new WorkDirHealthIndicator(properties.workDir());
+    }
+
+    @Bean
+    HealthIndicator queueHealthIndicator(BoundedConversionExecutor executor) {
+        return new QueueHealthIndicator(executor);
     }
 }
