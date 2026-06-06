@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>my-pdf-tools-java — self-scanned Japanese-book PDF tools</title>
+    <meta
+      name="description"
+      content="Command-line tools and a web app for self-scanned (jisui) Japanese-book PDFs: align, despeckle, and rebind scanned pages into clean right-to-left spreads."
+    />
+    <style>
+      :root {
+        --bg: #fbfaf7;
+        --panel: #ffffff;
+        --ink: #1b1a17;
+        --muted: #6b6862;
+        --line: #e7e3da;
+        --accent: #b3471f;
+        --radius: 14px;
+        --maxw: 60rem;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161512;
+          --panel: #1f1d19;
+          --ink: #f1ede4;
+          --muted: #a9a496;
+          --line: #322e27;
+          --accent: #e8814f;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          16px/1.6 system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial,
+          "Noto Sans JP",
+          sans-serif;
+      }
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: clamp(1.5rem, 4vw, 4rem) 1.25rem 4rem;
+      }
+      header {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 1.75rem;
+        margin-bottom: 2rem;
+      }
+      h1 {
+        font-size: clamp(1.9rem, 5vw, 2.8rem);
+        margin: 0 0 0.4rem;
+        letter-spacing: -0.02em;
+      }
+      h1 .mono {
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      }
+      .tagline {
+        color: var(--muted);
+        font-size: clamp(1rem, 2.5vw, 1.2rem);
+        margin: 0;
+      }
+      .lede {
+        font-size: 1.08rem;
+        max-width: 46rem;
+      }
+      .cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+        margin: 1.6rem 0 0.5rem;
+      }
+      .btn {
+        display: inline-block;
+        padding: 0.55rem 1.05rem;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: var(--panel);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      h2 {
+        font-size: 1.05rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 2.75rem 0 1rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+        gap: 1rem;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 1.1rem 1.2rem;
+      }
+      .card h3 {
+        margin: 0 0 0.35rem;
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: 1.02rem;
+        color: var(--accent);
+      }
+      .card p {
+        margin: 0;
+        color: var(--ink);
+        font-size: 0.96rem;
+      }
+      .pipeline {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 1rem 1.2rem;
+        overflow-x: auto;
+      }
+      .pipeline code {
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        white-space: nowrap;
+        color: var(--ink);
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1><span class="mono">my-pdf-tools-java</span></h1>
+        <p class="tagline">
+          Tools for self-scanned (自炊) Japanese-book PDFs and their bitonal page images.
+        </p>
+      </header>
+
+      <p class="lede">
+        Three focused command-line tools, the unified <strong>pdfbook</strong> pipeline that chains
+        them, and a Spring Boot web app — all on a shared hexagonal core. They turn a raw book scan
+        into clean, uniform, right-to-left two-page spreads that read correctly in any PDF viewer.
+      </p>
+
+      <div class="cta">
+        <a class="btn primary" href="./javadoc/">API documentation (Javadoc)</a>
+        <a class="btn" href="https://github.com/P4suta/my-pdf-tools-java">Source on GitHub</a>
+      </div>
+
+      <h2>The tools</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>register</h3>
+          <p>
+            Aligns bitonal scans of 縦書き novel pages onto a fixed paper-size canvas, removing
+            per-scan jitter in size, position and rotation.
+          </p>
+        </div>
+        <div class="card">
+          <h3>despeckle</h3>
+          <p>
+            Removes scanner pepper-noise from bitonal scans while protecting ruby (振り仮名), 句読点,
+            and dakuten / handakuten.
+          </p>
+        </div>
+        <div class="card">
+          <h3>tate-yoko-pdf</h3>
+          <p>
+            Converts 縦書き scanned PDFs into right-to-left (RTL) two-page spreads that read
+            correctly in any viewer.
+          </p>
+        </div>
+        <div class="card">
+          <h3>pdfbook</h3>
+          <p>
+            The unified pipeline: extract once, then despeckle → register → RTL spreads in a single
+            pass with no intermediate PDFs. Includes a guided interactive mode (<code>-i</code>).
+          </p>
+        </div>
+        <div class="card">
+          <h3>webapp</h3>
+          <p>
+            A Spring Boot front end for pdfbook: upload a scan, watch per-page progress over SSE, and
+            download the finished book.
+          </p>
+        </div>
+      </div>
+
+      <h2>One pass, no intermediate PDFs</h2>
+      <div class="pipeline">
+        <code>pdfbook scan.pdf -o book.pdf</code><br />
+        <code>extract → despeckle (noise) → register (align) → RTL spreads → one repacked PDF</code>
+      </div>
+
+      <h2>CLI conventions</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>consistent</h3>
+          <p>
+            Every tool shares <code>-h/--help</code>, <code>-V/--version</code>,
+            <code>-v/--verbose</code>, <code>--completion</code> and <code>--man</code>, with
+            sysexits-flavored exit codes.
+          </p>
+        </div>
+        <div class="card">
+          <h3>safe</h3>
+          <p>
+            Existing output is refused by default (<code>--force</code> to overwrite); an interrupted
+            run leaves no temp files behind.
+          </p>
+        </div>
+        <div class="card">
+          <h3>bilingual errors</h3>
+          <p>
+            A failure carries only a stable error kind; the CLI renders it in English, the web UI in
+            Japanese — neither surface shares a message string.
+          </p>
+        </div>
+      </div>
+
+      <footer>
+        <p>
+          Built Docker-only (no host JVM) on a hexagonal core. <code>register</code> and
+          <code>despeckle</code> are dual-licensed MIT OR Apache-2.0; <code>tate-yoko-pdf</code> is
+          MIT. See the <a href="https://github.com/P4suta/my-pdf-tools-java">repository</a> for full
+          documentation.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

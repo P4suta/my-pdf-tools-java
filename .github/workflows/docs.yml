@@ -54,9 +54,18 @@ jobs:
           docker compose run --rm dev
           ./gradlew aggregateJavadoc --no-daemon --console=plain
           -Dorg.gradle.java.installations.auto-download=false
+      # Assemble the Pages site: the project landing page at the root, with the aggregated Javadoc
+      # under /javadoc/. The landing page is a self-contained static file (docs/pages/index.html) —
+      # no build step — so Pages serves a project intro, not a bare Javadoc index.
+      - name: assemble pages site (landing + javadoc)
+        run: |
+          rm -rf build/site
+          mkdir -p build/site/javadoc
+          cp -R build/docs/javadoc/. build/site/javadoc/
+          cp docs/pages/index.html build/site/index.html
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: build/docs/javadoc
+          path: build/site
 
   deploy:
     name: deploy (gh-pages)
