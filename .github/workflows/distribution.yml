@@ -170,7 +170,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -179,31 +179,41 @@ jobs:
           java-version: "25"
       - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
 
-      # Leptonica + poppler from one MSYS2 mingw64 toolchain (coherent ABI). qpdf
-      # is bundled separately (its own process, self-contained zip), so it needs
-      # no coherence with these. binutils supplies objdump for the closure walk.
-      #
-      # windows-latest ships MSYS2 preinstalled at C:\msys64, so we drive its
-      # pacman directly instead of the setup-msys2 action: the action's
-      # @actions/cache step intermittently 400s against the GitHub cache backend
-      # and exposes no toggle to disable it (msys2/setup-msys2#183). `pacman -Sy`
-      # refreshes the package DB before installing onto the preinstalled keyring.
-      - name: provision native toolchain (MSYS2 mingw64)
+      # Leptonica + poppler from one native toolchain (coherent ABI), plus qpdf.
+      # Windows: the preinstalled C:\msys64 mingw64 (we drive pacman directly — the
+      # setup-msys2 action's @actions/cache step intermittently 400s and offers no
+      # toggle, msys2/setup-msys2#183 — and `pacman -S` without `-y` installs from
+      # the preinstalled DB with no partial-upgrade). qpdf there is the Ivy zip.
+      # macOS: Homebrew (the upstream qpdf release has no Darwin binary, so qpdf is
+      # taken from Homebrew as a host tool — see the per-OS branch in the build).
+      - name: provision native toolchain (Windows / MSYS2 mingw64)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils"
           if ($LASTEXITCODE -ne 0) { throw "MSYS2 pacman provisioning failed ($LASTEXITCODE)" }
+      - name: provision native toolchain (macOS / Homebrew)
+        if: runner.os == 'macOS'
+        run: brew install leptonica poppler qpdf
 
-      - name: build pdfbook app-image + sample scan PDF
+      - name: build pdfbook app-image + sample scan PDF (Windows)
+        if: runner.os == 'Windows'
         run: >-
           ./gradlew :pipeline:app:package :register:infrastructure:createSamplePdf
           "-Pp4suta.nativePrefix=C:\msys64\mingw64"
           --no-daemon --console=plain
+      - name: build pdfbook app-image + sample scan PDF (macOS)
+        if: runner.os == 'macOS'
+        run: >-
+          ./gradlew :pipeline:app:package :register:infrastructure:createSamplePdf
+          "-Pp4suta.nativePrefix=$(brew --prefix)"
+          --no-daemon --console=plain
 
       # Real-workload smoke: the registration stage drives Leptonica through FFM
-      # (the co-location question), pdfimages extracts, qpdf linearizes. Assert the
-      # output is a linearized PDF — not merely that the process exited 0.
-      - name: real-PDF smoke (Leptonica FFM + pdfimages + qpdf linearize)
+      # (the dependent-library co-location question), pdfimages extracts, qpdf
+      # linearizes. Assert a LINEARIZED PDF, not merely a clean exit.
+      - name: real-PDF smoke (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $launcher = "pipeline\app\build\dist-jpackage\pdfbook\pdfbook.exe"
@@ -215,16 +225,26 @@ jobs:
           if (-not $text.StartsWith("%PDF-")) { throw "output is not a PDF" }
           if (-not $text.Contains("Linearized")) { throw "qpdf linearize did not run (silent noOp)" }
           Write-Host "pdfbook Windows smoke OK: %PDF + Linearized"
+      - name: real-PDF smoke (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          launcher="pipeline/app/build/dist-jpackage/pdfbook.app/Contents/MacOS/pdfbook"
+          sample="register/infrastructure/build/sample/sample.pdf"
+          "$launcher" "$sample" -o out.pdf
+          test -s out.pdf || { echo "::error::no output PDF produced"; exit 1; }
+          head -c5 out.pdf | grep -q '%PDF-' || { echo "::error::output is not a PDF"; exit 1; }
+          grep -aq Linearized out.pdf || { echo "::error::qpdf linearize did not run (silent noOp)"; exit 1; }
+          echo "pdfbook macOS smoke OK: %PDF + Linearized"
 
       - name: upload pdfbook app-image
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pdfbook-${{ matrix.os }}
-          path: pipeline/app/build/dist-jpackage/pdfbook/
+          path: pipeline/app/build/dist-jpackage/
           if-no-files-found: error
 
-      # On failure, also surface the staged native closure so the leptonica-DLL
-      # layout question can be diagnosed from the artifact.
+      # On failure, also surface the staged native closure so a dependent-library
+      # resolution problem can be diagnosed from the artifact.
       - name: upload staged natives on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -264,13 +284,17 @@ jobs:
       # MSYSTEM=MINGW64 makes the login shell put /mingw64/bin (gcc, pkg-config) on
       # PATH so jbig2enc's ./configure finds the mingw64 C compiler and Leptonica;
       # a bare usr/bin/bash starts in the MSYS environment, where it does not.
+      # `pacman -S` WITHOUT `-y`: the preinstalled MSYS2's package DB matches its
+      # installed set, so installing from it satisfies dependencies at their current
+      # versions with no upgrade — `-Sy` would refresh the DB and then demand a
+      # partial upgrade of the toolchain that pacman refuses ("Errors occurred").
       - name: provision toolchain + build jbig2enc (MSYS2 mingw64)
         shell: pwsh
         run: |
           $env:MSYSTEM = "MINGW64"
           $env:CHERE_INVOKING = "1"
           C:\msys64\usr\bin\bash.exe -lc "set -eo pipefail; \
-            pacman -Sy --needed --noconfirm git autoconf automake libtool make \
+            pacman -S --needed --noconfirm git autoconf automake libtool make \
               mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica \
               mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; \
             rm -rf /tmp/jbig2enc; \
