@@ -182,21 +182,22 @@ jobs:
       # Leptonica + poppler from one MSYS2 mingw64 toolchain (coherent ABI). qpdf
       # is bundled separately (its own process, self-contained zip), so it needs
       # no coherence with these. binutils supplies objdump for the closure walk.
+      #
+      # windows-latest ships MSYS2 preinstalled at C:\msys64, so we drive its
+      # pacman directly instead of the setup-msys2 action: the action's
+      # @actions/cache step intermittently 400s against the GitHub cache backend
+      # and exposes no toggle to disable it (msys2/setup-msys2#183). `pacman -Sy`
+      # refreshes the package DB before installing onto the preinstalled keyring.
       - name: provision native toolchain (MSYS2 mingw64)
-        uses: msys2/setup-msys2@f84a36b4009b96413f91c01441130855db9392e5 # v2.9.0
-        id: msys2
-        with:
-          msystem: MINGW64
-          update: false
-          install: >-
-            mingw-w64-x86_64-leptonica
-            mingw-w64-x86_64-poppler
-            mingw-w64-x86_64-binutils
+        shell: pwsh
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils"
+          if ($LASTEXITCODE -ne 0) { throw "MSYS2 pacman provisioning failed ($LASTEXITCODE)" }
 
       - name: build pdfbook app-image + sample scan PDF
         run: >-
           ./gradlew :pipeline:app:package :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=${{ steps.msys2.outputs.msys2-location }}\mingw64"
+          "-Pp4suta.nativePrefix=C:\msys64\mingw64"
           --no-daemon --console=plain
 
       # Real-workload smoke: the registration stage drives Leptonica through FFM

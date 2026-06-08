@@ -43,16 +43,25 @@ abstract class StageNativesTask
 
         @TaskAction
         fun stage() {
-            val platform = NativePlatform.current()
-            val source = NativeSource.forHost(nativePrefix.orNull)
-
             val out = outDir.get().asFile
             fsOps.delete { delete(out) }
             out.mkdirs()
 
+            val toolNames = tools.get()
+            val libraryNames = librarySonames.get()
+            // Nothing to stage (e.g. tate-yoko-pdf, whose only native is the separately-staged
+            // qpdf): leave an empty dir and don't resolve a source — so an app with no host
+            // tools/libraries needs no toolchain prefix on Windows/macOS.
+            if (toolNames.isEmpty() && libraryNames.isEmpty()) {
+                return
+            }
+
+            val platform = NativePlatform.current()
+            val source = NativeSource.forHost(nativePrefix.orNull)
+
             val seeds =
-                tools.get().map { source.resolveTool(it) } +
-                    librarySonames.get().map { source.resolveLibrary(it) }
+                toolNames.map { source.resolveTool(it) } +
+                    libraryNames.map { source.resolveLibrary(it) }
             val seedNames = seeds.map { it.name }.toSet()
             val searchDirs = source.searchDirs()
 
