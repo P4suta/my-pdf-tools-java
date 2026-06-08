@@ -72,7 +72,7 @@ sealed interface NativePlatform {
  * Linux: `ldd` closure, RUNPATH rewritten to `$ORIGIN` via `patchelf`. The glibc / dynamic-loader
  * core stays host-resolved — bundling a build-image `ld-linux`/`libc` next to host-loaded objects
  * would put two libcs in one process — so the contract is "host glibc >= build-image glibc". This
- * is register's proven native-staging behaviour, lifted behind the interface.
+ * is register's proven native-staging behavior, lifted behind the interface.
  */
 object LinuxPlatform : NativePlatform {
 

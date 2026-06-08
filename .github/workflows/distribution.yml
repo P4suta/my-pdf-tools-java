@@ -161,7 +161,7 @@ jobs:
   # -Pp4suta.nativePrefix points the distribution convention's native staging at
   # that prefix. The smoke pushes a real scan PDF through the built launcher and
   # asserts a LINEARIZED output: that exercises the Leptonica FFM path (the one
-  # co-location question on Windows) and the qpdf linearise, so a bundle that
+  # co-location question on Windows) and the qpdf linearize, so a bundle that
   # silently lost either fails the gate instead of passing on a bare %PDF.
   dist-pdfbook-crossos:
     name: pdfbook self-contained + smoke (${{ matrix.os }})
@@ -200,9 +200,9 @@ jobs:
           --no-daemon --console=plain
 
       # Real-workload smoke: the registration stage drives Leptonica through FFM
-      # (the co-location question), pdfimages extracts, qpdf linearises. Assert the
+      # (the co-location question), pdfimages extracts, qpdf linearizes. Assert the
       # output is a linearized PDF — not merely that the process exited 0.
-      - name: real-PDF smoke (Leptonica FFM + pdfimages + qpdf linearise)
+      - name: real-PDF smoke (Leptonica FFM + pdfimages + qpdf linearize)
         shell: pwsh
         run: |
           $launcher = "pipeline\app\build\dist-jpackage\pdfbook\pdfbook.exe"
@@ -212,7 +212,7 @@ jobs:
           if (-not (Test-Path out.pdf)) { throw "no output PDF produced" }
           $text = [System.Text.Encoding]::Latin1.GetString([System.IO.File]::ReadAllBytes("out.pdf"))
           if (-not $text.StartsWith("%PDF-")) { throw "output is not a PDF" }
-          if (-not $text.Contains("Linearized")) { throw "qpdf linearise did not run (silent noOp)" }
+          if (-not $text.Contains("Linearized")) { throw "qpdf linearize did not run (silent noOp)" }
           Write-Host "pdfbook Windows smoke OK: %PDF + Linearized"
 
       - name: upload pdfbook app-image

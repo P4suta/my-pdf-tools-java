@@ -51,7 +51,7 @@ base {
 // ---- Self-contained distribution (`just package`) ----------------------------------------------
 // build/dist-jpackage/despeckle/ — the despeckle CLI as a Docker-free, JDK-free app-image. Its
 // pipeline reaches for Leptonica (FFM; also the WebP encoder via libwebp in Leptonica's closure),
-// pdfimages/pdfinfo/jbig2 (extraction + lossless-JBIG2 repack), and the optional qpdf linearise +
+// pdfimages/pdfinfo/jbig2 (extraction + lossless-JBIG2 repack), and the optional qpdf linearize +
 // img2webp flip-book. The convention stages each native + its shared-library closure and points the
 // launcher at them via the canonical -Dp4suta.<tool>.path keys; installDist's lib/ is the jpackage
 // input (this app ships no shadow jar).

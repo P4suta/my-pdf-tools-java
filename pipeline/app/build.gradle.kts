@@ -54,7 +54,7 @@ base {
 // ---- Self-contained distribution (`just package`) ----------------------------------------------
 // build/dist-jpackage/pdfbook/ — the flagship CLI as a Docker-free, JDK-free app-image. pdfbook's
 // single-pass pipeline (extract -> despeckle -> register -> RTL spread) reaches for Leptonica (FFM,
-// via the registrar), pdfimages/pdfinfo (extraction), and the optional qpdf linearise. It does NOT
+// via the registrar), pdfimages/pdfinfo (extraction), and the optional qpdf linearize. It does NOT
 // use jbig2: the register STAGE writes registered TIFF-G4 pages (it never repacks to a lossless-
 // JBIG2 PDF the way the standalone `register pipeline` does), and the spread pack embeds those pages
 // as CCITT G4. The convention stages each native + its shared-library closure and points the
