@@ -235,6 +235,84 @@ jobs:
             pipeline/app/build/dist-jpackage/
           if-no-files-found: ignore
 
+  # register self-contained app-image on Windows. Unlike pdfbook, register's
+  # standalone pipeline (pdfimages -> register -> jbig2) repacks to a lossless-JBIG2
+  # PDF, so it needs jbig2enc — which is not packaged for mingw64. It is built from
+  # source against the same MSYS2 mingw64 Leptonica the FFM layer loads (one
+  # coherent ABI), pinned to the same release the dev image uses, and installed into
+  # the prefix so the convention stages jbig2.exe + its closure. The smoke asserts a
+  # JBIG2 stream in the output — proving the FFM Leptonica path AND jbig2enc ran.
+  dist-register-crossos:
+    name: register self-contained + smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: liberica
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+
+      # Leptonica + poppler from MSYS2 mingw64, plus jbig2enc built from source
+      # against that same Leptonica and installed into the prefix (pinned to the
+      # dev image's JBIG2ENC_VERSION). binutils supplies objdump for the closure walk.
+      - name: provision toolchain + build jbig2enc (MSYS2 mingw64)
+        shell: pwsh
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "set -eo pipefail; \
+            pacman -Sy --needed --noconfirm git autoconf automake libtool make \
+              mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica \
+              mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; \
+            rm -rf /tmp/jbig2enc; \
+            git clone --depth 1 --branch 0.31 https://github.com/agl/jbig2enc /tmp/jbig2enc; \
+            cd /tmp/jbig2enc; ./autogen.sh; ./configure --prefix=/mingw64; \
+            make -j\$(nproc); make install"
+          if ($LASTEXITCODE -ne 0) { throw "MSYS2 provisioning / jbig2enc build failed ($LASTEXITCODE)" }
+
+      - name: build register app-image + sample scan PDF
+        run: >-
+          ./gradlew :register:app:package :register:infrastructure:createSamplePdf
+          "-Pp4suta.nativePrefix=C:\msys64\mingw64"
+          --no-daemon --console=plain
+
+      # register pipeline = pdfimages -> register (Leptonica FFM) -> jbig2 repack.
+      # Assert a JBIG2Decode stream: proves the FFM Leptonica path AND the from-source
+      # jbig2enc both ran (register does not bundle qpdf, so no linearize assertion).
+      - name: real-PDF smoke (register pipeline -> lossless JBIG2)
+        shell: pwsh
+        run: |
+          $launcher = "register\app\build\dist-jpackage\register\register.exe"
+          $sample   = "register\infrastructure\build\sample\sample.pdf"
+          & $launcher pipeline $sample out.pdf
+          if ($LASTEXITCODE -ne 0) { throw "register exited $LASTEXITCODE" }
+          if (-not (Test-Path out.pdf)) { throw "no output PDF produced" }
+          $text = [System.Text.Encoding]::Latin1.GetString([System.IO.File]::ReadAllBytes("out.pdf"))
+          if (-not $text.StartsWith("%PDF-")) { throw "output is not a PDF" }
+          if (-not $text.Contains("JBIG2Decode")) { throw "no JBIG2 stream (jbig2enc did not run)" }
+          Write-Host "register Windows smoke OK: %PDF + JBIG2Decode"
+
+      - name: upload register app-image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: register-${{ matrix.os }}
+          path: register/app/build/dist-jpackage/register/
+          if-no-files-found: error
+
+      - name: upload staged natives on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: register-${{ matrix.os }}-debug
+          path: |
+            register/app/build/dist-natives/
+            register/app/build/dist-jpackage/
+          if-no-files-found: ignore
+
   # Single aggregate context to require in branch protection. Matrix legs expand
   # to per-OS contexts ("tate jpackage + smoke (macos-latest)" …) that churn when
   # the matrix changes; gating on one job that fans them in is the stable form.
@@ -242,7 +320,7 @@ jobs:
   # gate too (a bare `needs:` would let a cancelled leg pass).
   distribution-complete:
     name: distribution complete
-    needs: [dist-linux, dist-tate-crossos, dist-pdfbook-crossos]
+    needs: [dist-linux, dist-tate-crossos, dist-pdfbook-crossos, dist-register-crossos]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -251,7 +329,8 @@ jobs:
         run: |-
           if [ "${{ needs.dist-linux.result }}" != "success" ] \
             || [ "${{ needs.dist-tate-crossos.result }}" != "success" ] \
-            || [ "${{ needs.dist-pdfbook-crossos.result }}" != "success" ]; then
+            || [ "${{ needs.dist-pdfbook-crossos.result }}" != "success" ] \
+            || [ "${{ needs.dist-register-crossos.result }}" != "success" ]; then
             echo "::error::a distribution leg did not succeed"
             exit 1
           fi

@@ -79,7 +79,7 @@ selfContainedApp {
     // installDist stages launcher + all jars under build/install/pdfbook; jpackage consumes its lib/.
     appArtifacts.from(layout.buildDirectory.dir("install/pdfbook/lib"))
     appArtifacts.builtBy(tasks.named("installDist"))
-    hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "liblept.5.dylib")
+    hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "libleptonica.6.dylib")
     hostTool("pdfimages")
     hostTool("pdfinfo")
     // qpdf (Fast Web View) — optional: its absence degrades to a no-op, still a valid PDF.

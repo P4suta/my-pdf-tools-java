@@ -92,7 +92,7 @@ selfContainedApp {
             "jdk.zipfs",
         )
     appArtifacts.from(tasks.shadowJar)
-    hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "liblept.5.dylib")
+    hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "libleptonica.6.dylib")
     hostTool("pdfimages")
     hostTool("pdfinfo")
     hostTool("jbig2")
