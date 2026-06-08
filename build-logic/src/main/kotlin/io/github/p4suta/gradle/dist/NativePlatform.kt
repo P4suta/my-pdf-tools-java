@@ -218,24 +218,106 @@ object WindowsPlatform : NativePlatform {
 }
 
 /**
- * macOS: an `otool -L` closure with each dependency's install-name rewritten to `@loader_path` via
- * `install_name_tool`, `/usr/lib` + `/System` left to the host. Implemented after the Windows
- * mechanism is proven in CI (`macos-latest` exists and already cross-builds tate, so it is
- * CI-validated, not guessed), to replicate a proven approach rather than ship an untested one.
+ * macOS: an `otool -L` closure, with each bundled member's dependencies rewritten to
+ * `@loader_path/<name>` via `install_name_tool` and then re-signed ad-hoc. `/usr/lib` + `/System`
+ * are left to the host. `@loader_path` is the Mach-O analogue of Linux's `$ORIGIN` — it resolves a
+ * dependency relative to the loading module's own directory, so a flat co-located bundle is
+ * self-resolving without the Windows preload dance. The re-sign is mandatory on arm64: modifying a
+ * Mach-O with `install_name_tool` invalidates its (linker-/ad-hoc) code signature, and the loader
+ * refuses an invalid signature on Apple Silicon, so each rewritten file gets a fresh ad-hoc
+ * signature (`codesign --force --sign -`).
  */
 object MacPlatform : NativePlatform {
-    private const val PENDING = "MacPlatform native bundling lands after the Windows leg is proven in CI"
+
+    // An `otool -L` dependency line: a leading-whitespace install name followed by " (compatibility…".
+    private val dependencyLine = Regex("""^\s+(\S+)\s+\(""")
 
     override fun closure(
         execOps: ExecOperations,
         seeds: List<File>,
         searchDirs: List<File>,
-    ): List<File> = throw UnsupportedOperationException(PENDING)
+    ): List<File> {
+        val byName = LinkedHashMap<String, File>()
+        val queue = ArrayDeque(seeds)
+        while (queue.isNotEmpty()) {
+            val file = queue.removeFirst()
+            if (byName.containsKey(file.name)) {
+                continue
+            }
+            byName[file.name] = file
+            dependencies(execOps, file).forEach { install ->
+                resolveInstallName(install, searchDirs)?.let { dep ->
+                    if (!byName.containsKey(dep.name)) {
+                        queue.add(dep)
+                    }
+                }
+            }
+        }
+        return byName.values.toList()
+    }
 
-    override fun shouldBundle(lib: File): Boolean = throw UnsupportedOperationException(PENDING)
+    override fun shouldBundle(lib: File): Boolean =
+        !lib.path.startsWith("/usr/lib/") && !lib.path.startsWith("/System/")
 
-    override fun establishRuntimeDiscovery(execOps: ExecOperations, bundleDir: File): Unit =
-        throw UnsupportedOperationException(PENDING)
+    override fun establishRuntimeDiscovery(execOps: ExecOperations, bundleDir: File) {
+        val staged = bundleDir.listFiles().orEmpty()
+        val present = staged.map { it.name }.toSet()
+        staged.forEach { file ->
+            if (file.name.endsWith(".dylib")) {
+                execOps.exec {
+                    commandLine("install_name_tool", "-id", "@loader_path/${file.name}", file.absolutePath)
+                    isIgnoreExitValue = true
+                }
+            }
+            dependencies(execOps, file).forEach { install ->
+                val base = install.substringAfterLast('/')
+                if (base in present && install != "@loader_path/$base") {
+                    execOps.exec {
+                        commandLine(
+                            "install_name_tool", "-change", install, "@loader_path/$base", file.absolutePath,
+                        )
+                        isIgnoreExitValue = true
+                    }
+                }
+            }
+            // install_name_tool invalidated the signature; re-sign ad-hoc (required on arm64).
+            execOps.exec {
+                commandLine("codesign", "--force", "--sign", "-", file.absolutePath)
+                isIgnoreExitValue = true
+            }
+        }
+    }
 
     override fun executableName(logical: String): String = logical
+
+    // The dependency install names from `otool -L`, skipping the first line (the file's own path).
+    private fun dependencies(execOps: ExecOperations, file: File): List<String> {
+        val out = ByteArrayOutputStream()
+        execOps.exec {
+            commandLine("otool", "-L", file.absolutePath)
+            standardOutput = out
+            isIgnoreExitValue = true
+        }
+        return out.toString()
+            .lineSequence()
+            .drop(1)
+            .mapNotNull { dependencyLine.find(it)?.groupValues?.get(1) }
+            .toList()
+    }
+
+    // Map an install name to a bundleable file, or null for a host (system) library to leave alone.
+    private fun resolveInstallName(install: String, searchDirs: List<File>): File? {
+        if (install.startsWith("/usr/lib/") || install.startsWith("/System/")) {
+            return null
+        }
+        if (install.startsWith("/")) {
+            val absolute = File(install)
+            return if (absolute.isFile) absolute else locate(absolute.name, searchDirs)
+        }
+        // @rpath / @loader_path / @executable_path prefixed — resolve the base name in the prefix.
+        return locate(install.substringAfterLast('/'), searchDirs)
+    }
+
+    private fun locate(name: String, searchDirs: List<File>): File? =
+        searchDirs.firstNotNullOfOrNull { dir -> File(dir, name).takeIf { it.isFile } }
 }

@@ -261,9 +261,14 @@ jobs:
       # Leptonica + poppler from MSYS2 mingw64, plus jbig2enc built from source
       # against that same Leptonica and installed into the prefix (pinned to the
       # dev image's JBIG2ENC_VERSION). binutils supplies objdump for the closure walk.
+      # MSYSTEM=MINGW64 makes the login shell put /mingw64/bin (gcc, pkg-config) on
+      # PATH so jbig2enc's ./configure finds the mingw64 C compiler and Leptonica;
+      # a bare usr/bin/bash starts in the MSYS environment, where it does not.
       - name: provision toolchain + build jbig2enc (MSYS2 mingw64)
         shell: pwsh
         run: |
+          $env:MSYSTEM = "MINGW64"
+          $env:CHERE_INVOKING = "1"
           C:\msys64\usr\bin\bash.exe -lc "set -eo pipefail; \
             pacman -Sy --needed --noconfirm git autoconf automake libtool make \
               mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica \

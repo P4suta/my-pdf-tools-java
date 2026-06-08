@@ -136,10 +136,14 @@ val jpackageImage =
                 dist.libraries.get().forEach { (logical, soname) ->
                     add("-Dp4suta.$logical.path=\$APPDIR/natives/$soname")
                 }
-                // qpdf lives in its own self-contained subtree (its $ORIGIN/../lib RPATH needs the
-                // bin/+lib/ layout preserved). Harmless when not bundled: the path is missing, so
-                // QpdfLinearizer falls through to PATH / no-op exactly as before.
-                add("-Dp4suta.qpdf.path=\$APPDIR/natives/qpdf/bin/${platform.executableName("qpdf")}")
+                // qpdf bundled from its release zip (Linux/Windows) lives in its own self-contained
+                // subtree, because the upstream qpdf binary's RPATH ($ORIGIN/../lib) needs the
+                // bin/+lib/ layout preserved. When qpdf instead comes from a toolchain prefix as a
+                // host tool (macOS / Homebrew), it is staged flat and already covered by the tool
+                // loop above, so this archive-layout key is emitted only when a qpdf zip is wired.
+                if (dist.qpdfZip.from.isNotEmpty()) {
+                    add("-Dp4suta.qpdf.path=\$APPDIR/natives/qpdf/bin/${platform.executableName("qpdf")}")
+                }
                 addAll(dist.extraJvmOptions.get())
             }
 
