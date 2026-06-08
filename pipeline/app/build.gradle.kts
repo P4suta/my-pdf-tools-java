@@ -1,16 +1,19 @@
+import io.github.p4suta.gradle.dist.qpdfBinary
+
 plugins {
     id("p4suta.java-conventions")
     id("p4suta.native-conventions")
     id("p4suta.test-conventions")
     id("p4suta.quality-conventions")
+    id("p4suta.distribution-conventions")
     application
 }
 
 // The composition root and runnable artifact (`pdfbook`): Main installs the fatal handler and
 // delegates to the CLI, which wires the Source/Stage/Sink adapters into PipelineRunner. The one
-// module that sees both :pipeline:application and :pipeline:infrastructure. Runs via installDist in
-// the dev image (which carries Leptonica + pdfimages/jbig2/qpdf); a self-contained jpackage image
-// is a follow-up (the same native-staging register already does).
+// module that sees both :pipeline:application and :pipeline:infrastructure. Runs via installDist,
+// and ships as a self-contained jpackage app-image through p4suta.distribution-conventions — the
+// same uniform native-staging register/despeckle/tate now share.
 dependencies {
     implementation(project(":pipeline:application"))
     implementation(project(":pipeline:infrastructure"))
@@ -44,119 +47,50 @@ application {
 }
 
 base {
-    // Pin the jar name to pdfbook-<version>.jar so jpackage's --main-jar below can find it.
+    // Pin the jar name to pdfbook-<version>.jar so jpackage's --main-jar can find it in lib/.
     archivesName = "pdfbook"
 }
 
-// ---- Distribution: jlink + jpackage app-image ------------------------------
-// Mirrors :despeckle:app — build/dist-jpackage/pdfbook/ with a launcher and a trimmed JRE (jlink),
-// the app-image's --input being installDist's lib/. Native tools (pdfimages / pdfinfo / jbig2 / qpdf
-// + libleptonica) are a documented PATH runtime dependency, NOT bundled (the dev container supplies
-// them); the image is self-contained for the JVM side only.
-
-val jpackageAppName = "pdfbook"
-
-// Minimal module set (verify with `jdeps --print-module-deps`); identical needs to despeckle:
-// FFM/NIO (java.base), ImageIO (java.desktop), PDFBox/xmpbox (java.xml), slf4j-simple over j.u.l
-// (java.logging), PDFBox Unsafe (jdk.unsupported) and zip-style stream filters (jdk.zipfs).
-val bundledModules =
-    listOf(
-        "java.base",
-        "java.desktop",
-        "java.xml",
-        "java.logging",
-        "jdk.unsupported",
-        "jdk.zipfs",
-    )
-
-// CC-safe tool resolution: capture java.home (or JAVA_HOME) as a Provider at configuration time.
-val javaHomeProvider: Provider<String> =
-    providers.systemProperty("java.home").orElse(providers.environmentVariable("JAVA_HOME"))
-
-fun toolPath(tool: String): Provider<String> =
-    javaHomeProvider.map { home ->
-        val exe =
-            if (org.gradle.internal.os.OperatingSystem
-                    .current()
-                    .isWindows
-            ) {
-                "$tool.exe"
-            } else {
-                tool
-            }
-        "$home/bin/$exe"
-    }
-
-// jlink/jpackage refuse a pre-existing output dir; declare each tool's parent as the output and
-// reset the fixed child with a Delete task, config-cache-safely.
-val jreOutputParent = layout.buildDirectory.dir("dist-jre")
-val jreImageDir = jreOutputParent.map { it.dir("runtime") }
-val jpackageOutputParent = layout.buildDirectory.dir("dist-jpackage")
-val installInputDir = layout.buildDirectory.dir("install/$jpackageAppName/lib")
-
-val cleanJreImage =
-    tasks.register<Delete>("cleanJreImage") {
-        delete(jreImageDir)
-    }
-
-val cleanJpackageImage =
-    tasks.register<Delete>("cleanJpackageImage") {
-        delete(jpackageOutputParent.map { it.dir(jpackageAppName) })
-    }
-
-val jreImage =
-    tasks.register<Exec>("jreImage") {
-        group = "distribution"
-        description = "Run jlink to build a trimmed JRE under build/dist-jre/runtime/"
-        dependsOn(cleanJreImage)
-
-        commandLine =
-            listOf(
-                toolPath("jlink").get(),
-                "--add-modules",
-                bundledModules.joinToString(","),
-                "--strip-debug",
-                "--no-header-files",
-                "--no-man-pages",
-                "--compress=zip-9",
-                "--output",
-                jreImageDir.get().asFile.absolutePath,
-            )
-        inputs.property("modules", bundledModules.joinToString(","))
-        outputs.dir(jreOutputParent)
-    }
-
-tasks.register<Exec>("jpackageImage") {
-    group = "distribution"
-    description = "Run jpackage to build the pdfbook app-image under build/dist-jpackage/"
-    dependsOn(jreImage, tasks.named("installDist"), cleanJpackageImage)
-
-    val mainJarName = "$jpackageAppName-${project.version}.jar"
-
-    commandLine =
+// ---- Self-contained distribution (`just package`) ----------------------------------------------
+// build/dist-jpackage/pdfbook/ — the flagship CLI as a Docker-free, JDK-free app-image. pdfbook's
+// single-pass pipeline (extract -> despeckle -> register -> RTL spread) reaches for Leptonica (FFM,
+// via the registrar), pdfimages/pdfinfo (extraction), and the optional qpdf linearize. It does NOT
+// use jbig2: the register STAGE writes registered TIFF-G4 pages (it never repacks to a lossless-
+// JBIG2 PDF the way the standalone `register pipeline` does), and the spread pack embeds those pages
+// as CCITT G4. The convention stages each native + its shared-library closure and points the
+// launcher at them via the canonical -Dp4suta.<tool>.path keys; installDist's lib/ is the jpackage
+// input (this app ships no shadow jar).
+selfContainedApp {
+    appName = "pdfbook"
+    mainClass = "io.github.p4suta.pipeline.Main"
+    mainJar = "pdfbook-${project.version}.jar"
+    // Identical to despeckle's needs: FFM/NIO (java.base), ImageIO (java.desktop), PDFBox/xmpbox
+    // (java.xml), slf4j-simple over j.u.l (java.logging), PDFBox Unsafe (jdk.unsupported), zip-style
+    // stream filters (jdk.zipfs). Pinned; `jdeps --print-module-deps` is the floor to check against.
+    modules =
         listOf(
-            toolPath("jpackage").get(),
-            "--type",
-            "app-image",
-            "--name",
-            jpackageAppName,
-            "--input",
-            installInputDir.get().asFile.absolutePath,
-            "--main-jar",
-            mainJarName,
-            "--main-class",
-            "io.github.p4suta.pipeline.Main",
-            "--runtime-image",
-            jreImageDir.get().asFile.absolutePath,
-            "--dest",
-            jpackageOutputParent.get().asFile.absolutePath,
-            "--java-options",
-            "--enable-native-access=ALL-UNNAMED",
-            "--java-options",
-            "-XX:MaxRAMPercentage=75.0",
+            "java.base",
+            "java.desktop",
+            "java.xml",
+            "java.logging",
+            "jdk.unsupported",
+            "jdk.zipfs",
         )
-
-    inputs.dir(jreImageDir)
-    inputs.dir(installInputDir)
-    outputs.dir(jpackageOutputParent)
+    // installDist stages launcher + all jars under build/install/pdfbook; jpackage consumes its lib/.
+    appArtifacts.from(layout.buildDirectory.dir("install/pdfbook/lib"))
+    appArtifacts.builtBy(tasks.named("installDist"))
+    hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "libleptonica.6.dylib")
+    hostTool("pdfimages")
+    hostTool("pdfinfo")
+    // qpdf (Fast Web View): Linux/Windows fetch the upstream release zip (kept as a self-contained
+    // bin/+lib/ subtree for its RPATH); macOS has no upstream binary, so qpdf comes from the
+    // Homebrew prefix as a flat host tool. Either way it resolves via -Dp4suta.qpdf.path.
+    if (org.gradle.internal.os.OperatingSystem
+            .current()
+            .isMacOsX
+    ) {
+        hostTool("qpdf")
+    } else {
+        qpdfZip.from(qpdfBinary(libs.versions.qpdf.get()))
+    }
 }

@@ -1,10 +1,10 @@
-import java.nio.file.Files
-import javax.inject.Inject
+import io.github.p4suta.gradle.dist.qpdfBinary
 
 plugins {
     id("p4suta.java-conventions")
     id("p4suta.test-conventions")
     id("p4suta.quality-conventions")
+    id("p4suta.distribution-conventions")
     application
     alias(libs.plugins.shadow)
 }
@@ -24,7 +24,7 @@ dependencies {
     // exposes the kernel transitively (both declare it `implementation`), so the app declares it.
     implementation(project(":shared:kernel"))
     implementation(project(":shared:observability"))
-    implementation("commons-cli:commons-cli:1.11.0")
+    implementation(libs.commons.cli)
     // The CLI logs through the SLF4J facade; the binding (slf4j-simple) is added on the runnable
     // app's runtime only (and the test runtime, via test-conventions), matching register/despeckle.
     // Replaces the former logback-classic binding so all three apps share one slf4j backend.
@@ -42,44 +42,45 @@ application {
     mainClass = "io.github.p4suta.tateyokopdf.Main"
 }
 
-repositories {
-    // qpdf official GitHub releases — Ivy URL repository for fetching the Fast Web View
-    // post-processor binary as a regular Gradle dependency. Bundled by stageJpackageInput below.
-    ivy {
-        name = "qpdf-releases"
-        url = uri("https://github.com/qpdf/qpdf/releases/download/")
-        patternLayout {
-            artifact("v[revision]/qpdf-[revision]-[classifier].[ext]")
-        }
-        metadataSources { artifact() }
-        content { includeGroup("com.github.qpdf") }
-    }
-}
-
-val qpdfVersion = "12.3.2"
-
-// Per-host classifier: jpackage only emits images for the host OS. macOS is intentionally absent —
-// upstream qpdf has no Darwin binary, so QpdfLinearizer's noOp/PATH fallback applies.
-val qpdfBinary by configurations.creating { isCanBeConsumed = false }
-
-dependencies {
-    val hostOs =
-        org.gradle.internal.os.OperatingSystem
-            .current()
-    val qpdfCoords: String? =
-        when {
-            hostOs.isLinux -> "com.github.qpdf:qpdf:$qpdfVersion:bin-linux-x86_64@zip"
-            hostOs.isWindows -> "com.github.qpdf:qpdf:$qpdfVersion:mingw64@zip"
-            else -> null
-        }
-    qpdfCoords?.let { qpdfBinary(it) }
-}
-
 tasks.shadowJar {
     archiveBaseName = "tate-yoko-pdf"
     archiveClassifier = "all"
     archiveVersion = ""
     mergeServiceFiles()
+}
+
+// ---- Self-contained distribution (jlink + bundled qpdf + jpackage) -----------------------------
+// tate has no FFM native dependency; its only native piece is qpdf (Fast Web View linearisation),
+// self-downloaded per OS from qpdf's GitHub releases. The convention stages it under natives/qpdf
+// (preserving the upstream bin/+lib/ layout its own RPATH needs) and points the launcher at it via
+// the canonical -Dp4suta.qpdf.path key. qpdf's absence degrades to a no-op (still a valid PDF), so
+// the smoke check below converts a real sample to confirm the bundled qpdf actually runs.
+selfContainedApp {
+    appName = "tate-yoko-pdf"
+    mainClass = "io.github.p4suta.tateyokopdf.Main"
+    mainJar = "tate-yoko-pdf-all.jar"
+    // java.base + everything PDFBox / slf4j-simple / HttpClient need at runtime:
+    //  - java.desktop: PDFBox' PDDocument <clinit> touches java.awt.image.Raster / ColorModel.
+    //  - jdk.crypto.ec: TLS cipher suites used by Java HttpClient.
+    //  - jdk.unsupported: sun.misc.Unsafe used by some transitive deps.
+    //  - jdk.zipfs: PDFBox uses zip-style stream filters.
+    modules =
+        listOf(
+            "java.base",
+            "java.desktop",
+            "java.naming",
+            "java.management",
+            "java.logging",
+            "java.net.http",
+            "java.sql",
+            "java.xml",
+            "jdk.crypto.ec",
+            "jdk.unsupported",
+            "jdk.zipfs",
+        )
+    appArtifacts.from(tasks.shadowJar)
+    // The per-OS qpdf release zip (empty on macOS, where upstream ships no Darwin binary).
+    qpdfZip.from(qpdfBinary(libs.versions.qpdf.get()))
 }
 
 tasks.register<JavaExec>("createSamplePdf") {
@@ -111,7 +112,8 @@ tasks.register<JavaExec>("benchRuntime") {
             ?.filter { it.isNotBlank() }
             ?: emptyList()
     val launcher = "app/build/dist-jpackage/tate-yoko-pdf/bin/tate-yoko-pdf"
-    val qpdfBin = "app/build/dist-jpackage/tate-yoko-pdf/lib/app/bin/qpdf"
+    // qpdf now lives in the uniform natives/qpdf subtree the distribution convention stages.
+    val qpdfBin = "app/build/dist-jpackage/tate-yoko-pdf/lib/app/natives/qpdf/bin/qpdf"
     val inputs = extraInputs.ifEmpty { listOf("app/build/test-data/sample.pdf") }
     args =
         listOf(launcher, qpdfBin, "docs/perf-runtime.md", runs, "MaxRAMPercentage=75.0") + inputs
@@ -146,215 +148,3 @@ tasks.register<JavaExec>("smokeCheck") {
             "build/test-data/jpackage-out.pdf",
         )
 }
-
-// ---- Distribution: jlink + jpackage app-image ------------------------------
-// Produces build/dist-jpackage/tate-yoko-pdf/ with a launcher, a trimmed JRE (jlink), and the
-// shadow jar. jlink/jpackage are invoked directly (Beryx 1.13.x is incompatible with Gradle 9.x).
-
-val jpackageAppName = "tate-yoko-pdf"
-val bundledModules =
-    listOf(
-        // java.base + everything PDFBox / slf4j-simple / HttpClient need at runtime.
-        // - java.desktop: PDFBox' PDDocument <clinit> touches java.awt.image.Raster / ColorModel.
-        // - jdk.crypto.ec: TLS cipher suites used by Java HttpClient.
-        // - jdk.unsupported: sun.misc.Unsafe used by some transitive deps.
-        // - jdk.zipfs: PDFBox uses zip-style stream filters.
-        "java.base",
-        "java.desktop",
-        "java.naming",
-        "java.management",
-        "java.logging",
-        "java.net.http",
-        "java.sql",
-        "java.xml",
-        "jdk.crypto.ec",
-        "jdk.unsupported",
-        "jdk.zipfs",
-    )
-
-val javaHomeProvider: Provider<String> =
-    providers.systemProperty("java.home").orElse(providers.environmentVariable("JAVA_HOME"))
-
-fun toolPath(tool: String): Provider<String> =
-    javaHomeProvider.map { home ->
-        val exe =
-            if (org.gradle.internal.os.OperatingSystem
-                    .current()
-                    .isWindows
-            ) {
-                "$tool.exe"
-            } else {
-                tool
-            }
-        "$home/bin/$exe"
-    }
-
-// jlink/jpackage refuse to write into a pre-existing directory; Gradle eagerly creates declared
-// output dirs. So we declare each tool's *parent* as the output and have the tool write a fixed
-// child inside it, with separate Delete tasks to reset state config-cache-safely.
-val jreOutputParent = layout.buildDirectory.dir("dist-jre")
-val jreImageDir = jreOutputParent.map { it.dir("runtime") }
-val jpackageOutputParent = layout.buildDirectory.dir("dist-jpackage")
-val jpackageInputDir = layout.buildDirectory.dir("jpackage-input")
-
-val hostIsLinux =
-    org.gradle.internal.os.OperatingSystem
-        .current()
-        .isLinux
-val hostIsWindows =
-    org.gradle.internal.os.OperatingSystem
-        .current()
-        .isWindows
-
-abstract class StageJpackageInput : DefaultTask() {
-    @get:InputFiles abstract val shadowJar: ConfigurableFileCollection
-
-    @get:InputFiles abstract val qpdfZip: ConfigurableFileCollection
-
-    @get:OutputDirectory abstract val outputDir: DirectoryProperty
-
-    @get:Input abstract val fixLinuxSoSymlink: Property<Boolean>
-
-    @get:Inject abstract val archives: ArchiveOperations
-
-    @get:Inject abstract val files: FileSystemOperations
-
-    @TaskAction
-    fun run() {
-        files.sync {
-            from(shadowJar)
-            if (!qpdfZip.isEmpty) {
-                from(archives.zipTree(qpdfZip.singleFile)) {
-                    eachFile {
-                        val segs = relativePath.segments
-                        if (segs.isNotEmpty() && segs[0].startsWith("qpdf-")) {
-                            relativePath =
-                                RelativePath(true, *segs.drop(1).toTypedArray())
-                        }
-                    }
-                    includeEmptyDirs = false
-                    // headers / docs not needed at runtime
-                    exclude("**/include/**", "**/share/**", "**/doc/**")
-                }
-            }
-            into(outputDir)
-        }
-        if (fixLinuxSoSymlink.get()) {
-            val libDir =
-                outputDir
-                    .get()
-                    .asFile
-                    .toPath()
-                    .resolve("lib")
-            val link = libDir.resolve("libqpdf.so.30")
-            val target = libDir.resolve("libqpdf.so.30.3.2")
-            if (Files.isRegularFile(link) && Files.isRegularFile(target)) {
-                Files.delete(link)
-                Files.createSymbolicLink(link, libDir.relativize(target))
-            }
-        }
-    }
-}
-
-val stageJpackageInput =
-    tasks.register<StageJpackageInput>("stageJpackageInput") {
-        group = "distribution"
-        description = "Stage shadow jar and (on Linux/Windows) qpdf into jpackage-input/"
-        shadowJar.from(tasks.shadowJar.flatMap { it.archiveFile })
-        if (hostIsLinux || hostIsWindows) {
-            qpdfZip.from(qpdfBinary)
-        }
-        outputDir.set(jpackageInputDir)
-        fixLinuxSoSymlink.set(hostIsLinux)
-    }
-
-val cleanJreImage =
-    tasks.register<Delete>("cleanJreImage") {
-        delete(jreImageDir)
-    }
-
-val cleanJpackageImage =
-    tasks.register<Delete>("cleanJpackageImage") {
-        delete(jpackageOutputParent.map { it.dir(jpackageAppName) })
-    }
-
-val jreImage =
-    tasks.register<Exec>("jreImage") {
-        group = "distribution"
-        description = "Run jlink to build a trimmed JRE under build/dist-jre/runtime/"
-        dependsOn(cleanJreImage)
-
-        commandLine =
-            listOf(
-                toolPath("jlink").get(),
-                "--add-modules",
-                bundledModules.joinToString(","),
-                "--strip-debug",
-                "--no-header-files",
-                "--no-man-pages",
-                "--compress=zip-9",
-                "--output",
-                jreImageDir.get().asFile.absolutePath,
-            )
-        inputs.property("modules", bundledModules.joinToString(","))
-        outputs.dir(jreOutputParent)
-    }
-
-val jpackageImage =
-    tasks.register<Exec>("jpackageImage") {
-        group = "distribution"
-        description = "Run jpackage to build the app-image under build/dist-jpackage/"
-        dependsOn(jreImage, stageJpackageInput, cleanJpackageImage)
-
-        val mainJarName =
-            tasks.shadowJar
-                .get()
-                .archiveFileName
-                .get()
-
-        // On Windows, --win-console makes the launcher a console app so stdout/stderr show in the
-        // terminal. Other OSes need no flag. Logging is stderr-only (slf4j-simple default); no file log.
-        val hostOs =
-            org.gradle.internal.os.OperatingSystem
-                .current()
-        // macOS maps --app-version to CFBundleVersion, whose first component must be >= 1
-        // ("The first number in an app-version cannot be zero or negative"). The project
-        // version is 0.x, so on macOS substitute a valid placeholder for the bundle
-        // metadata only — the app-image contents are identical across OSes.
-        val rawVersion = project.version.toString()
-        val appVersion =
-            if (hostOs.isMacOsX && (rawVersion.substringBefore('.').toIntOrNull() ?: 0) < 1) {
-                "1.0.0"
-            } else {
-                rawVersion
-            }
-        val jpackageArgs =
-            listOf(
-                toolPath("jpackage").get(),
-                "--type",
-                "app-image",
-                "--name",
-                jpackageAppName,
-                "--input",
-                jpackageInputDir.get().asFile.absolutePath,
-                "--main-jar",
-                mainJarName,
-                "--main-class",
-                application.mainClass.get(),
-                "--runtime-image",
-                jreImageDir.get().asFile.absolutePath,
-                "--dest",
-                jpackageOutputParent.get().asFile.absolutePath,
-                "--app-version",
-                appVersion,
-                // MaxRAMPercentage adapts heap to the host (and container cgroups) instead of a
-                // fixed value. --low-memory additionally spills page streams to disk.
-                "--java-options",
-                "-XX:MaxRAMPercentage=75.0",
-            )
-        commandLine = if (hostOs.isWindows) jpackageArgs + "--win-console" else jpackageArgs
-
-        inputs.dir(jreImageDir)
-        inputs.dir(jpackageInputDir)
-        outputs.dir(jpackageOutputParent)
-    }

@@ -28,6 +28,9 @@ locale = "en-us"
 # Short tokens / romaji that look like typos but are intentional.
 ruby = "ruby"
 mmap = "mmap"
+# mingw runtime DLL name `libgcc_s_seh-1` (SEH = Structured Exception Handling),
+# bundled into the Windows self-contained images.
+seh = "seh"
 # プロジェクト固有の語（typo に見えるが正しい）
 sakashita = "sakashita"
 yoko = "yoko"

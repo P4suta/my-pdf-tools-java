@@ -4,6 +4,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
+import java.io.IOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
@@ -12,7 +13,10 @@ import java.lang.invoke.MethodHandle;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
  * Every Foreign Function &amp; Memory binding to the system Leptonica library, behind one {@link
@@ -101,8 +105,58 @@ final class Leptonica {
     private static final Linker LINKER = Linker.nativeLinker();
 
     private static SymbolLookup loadLeptonica() {
-        System.load(resolveLibraryPath());
+        String libraryPath = resolveLibraryPath();
+        preloadColocatedDependencies(libraryPath);
+        System.load(libraryPath);
         return SymbolLookup.loaderLookup();
+    }
+
+    /**
+     * Windows only: load Leptonica's co-located dependency DLLs into the process before Leptonica
+     * itself. Unlike Linux ($ORIGIN RUNPATH) and macOS (@loader_path), the Windows loader does NOT
+     * search a {@code System.load}'d DLL's own directory for its dependencies — only the process
+     * search path — so a self-contained bundle that co-locates Leptonica's whole closure beside it
+     * would still fail to resolve {@code libpng}/{@code libtiff}/… at load time. Pre-loading each
+     * sibling DLL by absolute path sidesteps the search-path question entirely: once a dependency
+     * is mapped into the process, the loader satisfies a later module's import by base name without
+     * any path lookup. Repeated passes drive the topological order (leaf libraries load first) and
+     * the loop converges because the bundle's closure is complete; a sibling that never loads (e.g.
+     * an unrelated tool DLL) is skipped without affecting Leptonica's own subtree. No-op off
+     * Windows.
+     */
+    private static void preloadColocatedDependencies(String libraryPath) {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            return;
+        }
+        Path library = Path.of(libraryPath);
+        Path dir = library.getParent();
+        if (dir == null) {
+            return;
+        }
+        List<Path> pending = new ArrayList<>();
+        try (Stream<Path> entries = Files.list(dir)) {
+            entries.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".dll"))
+                    .filter(p -> !p.equals(library))
+                    .forEach(pending::add);
+        } catch (IOException e) {
+            return; // best-effort; the System.load below surfaces any genuine failure
+        }
+        boolean progress = true;
+        while (progress && !pending.isEmpty()) {
+            progress = false;
+            Iterator<Path> iterator = pending.iterator();
+            while (iterator.hasNext()) {
+                Path dll = iterator.next();
+                try {
+                    System.load(dll.toString());
+                    iterator.remove();
+                    progress = true;
+                } catch (UnsatisfiedLinkError dependencyNotLoadedYet) {
+                    // A dependency of this DLL is not in the process yet; a later pass will reach
+                    // it.
+                }
+            }
+        }
     }
 
     private static String resolveLibraryPath() {
