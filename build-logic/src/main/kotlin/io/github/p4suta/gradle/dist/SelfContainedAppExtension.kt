@@ -39,6 +39,12 @@ abstract class SelfContainedAppExtension {
     abstract val tools: ListProperty<String>
 
     /**
+     * Optional tools: bundled when present in the source, silently skipped when not, so a runtime-
+     * optional helper (e.g. `img2webp`) never fails the build on an OS whose toolchain omits it.
+     */
+    abstract val optionalTools: ListProperty<String>
+
+    /**
      * Libraries to bundle, keyed by logical name and mapped to the on-disk file name for the build
      * host (the loader requests that exact name). Populated by [hostLibrary], which resolves the
      * per-OS name at configuration time — the build host is the jpackage target, so the current OS's
@@ -55,6 +61,11 @@ abstract class SelfContainedAppExtension {
     /** Declare an executable tool dependency the image bundles and points `-Dp4suta.<name>.path` at. */
     fun hostTool(name: String) {
         tools.add(name)
+    }
+
+    /** Declare a runtime-optional tool: bundled if the source has it, skipped (not fatal) if not. */
+    fun optionalHostTool(name: String) {
+        optionalTools.add(name)
     }
 
     /**

@@ -73,6 +73,7 @@ val stageNatives =
         group = "distribution"
         description = "Stage host native tools + libraries and their closure into dist-natives/flat"
         tools.set(dist.tools)
+        optionalTools.set(dist.optionalTools)
         librarySonames.set(dist.libraries.map { it.values.toList() })
         nativePrefix.set(providers.gradleProperty("p4suta.nativePrefix"))
         outDir.set(nativesDir)
@@ -130,7 +131,7 @@ val jpackageImage =
             buildList {
                 add("--enable-native-access=ALL-UNNAMED")
                 add("-XX:MaxRAMPercentage=75.0")
-                dist.tools.get().forEach {
+                (dist.tools.get() + dist.optionalTools.get()).forEach {
                     add("-Dp4suta.$it.path=\$APPDIR/natives/${platform.executableName(it)}")
                 }
                 dist.libraries.get().forEach { (logical, soname) ->

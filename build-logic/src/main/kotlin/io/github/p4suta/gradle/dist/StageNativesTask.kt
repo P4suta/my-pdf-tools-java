@@ -32,6 +32,9 @@ abstract class StageNativesTask
         /** Executable tool names to bundle (e.g. `pdfimages`, `pdfinfo`, `jbig2`). */
         @get:Input abstract val tools: ListProperty<String>
 
+        /** Runtime-optional tool names: bundled when the source has them, skipped when not. */
+        @get:Input abstract val optionalTools: ListProperty<String>
+
         /** Library sonames to bundle (e.g. `liblept.so.5`); the FFM-loaded libraries and friends. */
         @get:Input abstract val librarySonames: ListProperty<String>
 
@@ -48,19 +51,30 @@ abstract class StageNativesTask
             out.mkdirs()
 
             val toolNames = tools.get()
+            val optionalNames = optionalTools.get()
             val libraryNames = librarySonames.get()
             // Nothing to stage (e.g. tate-yoko-pdf, whose only native is the separately-staged
             // qpdf): leave an empty dir and don't resolve a source — so an app with no host
             // tools/libraries needs no toolchain prefix on Windows/macOS.
-            if (toolNames.isEmpty() && libraryNames.isEmpty()) {
+            if (toolNames.isEmpty() && optionalNames.isEmpty() && libraryNames.isEmpty()) {
                 return
             }
 
             val platform = NativePlatform.current()
             val source = NativeSource.forHost(nativePrefix.orNull)
 
+            val optionalSeeds =
+                optionalNames.mapNotNull { name ->
+                    try {
+                        source.resolveTool(name)
+                    } catch (notPresent: RuntimeException) {
+                        logger.lifecycle("optional native tool '$name' not found in source; skipping")
+                        null
+                    }
+                }
             val seeds =
                 toolNames.map { source.resolveTool(it) } +
+                    optionalSeeds +
                     libraryNames.map { source.resolveLibrary(it) }
             val seedNames = seeds.map { it.name }.toSet()
             val searchDirs = source.searchDirs()
