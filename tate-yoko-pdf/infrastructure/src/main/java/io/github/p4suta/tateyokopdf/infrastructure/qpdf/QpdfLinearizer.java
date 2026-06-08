@@ -2,6 +2,7 @@ package io.github.p4suta.tateyokopdf.infrastructure.qpdf;
 
 import io.github.p4suta.shared.pdf.QpdfRunner;
 import io.github.p4suta.shared.process.ProcessRunner;
+import io.github.p4suta.shared.process.ToolPath;
 import io.github.p4suta.tateyokopdf.domain.exception.ErrorKind;
 import io.github.p4suta.tateyokopdf.domain.exception.SpreadException;
 import io.github.p4suta.tateyokopdf.domain.model.PdfOutputPolicy;
@@ -51,6 +52,11 @@ import org.slf4j.LoggerFactory;
  * <p>The binary is resolved in this order:
  *
  * <ol>
+ *   <li>The cross-app canonical {@code -Dp4suta.qpdf.path} override (see {@link
+ *       ToolPath#canonicalKey}). The self-contained distribution convention sets this to the
+ *       bundled binary, letting a uniform {@code natives/} layout — the one shared with the other
+ *       tools — be found even though it is not a {@code bin/} sibling of the shadow JAR. Additive:
+ *       unset in a dev-tree run, so resolution falls straight through to the bundle probe below.
  *   <li>The in-bundle copy: jpackage drops the input next to the shadow JAR under {@code app/}, and
  *       the upstream zip's layout puts the executable at {@code bin/qpdf} (or {@code
  *       bin\qpdf.exe}). {@link #resolveBundledQpdf()} probes the {@code bin/} subdirectory first,
@@ -95,6 +101,14 @@ public final class QpdfLinearizer implements PdfPostProcessor {
 
     /** Build the most capable {@link PdfPostProcessor} we can for the current environment. */
     public static PdfPostProcessor create() {
+        Optional<Path> override = resolveCanonicalOverride();
+        if (override.isPresent()) {
+            log.info(
+                    "qpdf binary resolved from -D{}: {}",
+                    ToolPath.canonicalKey("qpdf"),
+                    override.get());
+            return new QpdfLinearizer(override.get(), PdfOutputPolicy.TARGET);
+        }
         Optional<Path> bundled = resolveBundledQpdf();
         if (bundled.isPresent()) {
             log.info("qpdf binary resolved from bundle: {}", bundled.get());
@@ -178,6 +192,23 @@ public final class QpdfLinearizer implements PdfPostProcessor {
         } catch (IOException e) {
             log.debug("Failed to delete qpdf temp file {}: {}", path, e.getMessage());
         }
+    }
+
+    // The cross-app canonical override the self-contained distribution convention sets
+    // (-Dp4suta.qpdf.path=$APPDIR/natives/qpdf/bin/qpdf). qpdf is the one tool whose discovery is
+    // CodeSource/PATH-based rather than -D-based (QpdfRunner's ToolPath resolution cannot reach an
+    // in-bundle bin/ layout), and whose absence is SILENT (linearisation is skipped, the output is
+    // still a valid PDF). This seam lets the bundle's qpdf — co-located with the other tools under
+    // the uniform natives/ layout, not as a sibling of the shadow JAR — be found through the same
+    // -Dp4suta.<tool>.path scheme the other tools use. Honored only when it points at a real
+    // executable, so a stale/misconfigured value falls through to the bundle/PATH probes.
+    static Optional<Path> resolveCanonicalOverride() {
+        String override = System.getProperty(ToolPath.canonicalKey("qpdf"));
+        if (override == null || override.isBlank()) {
+            return Optional.empty();
+        }
+        Path candidate = Path.of(override);
+        return Files.isExecutable(candidate) ? Optional.of(candidate) : Optional.empty();
     }
 
     static Optional<Path> resolveBundledQpdf() {

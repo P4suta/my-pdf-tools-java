@@ -1,16 +1,19 @@
-# Distribution / packaging — builds each app's jpackage (or installDist)
-# app-image and runs its CLI smoke check.
+# Distribution / packaging — builds each app's self-contained jpackage app-image
+# (via the p4suta.distribution-conventions plugin) and runs a real-workload smoke
+# over the built launcher.
 #
-# Platform matrix is deliberately asymmetric, because the native dependencies
-# differ per app:
-#   - register + despeckle call Leptonica through the Java FFM layer, which is
-#     Linux-only here, so they build only on Linux, inside the dev image (which
-#     carries Leptonica + the PDF toolbox + jbig2).
-#   - tate-yoko-pdf has no native FFM dependency; its only native piece is the
-#     bundled qpdf, which its Gradle build self-downloads per OS from qpdf's
-#     GitHub releases (Linux + Windows zips; macOS uses the PATH/noOp fallback).
-#     So tate packages on Linux (dev image) AND on a macOS/Windows matrix, the
-#     cross-OS reach that is tate's contribution to the monorepo.
+# Platform coverage grows as each app's native set is sourced per OS:
+#   - Linux (dev image): all four apps, which carry Leptonica + the PDF toolbox +
+#     jbig2 from the image. register/despeckle/pdfbook bundle the Leptonica FFM
+#     library + their tool closure; tate bundles only qpdf.
+#   - tate-yoko-pdf: also macOS + Windows — no FFM dependency, only the per-OS
+#     qpdf zip the Gradle build self-downloads.
+#   - pdfbook: also Windows — it needs Leptonica (FFM) + poppler
+#     (pdfimages/pdfinfo) + qpdf, but NOT jbig2 (its register STAGE writes TIFF-G4
+#     and the pack embeds CCITT G4), so its Windows natives come from the MSYS2
+#     mingw64 toolchain (leptonica + poppler) plus the Ivy qpdf. macOS for pdfbook
+#     and Windows/macOS for register+despeckle (which DO need jbig2enc, built from
+#     source) follow once the Windows mechanism is proven here.
 #
 # Every action is SHA-pinned; Dependabot bumps the pins weekly.
 
@@ -78,7 +81,8 @@ jobs:
       # pipeline (pdfbook): installDist launcher, then run the whole single-pass pipeline
       # (extract -> despeckle -> register -> RTL spread) on a synthetic sample scan and assert the
       # one output is a valid PDF. This is the end-to-end smoke for the unified pipeline; it needs
-      # Leptonica + pdfimages + jbig2, all in the dev image, so it stays Linux-only (no cross-OS).
+      # Leptonica + pdfimages/pdfinfo + qpdf (NOT jbig2 — pdfbook packs CCITT G4, never JBIG2). The
+      # self-contained app-image leg for the same pipeline runs cross-OS in dist-pdfbook-crossos.
       - name: pipeline (pdfbook) installDist + smoke
         run: >-
           docker compose run --rm dev bash -lc '
@@ -148,6 +152,88 @@ jobs:
           path: tate-yoko-pdf/app/build/dist-jpackage/
           if-no-files-found: ignore
 
+  # pdfbook self-contained app-image on Windows (macOS follows once this mechanism
+  # is proven). pdfbook's native set is Leptonica (FFM) + poppler
+  # (pdfimages/pdfinfo) + qpdf — no jbig2enc — so leptonica + poppler come from
+  # the MSYS2 mingw64 toolchain (one coherent ABI, which matters because the
+  # Leptonica the FFM layer loads and the one poppler links must match), and qpdf
+  # is the self-contained Ivy zip the Gradle build already bundles per OS.
+  # -Pp4suta.nativePrefix points the distribution convention's native staging at
+  # that prefix. The smoke pushes a real scan PDF through the built launcher and
+  # asserts a LINEARIZED output: that exercises the Leptonica FFM path (the one
+  # co-location question on Windows) and the qpdf linearise, so a bundle that
+  # silently lost either fails the gate instead of passing on a bare %PDF.
+  dist-pdfbook-crossos:
+    name: pdfbook self-contained + smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: liberica
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+
+      # Leptonica + poppler from one MSYS2 mingw64 toolchain (coherent ABI). qpdf
+      # is bundled separately (its own process, self-contained zip), so it needs
+      # no coherence with these. binutils supplies objdump for the closure walk.
+      - name: provision native toolchain (MSYS2 mingw64)
+        uses: msys2/setup-msys2@f84a36b4009b96413f91c01441130855db9392e5 # v2.9.0
+        id: msys2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-leptonica
+            mingw-w64-x86_64-poppler
+            mingw-w64-x86_64-binutils
+
+      - name: build pdfbook app-image + sample scan PDF
+        run: >-
+          ./gradlew :pipeline:app:package :register:infrastructure:createSamplePdf
+          "-Pp4suta.nativePrefix=${{ steps.msys2.outputs.msys2-location }}\mingw64"
+          --no-daemon --console=plain
+
+      # Real-workload smoke: the registration stage drives Leptonica through FFM
+      # (the co-location question), pdfimages extracts, qpdf linearises. Assert the
+      # output is a linearized PDF — not merely that the process exited 0.
+      - name: real-PDF smoke (Leptonica FFM + pdfimages + qpdf linearise)
+        shell: pwsh
+        run: |
+          $launcher = "pipeline\app\build\dist-jpackage\pdfbook\pdfbook.exe"
+          $sample   = "register\infrastructure\build\sample\sample.pdf"
+          & $launcher $sample -o out.pdf
+          if ($LASTEXITCODE -ne 0) { throw "pdfbook exited $LASTEXITCODE" }
+          if (-not (Test-Path out.pdf)) { throw "no output PDF produced" }
+          $text = [System.Text.Encoding]::Latin1.GetString([System.IO.File]::ReadAllBytes("out.pdf"))
+          if (-not $text.StartsWith("%PDF-")) { throw "output is not a PDF" }
+          if (-not $text.Contains("Linearized")) { throw "qpdf linearise did not run (silent noOp)" }
+          Write-Host "pdfbook Windows smoke OK: %PDF + Linearized"
+
+      - name: upload pdfbook app-image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pdfbook-${{ matrix.os }}
+          path: pipeline/app/build/dist-jpackage/pdfbook/
+          if-no-files-found: error
+
+      # On failure, also surface the staged native closure so the leptonica-DLL
+      # layout question can be diagnosed from the artifact.
+      - name: upload staged natives on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pdfbook-${{ matrix.os }}-debug
+          path: |
+            pipeline/app/build/dist-natives/
+            pipeline/app/build/dist-jpackage/
+          if-no-files-found: ignore
+
   # Single aggregate context to require in branch protection. Matrix legs expand
   # to per-OS contexts ("tate jpackage + smoke (macos-latest)" …) that churn when
   # the matrix changes; gating on one job that fans them in is the stable form.
@@ -155,7 +241,7 @@ jobs:
   # gate too (a bare `needs:` would let a cancelled leg pass).
   distribution-complete:
     name: distribution complete
-    needs: [dist-linux, dist-tate-crossos]
+    needs: [dist-linux, dist-tate-crossos, dist-pdfbook-crossos]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -163,7 +249,8 @@ jobs:
       - name: assert all distribution legs passed
         run: |-
           if [ "${{ needs.dist-linux.result }}" != "success" ] \
-            || [ "${{ needs.dist-tate-crossos.result }}" != "success" ]; then
+            || [ "${{ needs.dist-tate-crossos.result }}" != "success" ] \
+            || [ "${{ needs.dist-pdfbook-crossos.result }}" != "success" ]; then
             echo "::error::a distribution leg did not succeed"
             exit 1
           fi
