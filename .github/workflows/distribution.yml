@@ -190,7 +190,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils"
+          C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
           if ($LASTEXITCODE -ne 0) { throw "MSYS2 pacman provisioning failed ($LASTEXITCODE)" }
       - name: provision native toolchain (macOS / Homebrew)
         if: runner.os == 'macOS'
@@ -281,26 +281,19 @@ jobs:
       # Leptonica + poppler from MSYS2 mingw64, plus jbig2enc built from source
       # against that same Leptonica and installed into the prefix (pinned to the
       # dev image's JBIG2ENC_VERSION). binutils supplies objdump for the closure walk.
-      # MSYSTEM=MINGW64 makes the login shell put /mingw64/bin (gcc, pkg-config) on
-      # PATH so jbig2enc's ./configure finds the mingw64 C compiler and Leptonica;
-      # a bare usr/bin/bash starts in the MSYS environment, where it does not.
-      # `pacman -S` WITHOUT `-y`: the preinstalled MSYS2's package DB matches its
-      # installed set, so installing from it satisfies dependencies at their current
-      # versions with no upgrade — `-Sy` would refresh the DB and then demand a
-      # partial upgrade of the toolchain that pacman refuses ("Errors occurred").
+      # Build jbig2enc from source against the MSYS2 mingw64 Leptonica (one coherent
+      # ABI with the FFM-loaded copy). MSYSTEM=MINGW64 puts /mingw64/bin (gcc,
+      # pkg-config) on the login-shell PATH so ./configure finds them. `pacman -S`
+      # without `-y` installs from the preinstalled DB (no partial-upgrade), wrapped
+      # in a retry loop because the mingw toolchain is a large download and a mirror
+      # can transiently stall. The source is fetched with curl+tar rather than git,
+      # to avoid pulling git's whole perl dependency tree into the toolchain install.
       - name: provision toolchain + build jbig2enc (MSYS2 mingw64)
         shell: pwsh
         run: |
           $env:MSYSTEM = "MINGW64"
           $env:CHERE_INVOKING = "1"
-          C:\msys64\usr\bin\bash.exe -lc "set -eo pipefail; \
-            pacman -S --needed --noconfirm git autoconf automake libtool make \
-              mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica \
-              mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; \
-            rm -rf /tmp/jbig2enc; \
-            git clone --depth 1 --branch 0.31 https://github.com/agl/jbig2enc /tmp/jbig2enc; \
-            cd /tmp/jbig2enc; ./autogen.sh; ./configure --prefix=/mingw64; \
-            make -j\$(nproc); make install"
+          C:\msys64\usr\bin\bash.exe -lc 'set -o pipefail; n=0; until pacman -S --needed --noconfirm autoconf automake libtool make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done; set -e; curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/0.31.tar.gz | tar -xz -C /tmp; cd /tmp/jbig2enc-0.31; ./autogen.sh; ./configure --prefix=/mingw64; make -j$(nproc); make install'
           if ($LASTEXITCODE -ne 0) { throw "MSYS2 provisioning / jbig2enc build failed ($LASTEXITCODE)" }
 
       - name: build register app-image + sample scan PDF
