@@ -83,7 +83,10 @@ selfContainedApp {
     // qpdf (Fast Web View): Linux/Windows fetch the upstream release zip (kept as a self-contained
     // bin/+lib/ subtree for its RPATH); macOS has no upstream binary, so qpdf comes from the
     // Homebrew prefix as a flat host tool. Either way it resolves via -Dp4suta.qpdf.path.
-    if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) {
+    if (org.gradle.internal.os.OperatingSystem
+            .current()
+            .isMacOsX
+    ) {
         hostTool("qpdf")
     } else {
         qpdfZip.from(qpdfBinary(libs.versions.qpdf.get()))
