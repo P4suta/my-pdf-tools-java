@@ -153,6 +153,24 @@
     font-size: var(--text-sm);
   }
 
+  /* Done-phase actions, pushed to the right edge of the header. Wrap under the brand on narrow
+     screens rather than crushing the title. */
+  .topbar-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--spacing-xs);
+  }
+
+  .done-note {
+    color: var(--color-ok);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
   /* The screen is a single stacking area; phase views cross-fade in the same cell. */
   .screen {
     position: relative;
@@ -179,18 +197,24 @@
     padding-bottom: max(var(--spacing-gap), env(safe-area-inset-bottom));
   }
 
-  /* ---------- setup view (idle) ---------- */
+  /* ---------- select view (step 1): the drop area fills the frame ---------- */
 
-  .panel {
-    width: 100%;
-    /* Empty state: one column, one stretched row, so the lone drop area fills the whole frame.
-       min-height:0 lets the card shrink and .view scroll on short screens. */
+  /* A standalone dropzone (not inside a panel grid anymore) grows to fill the .view height. */
+  .dropzone.block {
     flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
-    gap: var(--spacing-pad);
+  }
+
+  /* ---------- options view (step 2): chosen file + options, top-packed, readable measure ---------- */
+
+  .panel.options {
+    flex: none; /* natural height at the top of the frame, not stretched */
+    align-self: center;
+    width: 100%;
+    max-width: 44rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-gap);
     background: var(--color-panel);
     border: var(--border) solid var(--color-line);
     border-radius: var(--radius-lg);
@@ -198,30 +222,32 @@
     box-shadow: var(--shadow-card);
   }
 
-  /* File picked: the drop area takes its natural height and the options expand below it, top-packed. */
-  .panel.has-file {
-    grid-template-rows: auto;
-    align-content: start;
-  }
-
-  /* Wide screens, file picked: two columns — the drop area beside the options + submit. */
-  @media (min-width: 52rem) {
-    .panel.has-file {
-      grid-template-columns: 1.2fr 1fr;
-      grid-template-rows: 1fr;
-      align-content: stretch;
-      align-items: stretch;
-    }
-  }
-
-  .setup-controls {
+  .file-summary {
     display: flex;
-    flex-direction: column;
-    /* Center the options + submit as a group: on wide screens the column is stretched to the drop
-       area's height, so centering keeps the submit button from floating with empty space below it. */
-    justify-content: center;
-    gap: var(--spacing-gap);
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-panel-2);
+    border: var(--border) solid var(--color-line);
+    border-radius: var(--radius-md);
+  }
+
+  .file-summary .fs-icon {
+    flex: none;
+    font-size: var(--text-lg);
+  }
+
+  .file-summary .fs-name {
+    flex: 1;
     min-width: 0;
+    font-weight: var(--font-weight-semibold);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-summary .ghost {
+    flex: none;
   }
 
   .dropzone {
@@ -492,42 +518,116 @@
     animation: pulse var(--duration-pulse) ease-in-out infinite;
   }
 
-  /* ---------- stepper ---------- */
+  /* ---------- run view: per-stage cards, side by side (children of the shared .view) ---------- */
 
-  .stepper {
+  .cards {
     list-style: none;
     margin: 0;
     padding: 0;
-    /* Fill the remaining height and distribute the steps down the screen so the running view uses
-       the full height instead of clustering at the top. */
+    /* Fill the remaining height; lay the stages out in a row that wraps on narrow screens (auto-fit)
+       — a wide screen shows all four side by side, a phone wraps to a 2x2 grid. */
     flex: 1;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: var(--spacing-xs);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    align-content: stretch;
+    gap: var(--spacing-gap);
   }
 
-  .step {
+  .card {
     display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    min-height: clamp(9rem, 22vh, 14rem); /* somewhat tall, per the design */
+    padding: var(--spacing-md);
     border: var(--border) solid var(--color-line);
     border-radius: var(--radius-md);
     background: var(--color-panel);
   }
 
-  .step.active {
+  .card.active {
     border-color: color-mix(in srgb, var(--color-accent) var(--tint-border), var(--color-line));
     background: color-mix(in srgb, var(--color-accent) var(--tint-surface), var(--color-panel));
   }
 
-  .step.failed {
+  .card.failed {
     border-color: color-mix(in srgb, var(--color-error) var(--tint-border), var(--color-line));
     background: color-mix(in srgb, var(--color-error) var(--tint-surface), var(--color-panel));
   }
 
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .card-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .card.active .card-name,
+  .card.done .card-name {
+    color: var(--color-ink);
+  }
+
+  .card.failed .card-name {
+    color: var(--color-error);
+  }
+
+  .card-status {
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+
+  .card.active .card-status {
+    color: var(--color-accent);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .card.failed .card-status {
+    color: var(--color-error);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .card-pages {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Progress bar, present in every card: full when done, the page ratio while active, empty before. */
+  .card-bar {
+    height: var(--size-bar);
+    background: color-mix(in srgb, var(--color-accent) var(--tint-track), transparent);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .card-fill {
+    height: 100%;
+    width: 0;
+    background: var(--color-accent);
+    border-radius: inherit;
+    transition: width var(--duration-base) ease;
+  }
+
+  .card-bar.indeterminate .card-fill {
+    width: 40%;
+    animation: sweep var(--duration-sweep) ease-in-out infinite;
+  }
+
+  /* Per-stage elapsed, pinned to the card bottom so the times line up across cards of differing
+     content height. */
+  .card-time {
+    margin-top: auto;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Status badge, shared by the cards. */
   .step-icon {
     flex: none;
     width: var(--spacing-lg);
@@ -541,99 +641,25 @@
     line-height: 1;
   }
 
-  .step.active .step-icon {
+  .card.active .step-icon {
     border-color: var(--color-accent);
     color: var(--color-accent);
     animation: pulse var(--duration-pulse) ease-in-out infinite;
   }
 
-  .step.done .step-icon {
+  .card.done .step-icon {
     border-color: var(--color-ok);
     background: var(--color-ok);
     color: var(--color-accent-ink);
   }
 
-  .step.failed .step-icon {
+  .card.failed .step-icon {
     border-color: var(--color-error);
     background: var(--color-error);
     color: var(--color-accent-ink);
   }
 
-  .step-body {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-  }
-
-  .step-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--spacing-sm);
-  }
-
-  .step-name {
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-muted);
-    overflow-wrap: anywhere;
-  }
-
-  .step.active .step-name {
-    color: var(--color-ink);
-  }
-
-  .step.failed .step-name {
-    color: var(--color-error);
-  }
-
-  .step-meta {
-    flex: none;
-    color: var(--color-muted);
-    font-size: var(--text-sm);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .step-bar {
-    height: var(--size-bar);
-    background: color-mix(in srgb, var(--color-accent) var(--tint-track), transparent);
-    border-radius: var(--radius-full);
-    overflow: hidden;
-  }
-
-  .step-fill {
-    height: 100%;
-    width: 0;
-    background: var(--color-accent);
-    border-radius: inherit;
-    transition: width var(--duration-base) ease;
-  }
-
-  .step-bar.indeterminate .step-fill {
-    width: 40%;
-    animation: sweep var(--duration-sweep) ease-in-out infinite;
-  }
-
-  /* ---------- result: full-bleed preview (children of the shared .view) ---------- */
-
-  .result-bar {
-    flex: none;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--spacing-xs);
-  }
-
-  .result-bar .ok {
-    color: var(--color-ok);
-    font-weight: var(--font-weight-bold);
-  }
-
-  .result-bar .grow {
-    flex: 1;
-    min-width: var(--spacing-xs);
-  }
+  /* ---------- result: full-bleed preview (the sole child of the .view; actions are in the header) ---------- */
 
   .preview {
     flex: 1;
