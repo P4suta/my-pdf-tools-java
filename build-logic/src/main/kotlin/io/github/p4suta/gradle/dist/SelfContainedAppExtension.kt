@@ -86,6 +86,21 @@ abstract class SelfContainedAppExtension {
     }
 
     /**
+     * The shared PDF-rasterisation native set `register` / `despeckle` / `pdfbook` all bundle: the
+     * Leptonica FFM library plus poppler's `pdfimages` / `pdfinfo` page extractors. The Leptonica
+     * file name is declared per-OS exactly as [hostLibrary] documents. Apps that also repack to
+     * lossless JBIG2 (`register`, `despeckle`) declare `jbig2` themselves on top of this; `pdfbook`
+     * does not (its register stage writes TIFF-G4 and the pack embeds CCITT G4). Tools are added in
+     * the same order the three apps previously listed them, so the emitted `-Dp4suta.*.path` set is
+     * unchanged.
+     */
+    fun pdfRasterTools() {
+        hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "libleptonica.6.dylib")
+        hostTool("pdfimages")
+        hostTool("pdfinfo")
+    }
+
+    /**
      * Declare a library dependency the image bundles, with its per-OS on-disk file name. [logical]
      * is the canonical-key stem (so the launcher gets `-Dp4suta.<logical>.path`); the OS arguments
      * are the file name the loader requests on each platform — e.g. for Leptonica:

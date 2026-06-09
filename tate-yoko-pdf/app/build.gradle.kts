@@ -132,15 +132,14 @@ tasks.register<JavaExec>("smokeCheck") {
     // paths drop the leading `app/`. This works regardless of rootDir (which is the tate project
     // root when standalone but /workspace in the monorepo).
     workingDir = project.projectDir
-    val os =
-        org.gradle.internal.os.OperatingSystem
-            .current()
+    // The per-OS launcher path inside jpackage's image root, from the one source of truth the
+    // distribution convention already uses (NativePlatform.embeddedLauncherSubpath): Linux
+    // tate-yoko-pdf/bin/…, Windows tate-yoko-pdf/…​.exe, macOS tate-yoko-pdf.app/Contents/MacOS/….
     val launcher =
-        when {
-            os.isMacOsX -> "build/dist-jpackage/tate-yoko-pdf.app/Contents/MacOS/tate-yoko-pdf"
-            os.isWindows -> "build/dist-jpackage/tate-yoko-pdf/tate-yoko-pdf.exe"
-            else -> "build/dist-jpackage/tate-yoko-pdf/bin/tate-yoko-pdf"
-        }
+        "build/dist-jpackage/" +
+            io.github.p4suta.gradle.dist.NativePlatform
+                .current()
+                .embeddedLauncherSubpath("tate-yoko-pdf")
     args =
         listOf(
             launcher,

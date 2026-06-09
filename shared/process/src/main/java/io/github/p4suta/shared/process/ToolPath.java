@@ -16,7 +16,10 @@ import java.util.Optional;
  * {@link #canonicalKey canonical key} ({@code p4suta.jbig2.path}, …) lets one uniform set of {@code
  * -D} options point at a self-contained app-image's bundled binaries regardless of which app
  * launched. The self-contained distribution convention emits only the canonical keys; the per-app
- * keys stay supported so any caller (or test) that sets one still wins.
+ * keys are the older layer (they predate the canonical scheme) and stay supported so any caller (or
+ * test) that sets one still wins — e.g. {@code tateyokopdf.qpdf.path} drives a test override.
+ * Prefer the canonical key for new manual overrides; the per-app keys are kept for backward
+ * compatibility.
  *
  * <p>This mirrors {@code io.github.p4suta.shared.imaging.Leptonica}, whose {@code System.load} path
  * resolution already consults the unified {@code p4suta.leptonica.path} ahead of the per-app keys.

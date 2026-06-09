@@ -1,4 +1,4 @@
-import io.github.p4suta.gradle.dist.qpdfBinary
+import io.github.p4suta.gradle.dist.bundleQpdf
 
 plugins {
     id("p4suta.java-conventions")
@@ -79,18 +79,9 @@ selfContainedApp {
     // installDist stages launcher + all jars under build/install/pdfbook; jpackage consumes its lib/.
     appArtifacts.from(layout.buildDirectory.dir("install/pdfbook/lib"))
     appArtifacts.builtBy(tasks.named("installDist"))
-    hostLibrary("leptonica", linux = "liblept.so.5", windows = "libleptonica-6.dll", macos = "libleptonica.6.dylib")
-    hostTool("pdfimages")
-    hostTool("pdfinfo")
-    // qpdf (Fast Web View): Linux/Windows fetch the upstream release zip (kept as a self-contained
-    // bin/+lib/ subtree for its RPATH); macOS has no upstream binary, so qpdf comes from the
-    // Homebrew prefix as a flat host tool. Either way it resolves via -Dp4suta.qpdf.path.
-    if (org.gradle.internal.os.OperatingSystem
-            .current()
-            .isMacOsX
-    ) {
-        hostTool("qpdf")
-    } else {
-        qpdfZip.from(qpdfBinary(libs.versions.qpdf.get()))
-    }
+    pdfRasterTools()
+    // qpdf (Fast Web View), per OS: the upstream release zip on Linux/Windows, the Homebrew host tool
+    // on macOS. Resolves via the canonical -Dp4suta.qpdf.path. See bundleQpdf. pdfbook bundles no
+    // jbig2 (its register stage writes TIFF-G4; the spread pack embeds CCITT G4).
+    bundleQpdf(this, libs.versions.qpdf.get())
 }
