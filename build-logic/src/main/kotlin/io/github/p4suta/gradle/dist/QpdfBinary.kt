@@ -43,9 +43,10 @@ fun Project.qpdfBinary(version: String): Configuration {
 }
 
 /**
- * Wire the per-OS qpdf source into [dist] for an app that REQUIRES qpdf (the two PDF-linearising CLIs,
- * `despeckle` and `pdfbook`): on macOS qpdf comes from the Homebrew prefix as a flat [host tool]
- * [SelfContainedAppExtension.hostTool] (upstream ships no Darwin release), on Linux/Windows from the
+ * Wire the per-OS qpdf source into [dist] for an app that REQUIRES qpdf (`despeckle` and `pdfbook`,
+ * which bundle it for Fast Web View linearisation): on macOS qpdf comes from the Homebrew prefix as a
+ * flat [host tool] [SelfContainedAppExtension.hostTool] (upstream ships no Darwin release), on
+ * Linux/Windows from the
  * upstream release zip [qpdfBinary] fetches. Either way it resolves at runtime via the canonical
  * `-Dp4suta.qpdf.path`. Sharing this keeps the OS branch from drifting between the two apps.
  *
