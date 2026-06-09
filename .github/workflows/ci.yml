@@ -67,18 +67,23 @@ jobs:
           restore-keys: |
             gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}-
             gradle-home-${{ runner.os }}-
-      # The dev image is self-contained (root Dockerfile): JDK + Leptonica + the
-      # PDF toolbox + fonts. Reuse the image published by dev-image.yml so CI
-      # does not rebuild the whole toolchain (notably jbig2enc-from-source) on
-      # every run; only fall back to a local build when no image is published
-      # yet (e.g. before the first dev-image publish).
+      # Build THIS branch's Dockerfile (a PR that adds a tool must not run against ghcr's stale
+      # :latest — that broke with `pnpm: not found`), but feed BuildKit the GitHub Actions layer
+      # cache that dev-image.yml populates (cache-to: type=gha,mode=max). On an unchanged Dockerfile
+      # every layer — notably the jbig2enc-from-source build — is a cache hit, so the rebuild drops
+      # from ~1min to ~15s; a Dockerfile change rebuilds only the affected layers. `load: true` puts
+      # the image (tagged as compose.yml's `image:` ref) into the local daemon so the
+      # `docker compose run` steps below reuse it (pull_policy: missing). This job owns cache-to to
+      # keep the shared cache warm across runs; the other docker jobs read it cache-from-only.
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: build dev image
-        # Build from THIS branch's Dockerfile (as distribution.yml already does) rather than pulling
-        # ghcr's :latest. The dev-image workflow only republishes :latest from main, so a PR that
-        # adds a tool to the Dockerfile (e.g. the Node/pnpm toolchain) would otherwise run against a
-        # stale image and fail (`pnpm: not found`). Building keeps every job consistent with the
-        # branch under test; the BuildKit layer cache keeps it cheap when the Dockerfile is unchanged.
-        run: docker compose build dev
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          load: true
+          tags: ghcr.io/p4suta/my-pdf-tools-java-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       # `build` runs the entire quality gate across every module: Error Prone
       # (compileJava), Spotless (spotlessCheck), SpotBugs, NullAway, the JUnit
       # suites and JaCoCo. Toolchain auto-download stays off — the image's
@@ -113,13 +118,18 @@ jobs:
         run: |
           echo "UID=$(id -u)" >> "$GITHUB_ENV"
           echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # See the build job: build the branch Dockerfile but read dev-image.yml's GitHub Actions layer
+      # cache so an unchanged Dockerfile is a near-instant hit. Read-only (no cache-to) — the build
+      # job owns writing the shared cache. `load: true` tags it as compose.yml's `image:` ref so the
+      # `docker compose run` step below reuses it.
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: build dev image
-        # Build from THIS branch's Dockerfile (as distribution.yml already does) rather than pulling
-        # ghcr's :latest. The dev-image workflow only republishes :latest from main, so a PR that
-        # adds a tool to the Dockerfile (e.g. the Node/pnpm toolchain) would otherwise run against a
-        # stale image and fail (`pnpm: not found`). Building keeps every job consistent with the
-        # branch under test; the BuildKit layer cache keeps it cheap when the Dockerfile is unchanged.
-        run: docker compose build dev
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          load: true
+          tags: ghcr.io/p4suta/my-pdf-tools-java-dev:latest
+          cache-from: type=gha
       # format:check is Prettier over the Svelte + CSS (Biome owns js/ts/json in the lint job);
       # `build` is svelte-check (strict tsconfig) followed by the vite production build.
       - name: pnpm install + format + svelte-check + build
@@ -188,15 +198,18 @@ jobs:
           key: gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-home-${{ runner.os }}-
-      # Reuse the published dev image (see the build job); fall back to a local
-      # build only when nothing is published yet.
+      # See the build job: build the branch Dockerfile but read dev-image.yml's GitHub Actions layer
+      # cache so an unchanged Dockerfile is a near-instant hit. Read-only (no cache-to) — the build
+      # job owns writing the shared cache. `load: true` tags it as compose.yml's `image:` ref so the
+      # `docker compose run` step below reuses it.
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: build dev image
-        # Build from THIS branch's Dockerfile (as distribution.yml already does) rather than pulling
-        # ghcr's :latest. The dev-image workflow only republishes :latest from main, so a PR that
-        # adds a tool to the Dockerfile (e.g. the Node/pnpm toolchain) would otherwise run against a
-        # stale image and fail (`pnpm: not found`). Building keeps every job consistent with the
-        # branch under test; the BuildKit layer cache keeps it cheap when the Dockerfile is unchanged.
-        run: docker compose build dev
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          load: true
+          tags: ghcr.io/p4suta/my-pdf-tools-java-dev:latest
+          cache-from: type=gha
       # Emits the proposed patch to build/reports/rewrite/rewrite.patch and exits
       # 0 even with suggestions, so the job is informational. OpenRewrite is not
       # configuration-cache compatible (CC is on by default in gradle.properties),

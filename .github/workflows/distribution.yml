@@ -64,8 +64,19 @@ jobs:
           restore-keys: |
             gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}-
             gradle-home-${{ runner.os }}-
+      # Build the branch Dockerfile but read dev-image.yml's GitHub Actions layer cache (see ci.yml's
+      # build job) so an unchanged Dockerfile is a near-instant hit instead of recompiling the whole
+      # toolchain (notably jbig2enc-from-source) every run. Read-only — ci.yml's build job owns
+      # cache-to. `load: true` tags it as compose.yml's `image:` ref so the `docker compose run`
+      # steps below reuse it (pull_policy: missing).
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: build dev image
-        run: docker compose build dev
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          load: true
+          tags: ghcr.io/p4suta/my-pdf-tools-java-dev:latest
+          cache-from: type=gha
 
       # tate-yoko-pdf: full jpackage app-image + the cross-platform SmokeCheck
       # (converts a sample PDF through the built launcher, asserts the %PDF magic).
