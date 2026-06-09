@@ -94,6 +94,22 @@ jobs:
           && test -s /tmp/pdfbook-smoke.pdf
           && head -c4 /tmp/pdfbook-smoke.pdf | grep -q "%PDF"'
 
+      # webapp self-contained app-image: the Spring Boot server as a Docker-free, JDK-free app-image
+      # with the pdfbook app-image NESTED inside ($APPDIR/tools/pdfbook), the server pointed at it via
+      # -Dp4suta.pdfbook.path. Building it transitively runs :pipeline:app:package (the JPACKAGE image
+      # nesting needs — not installDist) and the Gradle SPA build (node/pnpm are in the dev image).
+      # Linux needs NO -Pp4suta.nativePrefix: the convention resolves Leptonica off the multiarch lib
+      # dir and pdfimages/pdfinfo/qpdf off PATH. dist-smoke.sh starts the built server PATH-EMPTY and
+      # drives a real conversion through the nested pdfbook — the whole chain, self-contained, on Linux.
+      - name: webapp self-contained + smoke
+        run: >-
+          docker compose run --rm dev bash -lc '
+          ./gradlew :webapp:app:package :register:infrastructure:createSamplePdf
+          --no-daemon --console=plain
+          -Dorg.gradle.java.installations.auto-download=false
+          && bash webapp/app/dist-smoke.sh
+          webapp/app/build/dist-app/pdfbook-web/bin/pdfbook-web'
+
       - name: upload app-images on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -255,6 +271,98 @@ jobs:
             pipeline/app/build/dist-jpackage/
           if-no-files-found: ignore
 
+  # webapp self-contained app-image cross-OS (Windows + macOS). The webapp `package` NESTS the pdfbook
+  # app-image under $APPDIR/tools/pdfbook and points the server at it via -Dp4suta.pdfbook.path, so
+  # building it transitively runs :pipeline:app:package — the SAME native set as dist-pdfbook-crossos
+  # (Leptonica FFM + poppler + qpdf; NO jbig2, pdfbook packs CCITT G4). The native provisioning below
+  # is therefore identical to that leg. It ALSO builds the Svelte SPA into the bootJar, so node + pnpm
+  # must be on PATH for the Gradle frontend build (:webapp:frontend, download=false): the cross-OS
+  # runners have no dev image, so setup-node + a pinned pnpm stand in for the dev image's baked
+  # toolchain, at the SAME versions the Dockerfile ARGs pin (kept in lockstep by hand, like ci.yml's
+  # biome/actionlint pins). dist-smoke starts the app-image's server PATH-EMPTY, converts a scan
+  # through the nested pdfbook, and asserts a LINEARIZED PDF — so a bundle that lost the nest, a
+  # native, or the qpdf linearize fails the gate instead of passing on a bare server boot.
+  dist-webapp-crossos:
+    name: webapp self-contained + smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: liberica
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+      # Node + pnpm for the Gradle-driven SPA build (download=false → the PATH node/pnpm). Pinned to
+      # the dev image's Dockerfile ARGs (NODE_VERSION / PNPM_VERSION) — keep them in lockstep by hand,
+      # as ci.yml's lint job does for biome/actionlint. pnpm is npm-installed, NOT corepack (corepack's
+      # runtime signature check goes stale — the Dockerfile rejects it for the same reason).
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24.16.0"
+      - name: install pinned pnpm
+        run: npm install -g pnpm@11.5.1
+
+      # Leptonica + poppler from one native toolchain (coherent ABI), plus qpdf — verbatim from
+      # dist-pdfbook-crossos (the webapp's transitive pdfbook needs exactly this and no jbig2).
+      - name: provision native toolchain (Windows / MSYS2 mingw64)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
+          if ($LASTEXITCODE -ne 0) { throw "MSYS2 pacman provisioning failed ($LASTEXITCODE)" }
+      - name: provision native toolchain (macOS / Homebrew)
+        if: runner.os == 'macOS'
+        run: brew install leptonica poppler qpdf
+
+      - name: build webapp app-image + sample scan PDF (Windows)
+        if: runner.os == 'Windows'
+        run: >-
+          ./gradlew :webapp:app:package :register:infrastructure:createSamplePdf
+          "-Pp4suta.nativePrefix=C:\msys64\mingw64"
+          --no-daemon --console=plain
+      - name: build webapp app-image + sample scan PDF (macOS)
+        if: runner.os == 'macOS'
+        run: >-
+          ./gradlew :webapp:app:package :register:infrastructure:createSamplePdf
+          "-Pp4suta.nativePrefix=$(brew --prefix)"
+          --no-daemon --console=plain
+
+      # End-to-end server smoke (start PATH-empty, health-poll, convert through the nested pdfbook,
+      # assert %PDF + Linearized) — the shared dist-smoke.{ps1,sh}, per OS.
+      - name: server smoke (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./webapp/app/dist-smoke.ps1 -Launcher "webapp\app\build\dist-app\pdfbook-web\pdfbook-web.exe"
+      - name: server smoke (macOS)
+        if: runner.os == 'macOS'
+        run: bash webapp/app/dist-smoke.sh "webapp/app/build/dist-app/pdfbook-web.app/Contents/MacOS/pdfbook-web"
+
+      - name: upload webapp app-image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: webapp-${{ matrix.os }}
+          path: webapp/app/build/dist-app/
+          if-no-files-found: error
+
+      # On failure, surface the staged natives, both images, and the server log so a broken nest, a
+      # missing native, or a server-start crash can be diagnosed from the artifact.
+      - name: upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: webapp-${{ matrix.os }}-debug
+          path: |
+            webapp/app/build/dist-natives/
+            webapp/app/build/dist-app/
+            pipeline/app/build/dist-jpackage/
+            server*.log
+          if-no-files-found: ignore
+
   # register + despeckle self-contained app-images cross-OS. Both repack to
   # lossless JBIG2 (pdfimages -> … -> jbig2), so both need jbig2enc — which is not
   # packaged for mingw64 or Homebrew. It is built from source against the SAME
@@ -388,7 +496,7 @@ jobs:
   # gate too (a bare `needs:` would let a cancelled leg pass).
   distribution-complete:
     name: distribution complete
-    needs: [dist-linux, dist-tate-crossos, dist-pdfbook-crossos, dist-jbig2-apps-crossos]
+    needs: [dist-linux, dist-tate-crossos, dist-pdfbook-crossos, dist-webapp-crossos, dist-jbig2-apps-crossos]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -398,6 +506,7 @@ jobs:
           if [ "${{ needs.dist-linux.result }}" != "success" ] \
             || [ "${{ needs.dist-tate-crossos.result }}" != "success" ] \
             || [ "${{ needs.dist-pdfbook-crossos.result }}" != "success" ] \
+            || [ "${{ needs.dist-webapp-crossos.result }}" != "success" ] \
             || [ "${{ needs.dist-jbig2-apps-crossos.result }}" != "success" ]; then
             echo "::error::a distribution leg did not succeed"
             exit 1

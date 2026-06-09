@@ -130,3 +130,7 @@ include(":webapp:port")
 include(":webapp:application")
 include(":webapp:infrastructure")
 include(":webapp:app")
+// The SPA build participant (NOT a hexagon layer): the Svelte/Vite/Tailwind frontend driven through
+// Gradle by the node-gradle plugin, exposing its built dist/ as a consumable artifact that :webapp:app
+// embeds under the bootJar's static/. Gradle maps :webapp:frontend -> webapp/frontend/ automatically.
+include(":webapp:frontend")

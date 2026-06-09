@@ -27,37 +27,32 @@ RUN git clone --depth 1 --branch "${JBIG2ENC_VERSION}" https://github.com/agl/jb
     && cd /tmp/jbig2enc \
     && ./autogen.sh && ./configure && make -j"$(nproc)" && make install DESTDIR=/dist
 
-# ----- stage 2: build the SPA bundle (embedded into the bootJar's static resources) -----
-# The Gradle build stays Java-only by design, so the frontend is built here with pnpm and handed to
-# the server. pnpm is pinned the same way as the dev image (npm-installed, NOT corepack — corepack's
-# runtime signature check goes stale); PNPM_VERSION must equal the frontend's packageManager field.
-# `pnpm build` = svelte-check + vite build, emitting /fe/dist.
-FROM node:24.16.0-bookworm-slim AS frontend
-ARG PNPM_VERSION=11.5.1
-RUN npm install -g "pnpm@${PNPM_VERSION}" && npm cache clean --force
-WORKDIR /fe
-# pnpm-workspace.yaml carries the pnpm settings (the build-script allowlist) and must be present for
-# the install to run esbuild's build, so copy it alongside the manifest + lockfile.
-COPY webapp/frontend/package.json webapp/frontend/pnpm-lock.yaml webapp/frontend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
-COPY webapp/frontend/ ./
-RUN pnpm build
-
-# ----- stage 3: build the server bootJar + the pdfbook distribution -----
-# A plain JDK 25 is enough: bootJar and installDist are compile+package tasks (no tests, no jmods).
+# ----- stage 2: build the server bootJar (SPA embedded) + the pdfbook distribution -----
+# A single JDK stage builds everything: Gradle drives the SPA too now (:webapp:frontend via the
+# node-gradle plugin, download=false), so node + pnpm join the JDK here — pinned identically to the
+# dev image and the frontend's packageManager field, pnpm via npm (NOT corepack: its runtime signature
+# check goes stale). bootJar/installDist are compile+package tasks (no tests, no jmods).
 FROM eclipse-temurin:25-jdk-noble AS build
+ENV DEBIAN_FRONTEND=noninteractive
 ENV GRADLE_USER_HOME=/src/.gradle
+ARG NODE_VERSION=24.16.0
+ARG PNPM_VERSION=11.5.1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" \
+        | tar xz -C /usr/local --strip-components=1 \
+    && npm install -g "pnpm@${PNPM_VERSION}" && npm cache clean --force \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
-# Embed the built SPA so the bootJar serves the UI at the server's own origin (single artifact, no
-# separate static host). Goes in before bootJar so processResources packages it under static/.
-COPY --from=frontend /fe/dist webapp/app/src/main/resources/static
+# bootJar embeds the SPA itself: :webapp:app:processResources pulls :webapp:frontend's built dist/ into
+# static/ (nothing written into src/). installDist stages the pdfbook CLI the runtime puts on PATH.
 RUN ./gradlew --no-daemon --console=plain \
         -Dorg.gradle.java.installations.auto-download=false \
         :webapp:app:bootJar :pipeline:app:installDist \
     && cp "$(ls webapp/app/build/libs/webapp-app-*.jar | grep -v plain)" /webapp.jar
 
-# ----- stage 4: runtime -----
+# ----- stage 3: runtime -----
 FROM eclipse-temurin:25-jre-noble AS runtime
 ENV DEBIAN_FRONTEND=noninteractive
 # The ubuntu base ships no locale; C.UTF-8 (built into glibc) lets the JVM decode non-ASCII

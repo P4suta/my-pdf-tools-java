@@ -31,7 +31,10 @@ pipeline/app/build/install/pdfbook/bin/pdfbook scans/ -o out/          # batch a
 [`webapp`](webapp/) is a Spring Boot web front end for `pdfbook`: upload a scan,
 watch per-page progress over SSE, download the finished book. It runs pdfbook
 out-of-process, so it has **zero** compile dependency on `pipeline`; a Svelte SPA
-(`webapp/frontend/`) drives the API. See ADR
+(`webapp/frontend/`) drives the API. It ships two ways: the runtime Docker image
+(`just web-image`) and a Docker-free, JDK-free jpackage **app-image**
+(`just web-package`) that nests the pdfbook app-image inside it, built cross-OS
+like the CLI tools. See ADR
 [0009](docs/adr/0009-spring-boot-web-layer-and-deployment.md).
 
 ## CLI conventions
@@ -74,9 +77,11 @@ shared/
   progress       conversion progress / lifecycle events (SSE / JSONL)
 ```
 
-`register` and `despeckle` reach Leptonica through the Java FFM API (Linux-only
-here); `tate-yoko-pdf` has no native FFM dependency and packages cross-OS
-(Linux / macOS / Windows) with a bundled qpdf.
+`register`, `despeckle`, and `pdfbook` reach Leptonica through the Java FFM API and
+bundle their native closure; `tate-yoko-pdf` has no FFM dependency and bundles only
+qpdf. Every app — plus the `webapp` server, which nests the `pdfbook` app-image —
+builds a self-contained jpackage app-image cross-OS (Linux / macOS / Windows), each
+verified by a per-OS smoke in CI.
 
 ## Build
 
@@ -97,7 +102,8 @@ verification.
 ## CI & artifacts
 
 - **Actions** — `ci` (build + check, lint), `distribution` (per-OS jpackage /
-  installDist + smoke), `docs`, `dev-image`, `freshness`.
+  installDist app-images, incl. the `webapp` server, each with a real-PDF smoke),
+  `docs`, `dev-image`, `freshness`.
 - **Project page (Pages)** — https://p4suta.github.io/my-pdf-tools-java/ (API docs / Javadoc at [`/javadoc/`](https://p4suta.github.io/my-pdf-tools-java/javadoc/))
 - **dev image (GHCR)** — `ghcr.io/p4suta/my-pdf-tools-java-dev:latest`
 

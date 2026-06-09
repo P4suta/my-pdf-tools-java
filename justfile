@@ -113,8 +113,8 @@ web-stop:
         echo "no web server running"
     fi
 
-# Start the SPA's Vite dev server INSIDE the dev container (corepack pnpm — no host Node needed;
-# pnpm's version is pinned by the frontend's packageManager field). Proxies /api to the :8080 server,
+# Start the SPA's Vite dev server INSIDE the dev container (the dev image's pinned pnpm — no host Node
+# needed; the version matches the frontend's packageManager field). Proxies /api to the :8080 server,
 # so pair it with `just web-serve` in another terminal. Publishes Vite's port to the host.
 web-ui:
     #!/usr/bin/env bash
@@ -125,10 +125,35 @@ web-ui:
     fi
     exec docker compose run --rm -p {{ui_port}}:5173 dev bash -lc "$run"
 
-# Build the self-contained runtime image: the SPA (node stage) embedded in the bootJar, plus pdfbook
-# and its native toolbox. Run it with `docker run --rm -p 127.0.0.1:8080:8080 pdfbook-web`.
+# Build the runtime Docker image: Gradle builds the SPA into the bootJar (single JDK+node build
+# stage), plus pdfbook and its native toolbox. Run it with `docker run --rm -p 127.0.0.1:8080:8080
+# pdfbook-web`. This is the long-running-server distribution; `just web-package` builds the Docker-free
+# app-image alternative (see ADR-0009).
 web-image:
     docker build -f webapp/app/Dockerfile -t pdfbook-web .
+
+# Build the self-contained webapp app-image in the dev container: the Spring Boot server as a
+# Docker-free, JDK-free app-image with the pdfbook app-image NESTED inside it (and the SPA built into
+# the bootJar). Transitively builds :pipeline:app:package. Output: webapp/app/build/dist-app/pdfbook-web/.
+# Linux needs no -Pp4suta.nativePrefix (the convention resolves Leptonica/poppler/qpdf from the dev
+# image's standard dirs); the cross-OS CI legs pass a prefix for their MSYS2 / Homebrew natives.
+web-package:
+    {{gradlew}} :webapp:app:package {{gradle_flags}}
+
+# Run the built webapp app-image's server (after `just web-package`). PATH-EMPTY by design: the
+# launcher's baked -Dp4suta.pdfbook.path resolves the NESTED pdfbook, so it needs no native toolchain
+# on PATH — the whole point of the self-contained image. Binds 0.0.0.0 for port-forwarding; override
+# the host port with WEB_PORT. Runs the dev container's Linux launcher (the Win/macOS images run on
+# their own host).
+web-app-run: web-package
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run='exec webapp/app/build/dist-app/pdfbook-web/bin/pdfbook-web --server.address=0.0.0.0'
+    if [ "{{inside}}" = "1" ]; then
+        exec bash -lc "$run"
+    fi
+    docker rm -f pdfbook-web-app >/dev/null 2>&1 || true
+    exec docker compose run --rm --name pdfbook-web-app -p {{web_port}}:8080 dev bash -lc "$run"
 
 # ----- format / lint (mirrors CI + the lefthook gates) -----
 

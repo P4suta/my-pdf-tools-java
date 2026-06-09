@@ -58,11 +58,23 @@ public final class SubprocessConversionEngine implements ConversionEngine {
         try {
             List<String> command = buildCommand(request, inputPdf, outputPdf, progressFile);
             log.info("running pdfbook: {}", command);
-            Process process =
+            ProcessBuilder builder =
                     new ProcessBuilder(command)
                             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                            .redirectError(ProcessBuilder.Redirect.DISCARD)
-                            .start();
+                            .redirectError(ProcessBuilder.Redirect.DISCARD);
+            // jpackage-nesting gotcha: when this server runs as the self-contained app-image
+            // and spawns the NESTED pdfbook app-image, the outer jpackage launcher has
+            // setenv'd its re-launch marker _JPACKAGE_LAUNCHER plus the platform dynamic-linker
+            // path (LD_LIBRARY_PATH on Linux, DYLD_LIBRARY_PATH on macOS) into our environment.
+            // pdfbook is ALSO a jpackage launcher; inheriting that PAIR makes it think it is mid
+            // re-launch and parse the first app arg as a JVM option (it dies with "Unrecognized
+            // option: -o" / "Could not create the Java Virtual Machine"), failing every
+            // conversion. Strip them so the nested launcher starts clean. A no-op off the
+            // app-image (the Docker runtime / `java -jar`), where none of these vars is set.
+            builder.environment().remove("_JPACKAGE_LAUNCHER");
+            builder.environment().remove("LD_LIBRARY_PATH");
+            builder.environment().remove("DYLD_LIBRARY_PATH");
+            Process process = builder.start();
             runToCompletion(process, progressFile, progress);
         } finally {
             Files.deleteIfExists(progressFile);

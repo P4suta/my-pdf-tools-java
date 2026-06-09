@@ -269,6 +269,9 @@ tasks.register("checkExtraVersions") {
     description = "Diff non-Gradle pinned versions against upstream stable releases"
     // Capture every file and provider at configuration time so doLast holds no Project reference.
     val dockerfile = rootProject.file("Dockerfile")
+    // The webapp runtime Dockerfile's build stage repeats the node/pnpm pins (Gradle drives the SPA
+    // there); capture it to assert those equal the dev image's, so the duplicate can't silently drift.
+    val webappDockerfile = rootProject.file("webapp/app/Dockerfile")
     // The version catalog is the single source of truth for the versions the convention plugins
     // resolve via findVersion(...), so the "current" reads come from here.
     val versionCatalog = rootProject.file("gradle/libs.versions.toml")
@@ -395,6 +398,23 @@ tasks.register("checkExtraVersions") {
                 ?.groupValues
                 ?.get(1)
                 ?: error("Dockerfile is missing ARG $name=")
+
+        // The webapp runtime Dockerfile repeats NODE_VERSION/PNPM_VERSION (its build stage drives the
+        // SPA via Gradle). Not a second freshness surface — they MUST equal the dev image's pins — so
+        // assert equality rather than track them twice. (The dist-webapp-crossos CI leg's setup-node /
+        // pnpm literals are the same hand-kept coupling, like ci.yml's biome/actionlint pins.)
+        val webappDockerfileText = webappDockerfile.readText()
+        listOf("NODE_VERSION", "PNPM_VERSION").forEach { name ->
+            val webappPin =
+                Regex("^ARG ${Regex.escape(name)}=(\\S+)", RegexOption.MULTILINE)
+                    .find(webappDockerfileText)
+                    ?.groupValues
+                    ?.get(1)
+                    ?: error("webapp/app/Dockerfile is missing ARG $name=")
+            require(webappPin == dockerArg(name)) {
+                "webapp/app/Dockerfile ARG $name=$webappPin must match the root Dockerfile's ${dockerArg(name)}"
+            }
+        }
 
         // Search a given text for a version-shaped capture. Finds all occurrences so a duplicated pin
         // is detected when copies drift apart.
