@@ -2,11 +2,13 @@ package io.github.p4suta.shared.process;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -18,10 +20,11 @@ import java.util.concurrent.TimeoutException;
  * qpdf}'s exit 3 for "success with warnings"). Exit {@code 0} is always acceptable; any other code
  * outside the set surfaces as an {@link IOException} carrying the code and the captured stderr.
  *
- * <p>The child's stdout and stderr are redirected to per-run temp files rather than read from
- * pipes, so a command that writes more than an OS pipe buffer holds (Linux ~64KB, Windows smaller)
- * cannot deadlock the wait — there is no pipe to fill. The files are read once the process exits
- * and deleted afterward.
+ * <p>Stdout and stderr are drained concurrently on virtual threads while the process runs, so a
+ * command that writes more than an OS pipe buffer holds (Linux ~64KB, Windows smaller) cannot
+ * deadlock the wait: neither pipe can fill while the child still has output to write. Reading the
+ * streams only after {@code waitFor()} on a single thread — never draining during the run — is the
+ * classic deadlock this avoids.
  */
 public final class ProcessRunner {
 
@@ -70,24 +73,21 @@ public final class ProcessRunner {
             List<String> command, Duration timeout, Set<Integer> acceptableExitCodes)
             throws IOException, InterruptedException, TimeoutException {
         long startNanos = System.nanoTime();
-        Path outFile = Files.createTempFile("p4suta-proc-out-", ".tmp");
-        Path errFile = Files.createTempFile("p4suta-proc-err-", ".tmp");
-        // Redirect to files, not pipes: with no pipe to fill, the child never blocks on a write
-        // while we wait, so a flood of stdout/stderr cannot deadlock (the old failure mode).
-        Process process =
-                new ProcessBuilder(command)
-                        .redirectOutput(outFile.toFile())
-                        .redirectError(errFile.toFile())
-                        .start();
-        try {
+        Process process = new ProcessBuilder(command).start();
+        // Drain both pipes concurrently, alongside the running process, so neither can fill up and
+        // block the child. A virtual-thread-per-task executor keeps this near-free; try-with-
+        // resources joins both drainers on the way out. On timeout, destroyForcibly closes the
+        // streams, which lets the drainers reach EOF so close() does not hang.
+        try (ExecutorService drainers = Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<byte[]> out = drainers.submit(() -> process.getInputStream().readAllBytes());
+            Future<byte[]> err = drainers.submit(() -> process.getErrorStream().readAllBytes());
             if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
                 throw new TimeoutException(command.get(0) + " timed out after " + timeout);
             }
-            // Decode leniently (replace malformed bytes) exactly as the old new String(bytes,
-            // UTF_8)
-            // did — Files.readString would instead throw on invalid UTF-8.
-            String stdout = new String(Files.readAllBytes(outFile), StandardCharsets.UTF_8);
-            String stderr = new String(Files.readAllBytes(errFile), StandardCharsets.UTF_8);
+            // Decode leniently (replace malformed bytes), matching the long-standing behavior.
+            String stdout = new String(await(out), StandardCharsets.UTF_8);
+            String stderr = new String(await(err), StandardCharsets.UTF_8);
             Duration elapsed = Duration.ofNanos(System.nanoTime() - startNanos);
             int exitCode = process.exitValue();
             if (exitCode != 0 && !acceptableExitCodes.contains(exitCode)) {
@@ -99,21 +99,22 @@ public final class ProcessRunner {
                                 + stderr.strip());
             }
             return new Result(exitCode, stdout, stderr, elapsed);
-        } finally {
-            // Kill the child if it is still running (timeout/interrupt) so the OS releases the temp
-            // files (notably on Windows, where an open file cannot be deleted); a no-op once
-            // exited.
-            process.destroyForcibly();
-            deleteQuietly(outFile);
-            deleteQuietly(errFile);
         }
     }
 
-    private static void deleteQuietly(Path file) {
+    /**
+     * {@return the bytes a stream-drainer collected}, unwrapping the {@link ExecutionException} so
+     * a read failure surfaces as the {@link IOException} it actually is.
+     */
+    private static byte[] await(Future<byte[]> drained) throws IOException, InterruptedException {
         try {
-            Files.deleteIfExists(file);
-        } catch (IOException e) {
-            // Best-effort: a leftover temp file must never mask the real result or failure.
+            return drained.get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            throw new IOException("failed to read process output", cause);
         }
     }
 }
