@@ -17,6 +17,7 @@ import io.github.p4suta.webapp.domain.JobNotFoundException;
 import io.github.p4suta.webapp.domain.JobState;
 import io.github.p4suta.webapp.domain.ResultNotReadyException;
 import io.github.p4suta.webapp.port.QueueFullException;
+import java.net.URLDecoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -154,7 +155,7 @@ class JobControllerWebMvcTest {
     }
 
     @Test
-    void resultServesThePdfInlineWithTheBookFilename(@TempDir Path tmp) throws Exception {
+    void resultServesThePdfInlineWithAnAsciiBookFilename(@TempDir Path tmp) throws Exception {
         Path out = Files.writeString(tmp.resolve("out.pdf"), "%PDF-1.7");
         Job done =
                 Job.queued(new JobId("job-1"), REQUEST, "scan.pdf", Instant.EPOCH)
@@ -166,7 +167,35 @@ class JobControllerWebMvcTest {
         assertThat(mvc.get().uri("/api/v1/jobs/{id}/result", "job-1").exchange())
                 .hasStatus(HttpStatus.OK)
                 .hasContentType(MediaType.APPLICATION_PDF)
-                .hasHeader(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"scan_book.pdf\"");
+                // RFC 6266: a quoted ASCII filename plus the RFC 5987 filename* (a charset is set).
+                .hasHeader(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"scan_book.pdf\"; filename*=UTF-8''scan_book.pdf");
+    }
+
+    @Test
+    void resultEncodesANonAsciiBookFilenameAsAsciiSafeRfc5987(@TempDir Path tmp) throws Exception {
+        // Regression: a Japanese book name concatenated raw into the ISO-8859-1 Content-Disposition
+        // header made Tomcat drop the response with an UnmappableCharacterException. The header
+        // value
+        // must be all-ASCII (RFC 5987 filename*) yet decode back to the localized name.
+        Path out = Files.writeString(tmp.resolve("out.pdf"), "%PDF-1.7");
+        Job done =
+                Job.queued(new JobId("job-1"), REQUEST, "テキスト4_ヒューム『人間知性研究』.pdf", Instant.EPOCH)
+                        .toRunning()
+                        .toDone(Instant.EPOCH);
+        when(conversions.get(new JobId("job-1"))).thenReturn(done);
+        when(conversions.result(new JobId("job-1"))).thenReturn(out);
+
+        var result = mvc.get().uri("/api/v1/jobs/{id}/result", "job-1").exchange();
+        assertThat(result).hasStatus(HttpStatus.OK);
+        String disposition = result.getResponse().getHeader(HttpHeaders.CONTENT_DISPOSITION);
+        // Spring emits an ASCII-sanitized filename="…" fallback plus the real name as filename*.
+        assertThat(disposition).isNotNull().contains("filename*=UTF-8''");
+        // Every byte of the header is ASCII, so the servlet container can encode it.
+        assertThat(disposition.chars().allMatch(c -> c < 0x80)).isTrue();
+        // The percent-encoded value round-trips to the localized book name.
+        assertThat(URLDecoder.decode(disposition, UTF_8)).endsWith("テキスト4_ヒューム『人間知性研究』_book.pdf");
     }
 
     @Test
