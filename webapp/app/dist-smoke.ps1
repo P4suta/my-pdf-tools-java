@@ -36,7 +36,13 @@ try {
         } catch { }
         Start-Sleep -Seconds 2
     }
-    if (-not $up) { Fail "server did not become healthy" }
+    if (-not $up) {
+        # The default profile shows full health details — curl WITHOUT -f to capture the 503/DOWN
+        # body (which indicator failed + its path), then fail.
+        Write-Host "--- /actuator/health (last response, may be 503/DOWN) ---"
+        try { & curl.exe -s "$base/actuator/health" } catch { }
+        Fail "server did not become healthy"
+    }
     Write-Host "[smoke] health UP"
 
     # 2) submit — curl.exe with explicit PDF content-type (a bare -F sends octet-stream, rejected).

@@ -28,7 +28,14 @@ for _ in $(seq 1 45); do
   if curl -fsS "$base/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then up=1; break; fi
   sleep 2
 done
-[ "$up" = 1 ] || fail "server did not become healthy"
+if [ "$up" != 1 ]; then
+  # The default profile shows full health details — curl WITHOUT -f to capture the 503/DOWN body
+  # (which indicator failed + its path), then fail.
+  echo "--- /actuator/health (last response, may be 503/DOWN) ---"
+  curl -s "$base/actuator/health" 2>/dev/null
+  echo
+  fail "server did not become healthy"
+fi
 echo "[smoke] health UP"
 
 # 2) submit the scan — explicit PDF content-type (a bare -F sends octet-stream, which the controller

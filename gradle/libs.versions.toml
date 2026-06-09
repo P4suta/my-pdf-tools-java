@@ -118,12 +118,6 @@ spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-plugin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 springBoot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 rewrite = { id = "org.openrewrite.rewrite", version.ref = "rewrite-plugin" }
-# node-gradle: drives the webapp SPA's pnpm/Vite production build from Gradle so the bundle is built
-# by the standard toolchain cross-OS (not only the runtime Dockerfile's node stage). Applied ONLY in
-# :webapp:frontend via alias(libs.plugins.node), with download=false — it orchestrates the PATH
-# node/pnpm the dev image pins (it installs pnpm via npm, never corepack). Inline version (like
-# pitest below): a normal build script applies it, so no build-logic plugin marker is needed.
-node = { id = "com.github.node-gradle.node", version = "7.1.0" }
 # PIT plugin marker. Version is inline (NOT a `pitest-*` version.ref) on purpose: a dashed
 # `pitest-plugin` version key would turn `pitest` into a namespace node and shadow the
 # `libs.versions.pitest` leaf the pitest config reads via accessor. (despeckle's footgun fix.)
