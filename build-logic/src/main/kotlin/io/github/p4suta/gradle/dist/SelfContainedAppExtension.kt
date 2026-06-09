@@ -58,6 +58,23 @@ abstract class SelfContainedAppExtension {
     /** Extra JVM options for the launcher, on top of native-access + the heap percentage. */
     abstract val extraJvmOptions: ListProperty<String>
 
+    /**
+     * The logical names of sibling self-contained app-images this image bundles and runs as a
+     * subprocess (e.g. `pdfbook` for the web server). Each is emitted as
+     * `-Dp4suta.<name>.path=$APPDIR/tools/<launcher>`, so the packaged app resolves the NESTED binary
+     * through the same canonical key (`ToolPath.canonicalKey`) the host tools use. Populated by
+     * [bundledApp].
+     */
+    abstract val bundledAppNames: ListProperty<String>
+
+    /**
+     * The image-root directories of the bundled sibling app-images (jpackage's `<dest>/<app>` or
+     * `<app>.app`), copied wholesale into the finished image's `$APPDIR/tools/` AFTER jpackage — never
+     * into jpackage `--input`, which would fold a nested app's jars onto this app's classpath.
+     * Populated by [bundledApp].
+     */
+    abstract val bundledAppImages: ConfigurableFileCollection
+
     /** Declare an executable tool dependency the image bundles and points `-Dp4suta.<name>.path` at. */
     fun hostTool(name: String) {
         tools.add(name)
@@ -94,5 +111,21 @@ abstract class SelfContainedAppExtension {
                     "hostLibrary(\"$logical\"): no library file name declared for ${os.name}",
                 )
         libraries.put(logical, name)
+    }
+
+    /**
+     * Declare that this image bundles the self-contained app-image [name] (built by another module
+     * and shared as a distribution-time artifact — NEVER a compile dependency) and runs it as a
+     * subprocess. [image] is file-collection notation resolving to that app's jpackage image-root
+     * directory — pass the RESOLVABLE CONFIGURATION that consumes the producer's `selfContainedImage`
+     * variant, NOT a `.map { singleFile }` path Provider, so the cross-project build edge (the
+     * artifact's `builtBy`) propagates and `:this:package` transitively builds the sibling's image.
+     * The convention nests it under `$APPDIR/tools/<name>` (keeping the per-OS `.app` wrapper) AFTER
+     * jpackage and points `-Dp4suta.<name>.path` at its launcher. The image-root dir is named
+     * `imageRootName(name)` (as jpackage names it), keeping the copied location and the `-D` path in step.
+     */
+    fun bundledApp(name: String, image: Any) {
+        bundledAppNames.add(name)
+        bundledAppImages.from(image)
     }
 }

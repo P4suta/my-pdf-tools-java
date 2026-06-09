@@ -1,7 +1,9 @@
+import io.github.p4suta.gradle.dist.AssembleAppImageTask
 import io.github.p4suta.gradle.dist.NativePlatform
 import io.github.p4suta.gradle.dist.SelfContainedAppExtension
 import io.github.p4suta.gradle.dist.StageNativesTask
 import io.github.p4suta.gradle.dist.StageQpdfTask
+import org.gradle.api.attributes.Attribute
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Sync
@@ -145,6 +147,13 @@ val jpackageImage =
                 if (dist.qpdfZip.from.isNotEmpty()) {
                     add("-Dp4suta.qpdf.path=\$APPDIR/natives/qpdf/bin/${platform.executableName("qpdf")}")
                 }
+                // Sibling self-contained app-images nested under $APPDIR/tools (see assembleAppImage):
+                // the same canonical -Dp4suta.<name>.path key the host tools use, pointed at the
+                // nested launcher. $APPDIR is resolved by the launcher at run time, so it stays correct
+                // after assembleAppImage relocates the finished image into build/dist-app.
+                dist.bundledAppNames.get().forEach {
+                    add("-Dp4suta.$it.path=\$APPDIR/tools/${platform.embeddedLauncherSubpath(it)}")
+                }
                 addAll(dist.extraJvmOptions.get())
             }
 
@@ -173,8 +182,50 @@ val jpackageImage =
         outputs.dir(jpackageOutputParent)
     }
 
+// ---- Distribution-time artifact sharing + sibling-app nesting ----------------------------------
+// Expose the raw jpackage image-root as a consumable artifact so ANOTHER module can bundle this app
+// as a subprocess tool (the web server nests pdfbook this way) WITHOUT a compile dependency — a pure
+// distribution-time variant, keyed by a custom attribute. Every self-contained app publishes it;
+// only an app that is actually nested gets consumed.
+val distArtifactAttribute = Attribute.of("io.github.p4suta.artifact", String::class.java)
+val selfContainedImage =
+    configurations.consumable("selfContainedImage") {
+        attributes { attribute(distArtifactAttribute, "self-contained-image") }
+    }
+artifacts {
+    add(
+        selfContainedImage.name,
+        dist.appName.map { jpackageOutputParent.get().dir(NativePlatform.current().imageRootName(it)) },
+    ) {
+        builtBy(jpackageImage)
+        type = "directory"
+    }
+}
+
+// Assemble the final image with any bundled siblings nested in — into its OWN output dir, AFTER
+// jpackage (never into jpackage's tree: overlapping outputs break up-to-date checking). Wired into
+// `package` only when selfContainedApp { bundledApp(...) } declared one; leaf apps stay on
+// jpackageImage's own output, so their build and CI legs are unchanged.
+val assembleAppImage =
+    tasks.register<AssembleAppImageTask>("assembleAppImage") {
+        group = "distribution"
+        description = "Nest bundled sibling app-images into the finished image (build/dist-app/<appName>)"
+        dependsOn(jpackageImage)
+        appName.set(dist.appName)
+        jpackageOutput.set(jpackageOutputParent)
+        bundledImages.from(dist.bundledAppImages)
+        outDir.set(layout.buildDirectory.dir("dist-app"))
+    }
+
 tasks.register("package") {
     group = "distribution"
-    description = "Build the self-contained jpackage app-image (build/dist-jpackage/<appName>)"
-    dependsOn(jpackageImage)
+    description = "Build the self-contained app-image (build/dist-jpackage, or build/dist-app when it bundles a sibling)"
+    // bundledAppNames is only populated after the app's selfContainedApp { } block runs (later than
+    // this convention's body), so the choice of final task is deferred to a Provider evaluated when
+    // the task graph is built: jpackageImage for a leaf app, assembleAppImage when it nests a sibling.
+    dependsOn(
+        provider {
+            if (dist.bundledAppNames.get().isEmpty()) jpackageImage else assembleAppImage
+        },
+    )
 }

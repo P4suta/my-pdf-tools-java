@@ -51,6 +51,36 @@ sealed interface NativePlatform {
     /** The on-disk file name of a logical executable ([logical] plus `.exe` on Windows). */
     fun executableName(logical: String): String
 
+    /**
+     * The directory name jpackage creates under `--dest` for an app-image: the bare [appName] on
+     * Linux and Windows, the `<appName>.app` bundle on macOS. The assembled image and the nested-
+     * sibling layout both key off this.
+     */
+    fun imageRootName(appName: String): String
+
+    /**
+     * Where jpackage's `$APPDIR` lives relative to the image root (the dir [imageRootName] names):
+     * `lib/app` on Linux, `app` on Windows, `Contents/app` on macOS. A bundled sibling app-image is
+     * nested under `<imageRoot>/<appDirWithinImage>/tools/`, which is exactly the `$APPDIR/tools/…`
+     * the launcher's `-D` keys resolve at run time.
+     */
+    fun appDirWithinImage(): String
+
+    /**
+     * The launcher of a nested sibling app-image [appName], relative to the `tools/` dir it is
+     * embedded under — so the convention emits `-Dp4suta.<appName>.path=$APPDIR/tools/<this>`. It is
+     * the image-root dir name plus the per-OS launcher path inside it: `<app>/bin/<app>` (Linux),
+     * `<app>/<app>.exe` (Windows), `<app>.app/Contents/MacOS/<app>` (macOS).
+     */
+    fun embeddedLauncherSubpath(appName: String): String
+
+    /**
+     * Re-establish the image's outer code signature after a sibling was nested into it. A no-op on
+     * Linux/Windows; on macOS, modifying a signed `.app` invalidates its CodeResources seal, so the
+     * outer [imageRoot] bundle is re-signed ad-hoc (the loader rejects an invalid signature on arm64).
+     */
+    fun sealEmbeddedImage(execOps: ExecOperations, imageRoot: File)
+
     companion object {
         /** The strategy for the host the build runs on (jpackage only emits images for that host). */
         fun current(): NativePlatform {
@@ -132,6 +162,14 @@ object LinuxPlatform : NativePlatform {
     }
 
     override fun executableName(logical: String): String = logical
+
+    override fun imageRootName(appName: String): String = appName
+
+    override fun appDirWithinImage(): String = "lib/app"
+
+    override fun embeddedLauncherSubpath(appName: String): String = "$appName/bin/$appName"
+
+    override fun sealEmbeddedImage(execOps: ExecOperations, imageRoot: File) {}
 }
 
 /**
@@ -194,6 +232,14 @@ object WindowsPlatform : NativePlatform {
     }
 
     override fun executableName(logical: String): String = "$logical.exe"
+
+    override fun imageRootName(appName: String): String = appName
+
+    override fun appDirWithinImage(): String = "app"
+
+    override fun embeddedLauncherSubpath(appName: String): String = "$appName/$appName.exe"
+
+    override fun sealEmbeddedImage(execOps: ExecOperations, imageRoot: File) {}
 
     private fun locateObjdump(searchDirs: List<File>): String {
         searchDirs.forEach { dir ->
@@ -289,6 +335,21 @@ object MacPlatform : NativePlatform {
     }
 
     override fun executableName(logical: String): String = logical
+
+    override fun imageRootName(appName: String): String = "$appName.app"
+
+    override fun appDirWithinImage(): String = "Contents/app"
+
+    override fun embeddedLauncherSubpath(appName: String): String = "$appName.app/Contents/MacOS/$appName"
+
+    override fun sealEmbeddedImage(execOps: ExecOperations, imageRoot: File) {
+        // Nesting a sibling into Contents/app/ invalidated the outer bundle's CodeResources seal;
+        // re-sign ad-hoc (mandatory on arm64, where the loader rejects an invalid signature).
+        execOps.exec {
+            commandLine("codesign", "--force", "--sign", "-", imageRoot.absolutePath)
+            isIgnoreExitValue = true
+        }
+    }
 
     // The dependency install names from `otool -L`, skipping the first line (the file's own path).
     private fun dependencies(execOps: ExecOperations, file: File): List<String> {

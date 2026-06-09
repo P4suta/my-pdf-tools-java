@@ -88,3 +88,42 @@ NullAway・single nullness vocabulary という同じ品質バーを保ったま
   「No processor claimed」警告が出てビルドを落とすため不採用(均一ゲートに穴を開けない)。`@Validated`
   のみ採用。
 - **Micrometer Tracing / OpenTelemetry**: 上記 3 のとおり過大。
+
+## 改訂 (2026-06-09): Web も各 OS ネイティブ app-image で自己完結配布(Docker と並立)
+
+CLI 4 機能(register/despeckle/pdfbook/tate)は PR #10 で「Linux+Docker 開発・各 OS では JRE 同梱/
+ネイティブ同梱の Docker-free・JDK-free な jpackage app-image で利用」となり 3-OS CI で恒常検証されて
+いたが、**Web 機能だけがこの体系の外**だった(配布はランタイム Docker と `java -jar` のみ)。本改訂で
+`:webapp` も CLI と対称な第一級の自己完結 app-image を**追加**する(決定 6 のランタイム Docker は一級の
+まま — これは置換ではなく補完)。
+
+- **棄却案「jpackage でサーバも自己完結配布」(代替案節)を緩和**: 「常駐サーバに不向き・ネイティブ同梱は
+  冗長」という判断は LAN 常駐サーバとしては今も妥当なので **Docker を既定の推奨**に残す。一方で、CLI と
+  同じ「単一フォルダを置いて実行」の Docker-free 配布をポートフォリオ/ローカル用途に**非既定で提供**する
+  価値が上回ったため、自己完結 app-image を追加する(冗長さは Docker-free のための意図的トレードオフ)。
+- **合成(nesting)設計**: webapp サーバ自身はネイティブを一切リンクしない(pdfbook を subprocess 起動
+  するだけ)。よって app-image は実証済みの **pdfbook app-image を `$APPDIR/tools/pdfbook/` に内包**し、
+  サーバを正準キー `-Dp4suta.pdfbook.path`(ToolPath が解決する既存の `p4suta.<tool>.path` 規約)で
+  そこへ向ける。決定 4 の subprocess 分離・`:pipeline` へのコンパイル依存ゼロは不変 — 内包は**配布時のみ
+  の variant 対応 configuration アーティファクト共有**で、コンパイル/ランタイム classpath には pipeline
+  の jar を一切載せない(ArchUnit + classpath で確認)。
+- **規約の一般化**: 「兄弟の自己完結 app-image を内包する」を webapp 特例でなく規約の一般機能
+  `selfContainedApp { bundledApp(...) }` として実装(`NativePlatform` に per-OS の `$APPDIR`/ランチャ・
+  パス、`assembleAppImage` が jpackage **後**に自前出力 dir `build/dist-app/` へ内包コピー、macOS は外側
+  バンドルを ad-hoc 再署名)。jpackage の `--input` には混ぜない(クラスパス汚染・二重署名の回避)。
+- **決定 8(SPA を node ステージでビルド・Gradle は Java 専用)を見直し**: Docker-free・cross-OS で
+  app-image を作るには SPA も標準ツールチェーンで作る必要があるため、フロントエンドを node-gradle
+  プラグインで**第一級 Gradle モジュール `:webapp:frontend`** 化し、ビルド成果物を bootJar の `static/`
+  に配線(`src/main/resources/static/` への書き込みスメルを解消)。`download=false` で dev イメージ/CI の
+  PATH 上の node/pnpm を使い(corepack 不使用)、「Gradle はツールチェーンを自動ダウンロードしない」不変
+  条件は維持。`check` は node 非依存のまま、`bootJar`/`package` のみ node 必須。
+- **jpackage 入れ子の落とし穴(再利用知見)**: jpackage app-image ランチャは起動時に再起動マーカー
+  `_JPACKAGE_LAUNCHER` と動的リンカパス(Linux `LD_LIBRARY_PATH` / macOS `DYLD_LIBRARY_PATH`)を
+  setenv する。サーバ(外側ランチャ)が内側の pdfbook ランチャ(同じ jpackage 実装)を spawn すると、この
+  ペアを継承した子が「再起動の途中」と誤認しアプリ引数を JVM オプション扱いして起動失敗する。
+  `SubprocessConversionEngine` が子環境からこの 3 変数を除去して回避(app-image 以外では未設定なので
+  no-op)。
+- **CI 実証**: `distribution.yml` に Linux(dev イメージ内)leg と `dist-webapp-crossos`(Win/mac)leg を
+  追加。いずれも **サーバを PATH 空で起動 → `/actuator/health` UP → 実 PDF を投入 → DONE まで状態
+  ポーリング → 結果が `%PDF`+`Linearized`** を assert(`dist-smoke.{sh,ps1}`)。pdfbook leg と同等の深さで
+  全鎖(バンドル JRE サーバ + 内包 pdfbook + そのネイティブ + qpdf 線形化)を検証する。

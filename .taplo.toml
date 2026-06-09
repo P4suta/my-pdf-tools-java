@@ -1,4 +1,15 @@
 include = ["**/*.toml"]
+# Never format vendored / build-cache TOML: node_modules and the pnpm / node-gradle caches under
+# .gradle and .pnpm-store hold third-party files (e.g. node-gyp's pyproject.toml) that are not ours to
+# reformat — and unlike yamlfmt/typos, taplo does not honor .gitignore, so a bare include glob would
+# walk straight into them.
+exclude = [
+  "**/build/**",
+  "**/.gradle/**",
+  "**/.gradle-home/**",
+  "**/.pnpm-store/**",
+  "**/node_modules/**",
+]
 
 [formatting]
 align_entries = false
