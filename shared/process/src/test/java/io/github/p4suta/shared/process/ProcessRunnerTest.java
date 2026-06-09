@@ -77,6 +77,32 @@ final class ProcessRunnerTest {
     }
 
     @Test
+    void floodingStdoutBeyondThePipeBufferDoesNotDeadlock() throws Exception {
+        // Regression: the child writes far more to stdout than an OS pipe buffer holds (Linux
+        // default ~64KB, Windows ~32-64KB). The old "waitFor() then readAllBytes()" deadlocked —
+        // the child blocked on a full pipe, never exited, and the wait tripped the timeout. With
+        // output redirected to a file there is no pipe to fill, so it completes and is captured in
+        // full. 300000 'x' (NUL from /dev/zero translated) comfortably exceeds the buffer.
+        ProcessRunner.Result result =
+                ProcessRunner.run(
+                        List.of("sh", "-c", "head -c 300000 /dev/zero | tr '\\0' x"),
+                        Duration.ofSeconds(10));
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).hasSize(300000);
+    }
+
+    @Test
+    void floodingStderrBeyondThePipeBufferDoesNotDeadlock() throws Exception {
+        // Same flood on the other pipe: exit 0 with a huge stderr must be captured, not deadlock.
+        ProcessRunner.Result result =
+                ProcessRunner.run(
+                        List.of("sh", "-c", "head -c 300000 /dev/zero | tr '\\0' x 1>&2"),
+                        Duration.ofSeconds(10));
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stderr()).hasSize(300000);
+    }
+
+    @Test
     void missingBinaryFailsWithIoException() {
         assertThatThrownBy(
                         () ->

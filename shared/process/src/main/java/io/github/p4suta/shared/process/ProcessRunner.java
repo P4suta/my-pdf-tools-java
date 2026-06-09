@@ -2,6 +2,8 @@ package io.github.p4suta.shared.process;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -16,8 +18,10 @@ import java.util.concurrent.TimeoutException;
  * qpdf}'s exit 3 for "success with warnings"). Exit {@code 0} is always acceptable; any other code
  * outside the set surfaces as an {@link IOException} carrying the code and the captured stderr.
  *
- * <p>The output streams are read after the process exits, so a command that floods a pipe beyond
- * the OS buffer could block; a flood trips the timeout (and a kill) rather than hanging forever.
+ * <p>The child's stdout and stderr are redirected to per-run temp files rather than read from
+ * pipes, so a command that writes more than an OS pipe buffer holds (Linux ~64KB, Windows smaller)
+ * cannot deadlock the wait — there is no pipe to fill. The files are read once the process exits
+ * and deleted afterward.
  */
 public final class ProcessRunner {
 
@@ -66,19 +70,50 @@ public final class ProcessRunner {
             List<String> command, Duration timeout, Set<Integer> acceptableExitCodes)
             throws IOException, InterruptedException, TimeoutException {
         long startNanos = System.nanoTime();
-        Process process = new ProcessBuilder(command).start();
-        if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+        Path outFile = Files.createTempFile("p4suta-proc-out-", ".tmp");
+        Path errFile = Files.createTempFile("p4suta-proc-err-", ".tmp");
+        // Redirect to files, not pipes: with no pipe to fill, the child never blocks on a write
+        // while we wait, so a flood of stdout/stderr cannot deadlock (the old failure mode).
+        Process process =
+                new ProcessBuilder(command)
+                        .redirectOutput(outFile.toFile())
+                        .redirectError(errFile.toFile())
+                        .start();
+        try {
+            if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                throw new TimeoutException(command.get(0) + " timed out after " + timeout);
+            }
+            // Decode leniently (replace malformed bytes) exactly as the old new String(bytes,
+            // UTF_8)
+            // did — Files.readString would instead throw on invalid UTF-8.
+            String stdout = new String(Files.readAllBytes(outFile), StandardCharsets.UTF_8);
+            String stderr = new String(Files.readAllBytes(errFile), StandardCharsets.UTF_8);
+            Duration elapsed = Duration.ofNanos(System.nanoTime() - startNanos);
+            int exitCode = process.exitValue();
+            if (exitCode != 0 && !acceptableExitCodes.contains(exitCode)) {
+                throw new IOException(
+                        command.get(0)
+                                + " failed with exit code "
+                                + exitCode
+                                + ": "
+                                + stderr.strip());
+            }
+            return new Result(exitCode, stdout, stderr, elapsed);
+        } finally {
+            // Kill the child if it is still running (timeout/interrupt) so the OS releases the temp
+            // files (notably on Windows, where an open file cannot be deleted); a no-op once
+            // exited.
             process.destroyForcibly();
-            throw new TimeoutException(command.get(0) + " timed out after " + timeout);
+            deleteQuietly(outFile);
+            deleteQuietly(errFile);
         }
-        String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-        Duration elapsed = Duration.ofNanos(System.nanoTime() - startNanos);
-        int exitCode = process.exitValue();
-        if (exitCode != 0 && !acceptableExitCodes.contains(exitCode)) {
-            throw new IOException(
-                    command.get(0) + " failed with exit code " + exitCode + ": " + stderr.strip());
+    }
+
+    private static void deleteQuietly(Path file) {
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            // Best-effort: a leftover temp file must never mask the real result or failure.
         }
-        return new Result(exitCode, stdout, stderr, elapsed);
     }
 }
