@@ -10,11 +10,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Locale;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -183,12 +185,19 @@ public class JobController {
         JobId jobId = new JobId(id);
         Job job = conversions.get(jobId);
         Path result = conversions.result(jobId);
+        // inline (not attachment) so a browser previews the book in a new tab; the viewer's Save
+        // uses
+        // the suggested filename. Build the header via ContentDisposition with an explicit UTF-8
+        // charset so a non-Latin-1 book name (e.g. Japanese) is emitted RFC 5987 as
+        // filename*=UTF-8''<pct-encoded> — an ASCII-safe header. A raw concatenated
+        // filename="<日本語>" is unencodable in the ISO-8859-1 header and made Tomcat drop the
+        // response with an UnmappableCharacterException.
+        ContentDisposition disposition =
+                ContentDisposition.inline()
+                        .filename(downloadName(job.originalFilename()), StandardCharsets.UTF_8)
+                        .build();
         return ResponseEntity.ok()
-                // inline (not attachment) so a browser previews the book in a new tab; the viewer's
-                // Save uses the suggested filename.
-                .header(
-                        HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"" + downloadName(job.originalFilename()) + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(new FileSystemResource(result));
     }
