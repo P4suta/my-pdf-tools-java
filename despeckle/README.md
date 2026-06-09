@@ -145,7 +145,9 @@ convention plugins); versions stay in `gradle/libs.versions.toml`.
 
 - **Leptonica** (`liblept.so`) at run time — the dev image installs
   `libleptonica-dev`. Override the resolved path with
-  `-Ddespeckle.leptonica.path=/path/to/liblept.so` if needed.
+  `-Dp4suta.leptonica.path=/path/to/liblept.so` if needed (the legacy
+  `-Ddespeckle.leptonica.path` is still honored). See
+  [Distribution & packaging](../docs/distribution.md) for the full property scheme.
 - **JDK 25** (FFM is final since JDK 22; the build pins the 25 toolchain).
 - Run with `--enable-native-access=ALL-UNNAMED` — the `application`,
   `test` and `run` tasks already pass it.

@@ -34,8 +34,9 @@ out-of-process, so it has **zero** compile dependency on `pipeline`; a Svelte SP
 (`webapp/frontend/`) drives the API. It ships two ways: the runtime Docker image
 (`just web-image`) and a Docker-free, JDK-free jpackage **app-image**
 (`just web-package`) that nests the pdfbook app-image inside it, built cross-OS
-like the CLI tools. See ADR
-[0009](docs/adr/0009-spring-boot-web-layer-and-deployment.md).
+like the CLI tools. See [Distribution & packaging](docs/distribution.md) for the
+build models and per-OS steps, and ADR
+[0009](docs/adr/0009-spring-boot-web-layer-and-deployment.md) for the rationale.
 
 ## CLI conventions
 
@@ -85,9 +86,12 @@ verified by a per-OS smoke in CI.
 
 ## Build
 
-The build is **Docker-only** — there is no host JVM. The dev image (root
-`Dockerfile`) carries the toolchain: Liberica JDK 25 Full, Leptonica, the PDF
-toolbox, fonts, and the linters.
+Day-to-day development and the quality gate are **Docker-only** — no host JVM
+needed on any OS. The dev image (root `Dockerfile`) carries the toolchain:
+Liberica JDK 25 Full, Leptonica, the PDF toolbox, fonts, and the linters. (The
+one exception is building a self-contained **app-image on macOS / Windows**, which
+runs on the host because jpackage emits an OS-native launcher — see
+[Distribution & packaging](docs/distribution.md).)
 
 ```sh
 docker compose run --rm dev ./gradlew build   # full quality gate, every module

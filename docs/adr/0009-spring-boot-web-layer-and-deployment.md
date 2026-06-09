@@ -5,6 +5,12 @@
 - 関連: [ADR-0001](../../tate-yoko-pdf/docs/adr/0001-hexagonal-ports-and-adapters.md)（ヘキサゴナル）, [ADR-0006](../../tate-yoko-pdf/docs/adr/0006-commons-cli-over-picocli.md)（反マジックの CLI 前例）, [ADR-0008](../../tate-yoko-pdf/docs/adr/0008-gradle-multi-module-split.md)（境界の物理化）
 - 場所: 本 ADR はモノレポ横断の決定なのでリポジトリルート `docs/adr/` に置く。アプリ個別の ADR(`tate-yoko-pdf/docs/adr/`)はモノレポ統合前の名残で、今後の横断 ADR はここに集約する。
 
+> **配布戦略の現状サマリ(前方ポインタ)**: 本 ADR は時系列の追記で育っているため、結論を先に置く。
+> `:webapp` は **2 つの補完的な配布**を持つ — (1) ランタイム Docker イメージ(決定 6。常駐サーバ向けの**既定**)
+> と、(2) 各 OS ネイティブの自己完結 jpackage app-image(2026-06-09 改訂で**追加**。Docker-free・JDK-free、
+> 内部に pdfbook app-image を内包。非既定)。どちらかが他方を置換するものではない。配布の実務(ビルドモデル・
+> OS 別手順・プロパティ規約)は [`docs/distribution.md`](../distribution.md) に集約。以下は決定の時系列記録。
+
 ## コンテキスト
 
 PDF 処理コア(register / despeckle / tate-yoko-pdf と統合パイプライン pdfbook)を Web から使えるようにしたい。利用形態は個人・ローカル(家庭内 LAN 含む)＋ポートフォリオ作品。重要な制約は、**コアは今後も大きく育つため、Web 機能が付け焼き刃になると拡張性・持続可能性の足かせになる**こと。よって機能より先に「コアと同格の一級アーキテクチャ」を要件とする。

@@ -105,7 +105,8 @@ bilevel output:
   aggregate run summary.
 - **`flipbook.webp`** (with `--flipbook`) — the registered pages as an animated
   WebP. Built via libwebp's `img2webp` (from the `PATH` or
-  `-Dregister.img2webp.path`); if the tool is missing the flip-book is skipped
+  `-Dp4suta.img2webp.path`; the legacy `-Dregister.img2webp.path` still works);
+  if the tool is missing the flip-book is skipped
   and the rest is unaffected.
 
 ## Architecture
@@ -144,7 +145,9 @@ the Leptonica adapter does the pixel work (`pixCountPixelsByRow/Column`, `pixDes
 
 - **Leptonica** (`liblept.so`) at run time — the dev image installs
   `libleptonica-dev`. Override the resolved path with
-  `-Dregister.leptonica.path=/path/to/liblept.so` if needed.
+  `-Dp4suta.leptonica.path=/path/to/liblept.so` if needed (the legacy
+  `-Dregister.leptonica.path` is still honored). See
+  [Distribution & packaging](../docs/distribution.md) for the full property scheme.
 - **JDK 25** (FFM is final since JDK 22; the build pins the 25 toolchain).
 - Run with `--enable-native-access=ALL-UNNAMED` — `:app`'s `run`/`test` and the
   bundled launcher already pass it (it is set in the conventions and `gradle.properties`).
