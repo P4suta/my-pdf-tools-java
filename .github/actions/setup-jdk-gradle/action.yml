@@ -1,0 +1,16 @@
+name: Set up JDK + Gradle
+description: >-
+  Liberica JDK 25 (the Full distribution ships the jmods jlink/jpackage need —
+  Temurin omits them) plus the Gradle setup action. The toolchain the cross-OS
+  distribution legs share, so each leg references this one place instead of
+  repeating the two pinned `uses:`. Run `actions/checkout` BEFORE this — the
+  composite assumes the repository (and therefore this action file) is present.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+      with:
+        distribution: liberica
+        java-version: "25"
+    - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
