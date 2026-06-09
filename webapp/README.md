@@ -53,10 +53,11 @@ CLI tools. See [Distribution & packaging](../docs/distribution.md) for the build
 models, per-OS prerequisites, and the runtime property scheme.
 
 Double-clicking the app-image launcher (`pdfbook-web` / `pdfbook-web.exe`) starts
-the server and **opens the web UI in your default browser** automatically; the
+the server and, like a dev server, **prints a clickable `http://localhost:<port>`
+link in the console and opens it in your default browser** automatically. The
 console window it opens is the running server — close it to stop. (Auto-open is
 skipped when headless or with `--app.open-browser=false`, and in the `prod`
-profile / Docker image.)
+profile / Docker image; the printed link still works in every case.)
 
 The frontend toolchain (pnpm, Vite, Svelte, Biome/Prettier) lives in `frontend/`
 and is exercised through the same dev container; CI runs `just fmt-check` and the

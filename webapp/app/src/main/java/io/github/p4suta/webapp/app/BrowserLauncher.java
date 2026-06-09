@@ -2,7 +2,6 @@ package io.github.p4suta.webapp.app;
 
 import java.awt.Desktop;
 import java.net.URI;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,13 +12,17 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * Opens the default browser at the running server once it is ready, so double-clicking the
- * self-contained app-image launcher (the Docker-free Windows/macOS distribution) lands the user on
- * the web UI instead of just a console window. It is a no-op — logging the URL to open manually —
- * when there is no desktop browser (headless servers, CI runners), when disabled with {@code
- * app.open-browser=false}, or in the {@code prod} profile (the Docker runtime is headless and
- * reverse-proxied, so the bean is not even created there). A failure to open never affects the
- * server: the URL is always logged.
+ * When the server is ready, makes the app reachable two ways — like a dev server: it prints a
+ * clean, clickable {@code http://localhost:<port>} banner to the console, and (unless headless /
+ * disabled) opens that URL in the default browser. This turns the double-clicked self-contained
+ * app-image (the Docker-free Windows/macOS distribution) from "a console window where nothing
+ * happens" into a real local web app.
+ *
+ * <p>The banner always prints, so even when auto-open can't run — headless servers, CI runners, or
+ * {@code app.open-browser=false} — the user just clicks (or copies) the link. Auto-open is
+ * additionally skipped in the {@code prod} profile (the Docker runtime is headless +
+ * reverse-proxied, so this bean is {@code @Profile("!prod")} and not even created there). Opening
+ * never affects the server: a failure is logged and the printed link still works.
  */
 @Component
 @Profile("!prod")
@@ -27,62 +30,56 @@ class BrowserLauncher {
 
     private static final Logger log = LoggerFactory.getLogger(BrowserLauncher.class);
 
-    private final boolean enabled;
+    private final boolean openBrowser;
     private final Environment environment;
 
-    BrowserLauncher(@Value("${app.open-browser:true}") boolean enabled, Environment environment) {
-        this.enabled = enabled;
+    BrowserLauncher(
+            @Value("${app.open-browser:true}") boolean openBrowser, Environment environment) {
+        this.openBrowser = openBrowser;
         this.environment = environment;
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    void openBrowser() {
-        String url =
-                serverUrl(
-                        environment.getProperty("local.server.port"),
-                        environment.getProperty("server.port"));
-        if (url == null) {
-            return; // no resolvable HTTP port (e.g. the MOCK web environment in tests)
-        }
-        if (!enabled) {
-            log.info(
-                    "Browser auto-open is off (app.open-browser=false). Open {} to use"
-                            + " pdfbook-web.",
-                    url);
+    void onReady() {
+        // local.server.port is the actual bound port Spring publishes once a real embedded server
+        // is
+        // up; it is absent under the MOCK web environment (tests), where there is nothing to open.
+        String port = environment.getProperty("local.server.port");
+        if (port == null || port.isBlank()) {
             return;
+        }
+        String url = "http://localhost:" + port.trim();
+        System.out.print(banner(url));
+
+        if (!openBrowser) {
+            return; // the printed link is enough; user clicks it (or this is a CI/headless run)
         }
         if (!browseSupported()) {
-            log.info("No desktop browser available. Open {} to use pdfbook-web.", url);
-            return;
+            return; // no desktop browser (headless server) — the banner already showed the link
         }
         try {
             Desktop.getDesktop().browse(URI.create(url));
-            log.info("Opened {} in the default browser.", url);
         } catch (Exception e) {
             log.warn("Could not open the browser automatically — open {} manually.", url, e);
         }
     }
 
     /**
-     * The local URL for the bound HTTP port: the actual {@code local.server.port} when set (it
-     * reflects an ephemeral {@code server.port=0}), else the configured {@code server.port}, else
-     * {@code null} when neither resolves (e.g. the MOCK web environment). Pure, so it is
-     * unit-tested.
+     * The console banner announcing the ready server, with the URL on its own indented line so
+     * terminals linkify it and it is easy to click or copy. Pure, so it is unit-tested.
      *
-     * @param localServerPort the actual bound port Spring publishes once the server is up, or null
-     * @param configuredPort the {@code server.port} property, or null
-     * @return {@code http://localhost:<port>}, or null when no port is resolvable
+     * @param url the local server URL
+     * @return the multi-line banner text (leading/trailing blank lines for visibility)
      */
-    static @Nullable String serverUrl(
-            @Nullable String localServerPort, @Nullable String configuredPort) {
-        String port =
-                (localServerPort != null && !localServerPort.isBlank())
-                        ? localServerPort
-                        : configuredPort;
-        if (port == null || port.isBlank()) {
-            return null;
-        }
-        return "http://localhost:" + port.trim();
+    static String banner(String url) {
+        return System.lineSeparator()
+                + "  pdfbook-web is ready — open it in your browser:"
+                + System.lineSeparator()
+                + System.lineSeparator()
+                + "      "
+                + url
+                + System.lineSeparator()
+                + System.lineSeparator();
     }
 
     private boolean browseSupported() {
