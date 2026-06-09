@@ -28,30 +28,110 @@ outputs:
 runs:
   using: composite
   steps:
-    # Each per-OS command below is verbatim what the cross-OS legs ran inline; the
-    # jbig2 superset (build toolchain + from-source jbig2enc, with MSYSTEM=MINGW64
-    # putting gcc/pkg-config on the login-shell PATH on Windows) is selected by the
-    # `jbig2` input. The two builds stay per-OS — they are genuinely different
-    # (mingw64 prefix vs the Homebrew prefix with explicit PKG_CONFIG_PATH/flags).
-    - name: provision native toolchain (Windows / MSYS2 mingw64)
+    # Cache the downloaded MSYS2 packages. The pacman step below pulls ~84 MiB (the
+    # leptonica + poppler dependency closure, plus the gcc/autoconf build toolchain
+    # when jbig2=true) from the MSYS2 mirrors on every run — mirror-throughput-bound
+    # at ~1 MB/s, the single largest cost of the Windows distribution legs. Caching
+    # pacman's package cache dir lets `pacman -S` install from local .pkg.tar.zst
+    # instead of re-downloading (and sidesteps the mirror flakiness the retry loop
+    # below guards against). pacman self-heals on version drift: a cached package
+    # whose version no longer matches the preinstalled DB is simply re-downloaded.
+    # `run_id` makes each run save a fresh entry, restore-keys fall back to the
+    # newest compatible cache — the same warm-cache idiom ci.yml's gradle-home uses.
+    # jbig2 is in the key because the jbig2=true legs pull a superset (build
+    # toolchain); the two non-jbig2 legs (pdfbook + webapp) share one key and one
+    # leg's save (the other logs a harmless "cache already exists").
+    - name: cache MSYS2 packages (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: C:\msys64\var\cache\pacman\pkg
+        key: msys2-pkgs-${{ runner.os }}-${{ inputs.jbig2 }}-${{ hashFiles('.github/actions/provision-natives/action.yml') }}-${{ github.run_id }}
+        restore-keys: |
+          msys2-pkgs-${{ runner.os }}-${{ inputs.jbig2 }}-${{ hashFiles('.github/actions/provision-natives/action.yml') }}-
+          msys2-pkgs-${{ runner.os }}-${{ inputs.jbig2 }}-
+    # Runtime natives only — Leptonica + poppler (+ qpdf/webp), and binutils for the
+    # distribution convention's dependency walk. The heavy build toolchain (gcc +
+    # autoconf/automake/libtool/make) is NOT installed here: it is only needed to
+    # compile jbig2enc, which the cache step below skips on a hit. pkgconf/pkg-config
+    # stays in this always-installed set on the jbig2 legs (it is tiny, and keeping it
+    # off the build-only path guarantees a cache-HIT run still has it should the
+    # `package`/native-staging ever shell out to it — gcc is the real saving). jbig2's
+    # runtime set adds libwebp (Leptonica's WebP codec) and webp/qpdf on macOS, matching
+    # what the legs installed before. PKGS (a GH ternary on `jbig2`) keeps the package
+    # list out of the nested bash/pwsh quoting; the retry loop guards mirror flakiness.
+    - name: provision runtime natives (Windows / MSYS2 mingw64)
       if: runner.os == 'Windows'
       shell: pwsh
+      env:
+        PKGS: ${{ inputs.jbig2 == 'true' && 'mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-libwebp mingw-w64-x86_64-pkgconf mingw-w64-x86_64-binutils' || 'mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils' }}
       run: |
-        if ("${{ inputs.jbig2 }}" -eq "true") {
-          $env:MSYSTEM = "MINGW64"
-          $env:CHERE_INVOKING = "1"
-          C:\msys64\usr\bin\bash.exe -lc 'set -o pipefail; n=0; until pacman -S --needed --noconfirm autoconf automake libtool make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-libwebp mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done; set -e; curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/${{ inputs.jbig2enc-version }}.tar.gz | tar -xz -C /tmp; cd /tmp/jbig2enc-${{ inputs.jbig2enc-version }}; ./autogen.sh; ./configure --prefix=/mingw64; make -j$(nproc); make install'
-        } else {
-          C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
-        }
+        C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm $PKGS; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
         if ($LASTEXITCODE -ne 0) { throw "MSYS2 provisioning failed ($LASTEXITCODE)" }
-    - name: provision native toolchain (macOS / Homebrew)
+    - name: provision runtime natives (macOS / Homebrew)
       if: runner.os == 'macOS'
       shell: bash
+      env:
+        PKGS: ${{ inputs.jbig2 == 'true' && 'leptonica poppler qpdf webp pkg-config' || 'leptonica poppler qpdf' }}
+      run: brew install $PKGS
+
+    # --- jbig2enc: build-from-source, cached by the installed Leptonica version ---
+    # register/despeckle repack to lossless JBIG2, so they need jbig2enc — not packaged
+    # for mingw64 or Homebrew, hence built from source against the toolchain Leptonica
+    # (one coherent ABI). The build (autoconf + compile) is the bulk of those legs'
+    # provisioning; cache the installed artifact so only a Leptonica bump triggers a
+    # rebuild. The cache key carries the EXACT Leptonica version (queried post-install)
+    # with NO restore-keys: a drifted Leptonica must miss and rebuild, never reuse an
+    # ABI-skewed binary. The artifact is captured via `make install DESTDIR=<stage>`
+    # (a clean jbig2enc-only tree) and copied into the prefix — identical to a direct
+    # `make install` either way, so a cache miss reproduces exactly the old behaviour.
+    - name: resolve Leptonica version (jbig2enc cache key)
+      id: leptver
+      if: inputs.jbig2 == 'true'
+      shell: bash
       run: |
-        if [ "${{ inputs.jbig2 }}" = "true" ]; then
-          brew install leptonica poppler qpdf webp autoconf automake libtool pkg-config
-          prefix="$(brew --prefix)"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          v=$(C:/msys64/usr/bin/bash.exe -lc 'pacman -Q mingw-w64-x86_64-leptonica' | awk '/leptonica/{print $2}')
+        else
+          v=$(brew list --versions leptonica | awk '/leptonica/{print $2}')
+        fi
+        echo "version=$v" >> "$GITHUB_OUTPUT"
+        echo "Leptonica version: $v"
+    - name: cache jbig2enc build (per Leptonica ABI)
+      id: jbig2cache
+      if: inputs.jbig2 == 'true'
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ${{ runner.os == 'Windows' && 'C:\jbig2enc-stage' || '/tmp/jbig2enc-stage' }}
+        key: jbig2enc-${{ runner.os }}-${{ inputs.jbig2enc-version }}-lept-${{ steps.leptver.outputs.version }}
+    - name: build + install jbig2enc (Windows)
+      if: runner.os == 'Windows' && inputs.jbig2 == 'true'
+      shell: pwsh
+      env:
+        CACHE_HIT: ${{ steps.jbig2cache.outputs.cache-hit }}
+      run: |
+        $env:MSYSTEM = "MINGW64"
+        $env:CHERE_INVOKING = "1"
+        C:\msys64\usr\bin\bash.exe -lc 'set -eo pipefail; stage=/c/jbig2enc-stage;
+          if [ "$CACHE_HIT" != "true" ]; then
+            n=0; until pacman -S --needed --noconfirm autoconf automake libtool make mingw-w64-x86_64-gcc; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done;
+            curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/${{ inputs.jbig2enc-version }}.tar.gz | tar -xz -C /tmp;
+            cd /tmp/jbig2enc-${{ inputs.jbig2enc-version }};
+            ./autogen.sh; ./configure --prefix=/mingw64; make -j$(nproc); rm -rf "$stage"; make install DESTDIR="$stage";
+          fi;
+          cp -a "$stage"/mingw64/. /mingw64/'
+        if ($LASTEXITCODE -ne 0) { throw "jbig2enc build/install failed ($LASTEXITCODE)" }
+    - name: build + install jbig2enc (macOS)
+      if: runner.os == 'macOS' && inputs.jbig2 == 'true'
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.jbig2cache.outputs.cache-hit }}
+      run: |
+        set -eo pipefail
+        prefix="$(brew --prefix)"
+        stage=/tmp/jbig2enc-stage
+        if [ "$CACHE_HIT" != "true" ]; then
+          brew install autoconf automake libtool
           curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/${{ inputs.jbig2enc-version }}.tar.gz | tar -xz -C /tmp
           cd /tmp/jbig2enc-${{ inputs.jbig2enc-version }}
           ./autogen.sh
@@ -59,10 +139,10 @@ runs:
           export CPPFLAGS="-I$prefix/include" LDFLAGS="-L$prefix/lib"
           ./configure --prefix="$prefix"
           make -j"$(sysctl -n hw.ncpu)"
-          make install
-        else
-          brew install leptonica poppler qpdf
+          rm -rf "$stage"
+          make install DESTDIR="$stage"
         fi
+        cp -a "$stage$prefix/." "$prefix/"
     # The -Pp4suta.nativePrefix for this OS: the mingw64 root on Windows, the
     # Homebrew prefix on macOS. bash is available on every runner; backslashes are
     # literal in a non-`-e` echo, so the Windows path is emitted as-is.
