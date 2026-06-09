@@ -1,8 +1,13 @@
 # End-to-end smoke for the self-contained webapp app-image (Windows). Start the server PATH-EMPTY so
 # the launcher's baked -Dp4suta.pdfbook.path must resolve the NESTED pdfbook, convert a real scan, and
-# assert a linearized PDF. -Launcher = the app-image .exe. Mirror of dist-smoke.sh (same contract).
+# assert a linearized PDF. -Launcher = the app-image launcher (.exe). Mirror of dist-smoke.sh.
+#
+# All HTTP goes through curl.exe (on every Windows runner), NOT Invoke-WebRequest: the latter honors
+# the runner's proxy env for 127.0.0.1 and never saw an UP server. Native non-zero exits must not
+# throw, so curl's own exit codes stay advisory.
 param([Parameter(Mandatory = $true)][string]$Launcher)
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $false
 $sample = "register\infrastructure\build\sample\sample.pdf"
 $base = "http://127.0.0.1:8080"
 if (-not (Test-Path $Launcher)) { throw "launcher not found: $Launcher" }
@@ -27,25 +32,25 @@ function Fail($msg) {
 }
 
 try {
-    # 1) health UP — proves the context started and the nested pdfbook binary resolved.
+    # 1) health UP — the actuator returns the aggregate status (DOWN => HTTP 503); parse the top-level
+    # "status" so a single DOWN indicator (e.g. an unresolved nested pdfbook binary) is caught. A
+    # connection-refused during startup leaves an empty body -> ConvertFrom-Json throws -> retry.
     $up = $false
     foreach ($i in 1..45) {
         try {
-            $h = (Invoke-WebRequest -UseBasicParsing "$base/actuator/health").Content | ConvertFrom-Json
+            $h = (& curl.exe -s "$base/actuator/health" 2>$null | Out-String | ConvertFrom-Json)
             if ($h.status -eq "UP") { $up = $true; break }
         } catch { }
         Start-Sleep -Seconds 2
     }
     if (-not $up) {
-        # The default profile shows full health details — curl WITHOUT -f to capture the 503/DOWN
-        # body (which indicator failed + its path), then fail.
         Write-Host "--- /actuator/health (last response, may be 503/DOWN) ---"
-        try { & curl.exe -s "$base/actuator/health" } catch { }
+        & curl.exe -s "$base/actuator/health"
         Fail "server did not become healthy"
     }
     Write-Host "[smoke] health UP"
 
-    # 2) submit — curl.exe with explicit PDF content-type (a bare -F sends octet-stream, rejected).
+    # 2) submit — explicit PDF content-type (a bare -F sends octet-stream, which the controller rejects).
     $resp = (& curl.exe -sS -X POST "$base/api/v1/jobs" -F "file=@$sample;type=application/pdf") | Out-String
     if ($resp -notmatch '"jobId"\s*:\s*"([^"]+)"') { Fail "no job id in response: $resp" }
     $id = $Matches[1]
@@ -55,9 +60,11 @@ try {
     # event precedes DONE / a ready /result). Break early on FAILED.
     $done = $false
     foreach ($i in 1..90) {
-        $s = (Invoke-WebRequest -UseBasicParsing "$base/api/v1/jobs/$id").Content | ConvertFrom-Json
-        if ($s.state -eq "DONE") { $done = $true; break }
-        if ($s.state -eq "FAILED") { Fail "conversion FAILED: $($s.errorKind) $($s.errorMessage)" }
+        try {
+            $s = (& curl.exe -s "$base/api/v1/jobs/$id" 2>$null | Out-String | ConvertFrom-Json)
+            if ($s.state -eq "DONE") { $done = $true; break }
+            if ($s.state -eq "FAILED") { Fail "conversion FAILED: $($s.errorKind) $($s.errorMessage)" }
+        } catch { }
         Start-Sleep -Seconds 2
     }
     if (-not $done) { Fail "conversion did not reach DONE" }
