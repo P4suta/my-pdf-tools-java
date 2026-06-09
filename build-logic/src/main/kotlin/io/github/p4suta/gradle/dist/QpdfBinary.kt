@@ -41,3 +41,26 @@ fun Project.qpdfBinary(version: String): Configuration {
     }
     return resolvable.get()
 }
+
+/**
+ * Wire the per-OS qpdf source into [dist] for an app that REQUIRES qpdf (`despeckle` and `pdfbook`,
+ * which bundle it for Fast Web View linearisation): on macOS qpdf comes from the Homebrew prefix as a
+ * flat [host tool] [SelfContainedAppExtension.hostTool] (upstream ships no Darwin release), on
+ * Linux/Windows from the
+ * upstream release zip [qpdfBinary] fetches. Either way it resolves at runtime via the canonical
+ * `-Dp4suta.qpdf.path`. Sharing this keeps the OS branch from drifting between the two apps.
+ *
+ * `tate-yoko-pdf` deliberately does NOT use this: it wires `qpdfZip.from(qpdfBinary(...))` directly so
+ * that on macOS (where [qpdfBinary] is empty) it bundles NO qpdf and degrades to a no-op, rather than
+ * pulling qpdf from Homebrew.
+ *
+ * @param dist the app's [SelfContainedAppExtension] being configured
+ * @param version the qpdf release to fetch on Linux/Windows (e.g. `12.3.2`)
+ */
+fun Project.bundleQpdf(dist: SelfContainedAppExtension, version: String) {
+    if (OperatingSystem.current().isMacOsX) {
+        dist.hostTool("qpdf")
+    } else {
+        dist.qpdfZip.from(qpdfBinary(version))
+    }
+}

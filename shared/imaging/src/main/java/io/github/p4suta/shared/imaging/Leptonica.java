@@ -92,9 +92,12 @@ final class Leptonica {
     /** The primary system property to override the resolved Leptonica library path. */
     static final String LIB_PATH_PROPERTY = "p4suta.leptonica.path";
 
-    // Override properties in priority order: the unified property first, then the per-app
-    // `register.leptonica.path` / `despeckle.leptonica.path` so a packaged distribution that sets
-    // them keeps resolving. The standard multiarch locations are probed after these.
+    // Override properties in priority order: the canonical property first, then the older per-app
+    // keys `register.leptonica.path` / `despeckle.leptonica.path` (kept for backward
+    // compatibility).
+    // Standard multiarch locations are probed last. NB: this is the REVERSE of ToolPath.resolve,
+    // which tries the per-app key first — library loading prefers the canonical key, external-tool
+    // lookup prefers the per-app key.
     private static final List<String> LIB_PATH_PROPERTIES =
             List.of(LIB_PATH_PROPERTY, "register.leptonica.path", "despeckle.leptonica.path");
 
