@@ -209,10 +209,14 @@ public final class Conversions {
                 store.save(running.toDone(clock.instant()));
                 storeInCache(key, id); // make this result reusable by future identical jobs
             } catch (IOException | RuntimeException e) {
-                log.warn("conversion {} failed: {}", id.value(), e.getMessage());
                 ProgressEvent.@Nullable RunFailed reported = failure.get();
                 String kind = reported != null ? reported.kind() : e.getClass().getSimpleName();
                 String message = reported != null ? reported.message() : messageOf(e);
+                // Log the cause pdfbook actually reported, not the generic engine wrapper: a
+                // RunFailed event carries the underlying tool error (e.g. "qpdf failed with exit
+                // code 1: ..."), and when none was emitted the engine's IOException message now
+                // carries pdfbook's stderr tail. Either way "exited with code N" alone is useless.
+                log.warn("conversion {} failed [{}]: {}", id.value(), kind, message);
                 store.save(running.toFailed(clock.instant(), kind, message));
                 if (reported == null) {
                     // The engine failed before emitting a terminal event; synthesize one so

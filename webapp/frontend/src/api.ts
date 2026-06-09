@@ -20,7 +20,9 @@ export type ProgressEvent =
   | { type: "pageProcessed"; stage: string; done: number; total: number }
   | { type: "stageCompleted"; stage: string }
   | { type: "runCompleted" }
-  | { type: "runFailed"; kind: string; message: string };
+  // The server blanks `message` at the HTTP boundary (it holds server-only diagnostics); the UI
+  // localizes from the stable `kind` alone, so `message` is intentionally not part of the type.
+  | { type: "runFailed"; kind: string };
 
 export async function submitJob(file: File, options: ConversionOptions): Promise<string> {
   const form = new FormData();
@@ -85,8 +87,9 @@ export type JobState = "QUEUED" | "RUNNING" | "DONE" | "FAILED";
 
 export interface JobStatus {
   state: JobState;
+  // Only the stable kind crosses the boundary; the failure detail stays server-side (log + Job
+  // record). The UI localizes from `errorKind`.
   errorKind: string | null;
-  errorMessage: string | null;
 }
 
 // The authoritative job state. The `runCompleted` progress event means pdfbook finished writing,

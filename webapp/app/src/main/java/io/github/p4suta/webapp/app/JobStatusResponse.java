@@ -12,18 +12,21 @@ import org.jspecify.annotations.Nullable;
  * @param createdAt when the job was accepted (ISO-8601)
  * @param finishedAt when it reached a terminal state (ISO-8601), or {@code null} while in flight
  * @param errorKind a stable error-kind token when failed, else {@code null}
- * @param errorMessage a human-readable failure description when failed, else {@code null}
  */
 public record JobStatusResponse(
         String jobId,
         String state,
         String createdAt,
         @Nullable String finishedAt,
-        @Nullable String errorKind,
-        @Nullable String errorMessage) {
+        @Nullable String errorKind) {
 
     /**
-     * {@return a status response describing {@code job}}
+     * {@return a status response describing {@code job}}.
+     *
+     * <p>The failure {@code message} the Job carries is intentionally NOT exposed: it holds
+     * server-only diagnostics (subprocess stderr, absolute paths). The client localizes from the
+     * stable {@code errorKind} alone (presentation-free boundary); the detail stays in the server
+     * log and the Job record. Mirrors the SSE boundary in {@code SseProgressPublisher}.
      *
      * @param job the job to describe
      */
@@ -34,7 +37,6 @@ public record JobStatusResponse(
                 job.state().name(),
                 job.createdAt().toString(),
                 finishedAt != null ? finishedAt.toString() : null,
-                job.errorKind(),
-                job.errorMessage());
+                job.errorKind());
     }
 }

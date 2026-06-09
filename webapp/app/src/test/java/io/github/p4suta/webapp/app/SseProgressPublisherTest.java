@@ -72,14 +72,50 @@ class SseProgressPublisherTest {
     }
 
     @Test
-    void synthesizesAFailedEventForATerminalFailedJobWithNoBuffer() {
+    void synthesizesAFailedEventForATerminalFailedJobButBlanksTheMessage() {
+        // The Job record keeps the server-only detail ("boom"); the client gets only the kind.
         Job failed = queued().toRunning().toFailed(Instant.EPOCH, "EXTRACT", "boom");
 
         publisher.openStream(failed);
 
-        assertThat(emitter.sent)
-                .containsExactly(json(new ProgressEvent.RunFailed("EXTRACT", "boom")));
+        assertThat(emitter.sent).containsExactly(json(new ProgressEvent.RunFailed("EXTRACT", "")));
+        assertThat(emitter.sent.toString()).doesNotContain("boom");
         assertThat(emitter.completed).isTrue();
+    }
+
+    @Test
+    void blanksTheFailureMessageOnLivePublishSoNoServerDetailReachesTheClient() {
+        publisher.openStream(queued().toRunning());
+
+        publisher.publish(ID, new ProgressEvent.RunFailed("INTERNAL", "/tmp/secret/path: boom"));
+
+        assertThat(emitter.sent).containsExactly(json(new ProgressEvent.RunFailed("INTERNAL", "")));
+        assertThat(emitter.sent.toString()).doesNotContain("secret");
+    }
+
+    @Test
+    void capsConcurrentLiveStreamsPerJob() {
+        // MAX_EMITTERS_PER_JOB is 8; open one more than that against the same running job.
+        List<CapturingSseEmitter> made = new ArrayList<>();
+        SseProgressPublisher capped =
+                new SseProgressPublisher(
+                        () -> {
+                            CapturingSseEmitter fresh = new CapturingSseEmitter();
+                            made.add(fresh);
+                            return fresh;
+                        });
+        Job running = queued().toRunning();
+        for (int i = 0; i < 9; i++) {
+            capped.openStream(running);
+        }
+
+        // The 9th is over the cap: completed immediately, not retained as a live emitter.
+        CapturingSseEmitter overflow = made.get(8);
+        assertThat(overflow.completed).isTrue();
+
+        capped.publish(ID, new ProgressEvent.RunStarted(1));
+        assertThat(overflow.sent).isEmpty();
+        assertThat(made.get(0).sent).containsExactly(json(new ProgressEvent.RunStarted(1)));
     }
 
     @Test

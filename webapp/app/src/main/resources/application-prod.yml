@@ -21,20 +21,27 @@ springdoc:
     enabled: false
 
 management:
+  # Move the whole actuator surface off the public connector onto a SEPARATE loopback port
+  # (ADR-0009's stated prerequisite for exposure). The app connector binds 0.0.0.0:8080 for the
+  # reverse proxy; /actuator/* lives on 8081 bound to loopback, so it is reachable only from inside
+  # this container/host — never through the published app port, and the proxy never forwards it.
+  # Health-check it from within the container (a Dockerfile HEALTHCHECK or `docker exec ... curl
+  # localhost:8081/actuator/health`); for a sidecar on the Docker network, bind 0.0.0.0 here and
+  # leave 8081 unpublished. See deploy/reverse-proxy/README.md.
+  server:
+    address: 127.0.0.1
+    port: 8081
   endpoints:
     web:
       exposure:
-        # Only health is exposed in prod (dev also serves info/metrics/prometheus). Metrics and the
-        # Prometheus scrape are a recon/abuse surface with no auth; serve them via a private
-        # management port or behind authentication before re-enabling on an exposed instance.
-        include: health
+        # Now that the management port is loopback-only, the metrics/Prometheus recon surface is no
+        # longer publicly reachable, so serve the full observability set there again (as in dev).
+        include: health, info, metrics, prometheus
   endpoint:
     health:
-      # The prod container binds 0.0.0.0 with no auth, so do not leak health details (binary paths,
-      # work dir, queue internals). With no Spring Security on the classpath there is never an
-      # authenticated principal, so "when-authorized" never shows details — only UP/DOWN. Tighten
-      # further (separate loopback management port, real auth) before any LAN exposure.
-      show-details: when-authorized
+      # Loopback-only now, so full health details (binary paths, work dir, queue internals) are
+      # safe to show to a local operator/health check again.
+      show-details: always
 
 logging:
   structured:
