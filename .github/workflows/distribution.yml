@@ -196,27 +196,14 @@ jobs:
       # the preinstalled DB with no partial-upgrade). qpdf there is the Ivy zip.
       # macOS: Homebrew (the upstream qpdf release has no Darwin binary, so qpdf is
       # taken from Homebrew as a host tool — see the per-OS branch in the build).
-      - name: provision native toolchain (Windows / MSYS2 mingw64)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
-          if ($LASTEXITCODE -ne 0) { throw "MSYS2 pacman provisioning failed ($LASTEXITCODE)" }
-      - name: provision native toolchain (macOS / Homebrew)
-        if: runner.os == 'macOS'
-        run: brew install leptonica poppler qpdf
+      - name: provision native toolchain (Leptonica + poppler + qpdf)
+        id: natives
+        uses: ./.github/actions/provision-natives
 
-      - name: build pdfbook app-image + sample scan PDF (Windows)
-        if: runner.os == 'Windows'
+      - name: build pdfbook app-image + sample scan PDF
         run: >-
           ./gradlew :pipeline:app:package :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=C:\msys64\mingw64"
-          --no-daemon --console=plain
-      - name: build pdfbook app-image + sample scan PDF (macOS)
-        if: runner.os == 'macOS'
-        run: >-
-          ./gradlew :pipeline:app:package :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=$(brew --prefix)"
+          "-Pp4suta.nativePrefix=${{ steps.natives.outputs.native-prefix }}"
           --no-daemon --console=plain
 
       # Real-workload smoke: the registration stage drives Leptonica through FFM
@@ -291,29 +278,16 @@ jobs:
       - name: install pinned pnpm
         run: npm install -g pnpm@11.5.1
 
-      # Leptonica + poppler from one native toolchain (coherent ABI), plus qpdf — verbatim from
-      # dist-pdfbook-crossos (the webapp's transitive pdfbook needs exactly this and no jbig2).
-      - name: provision native toolchain (Windows / MSYS2 mingw64)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
-          if ($LASTEXITCODE -ne 0) { throw "MSYS2 pacman provisioning failed ($LASTEXITCODE)" }
-      - name: provision native toolchain (macOS / Homebrew)
-        if: runner.os == 'macOS'
-        run: brew install leptonica poppler qpdf
+      # Leptonica + poppler + qpdf — the webapp's transitive pdfbook needs exactly this and no jbig2,
+      # so the same provisioning composite as dist-pdfbook-crossos (jbig2 defaults to false).
+      - name: provision native toolchain (Leptonica + poppler + qpdf)
+        id: natives
+        uses: ./.github/actions/provision-natives
 
-      - name: build webapp app-image + sample scan PDF (Windows)
-        if: runner.os == 'Windows'
+      - name: build webapp app-image + sample scan PDF
         run: >-
           ./gradlew :webapp:app:package :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=C:\msys64\mingw64"
-          --no-daemon --console=plain
-      - name: build webapp app-image + sample scan PDF (macOS)
-        if: runner.os == 'macOS'
-        run: >-
-          ./gradlew :webapp:app:package :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=$(brew --prefix)"
+          "-Pp4suta.nativePrefix=${{ steps.natives.outputs.native-prefix }}"
           --no-daemon --console=plain
 
       # End-to-end server smoke (start PATH-empty, health-poll, convert through the nested pdfbook,
@@ -368,49 +342,21 @@ jobs:
       # Liberica JDK 25 Full (jmods for jlink/jpackage) + Gradle — shared composite.
       - uses: ./.github/actions/setup-jdk-gradle
 
-      # Windows: MSYS2 mingw64 Leptonica + poppler, jbig2enc built from source
-      # against it. MSYSTEM=MINGW64 puts /mingw64/bin (gcc, pkg-config) on the
-      # login-shell PATH; `pacman -S` without `-y` avoids a partial-upgrade; the
-      # install is retried (large toolchain download, mirrors can stall); the source
-      # is curl+tar (no git -> no perl tree). img2webp comes from libwebp when the
-      # package ships it (optional). despeckle's qpdf is the Ivy zip on Windows.
-      - name: provision toolchain + jbig2enc (Windows / MSYS2 mingw64)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $env:MSYSTEM = "MINGW64"
-          $env:CHERE_INVOKING = "1"
-          C:\msys64\usr\bin\bash.exe -lc 'set -o pipefail; n=0; until pacman -S --needed --noconfirm autoconf automake libtool make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-libwebp mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done; set -e; curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/0.31.tar.gz | tar -xz -C /tmp; cd /tmp/jbig2enc-0.31; ./autogen.sh; ./configure --prefix=/mingw64; make -j$(nproc); make install'
-          if ($LASTEXITCODE -ne 0) { throw "MSYS2 provisioning / jbig2enc build failed ($LASTEXITCODE)" }
-      # macOS: Homebrew Leptonica + poppler + qpdf + webp(img2webp), jbig2enc built
-      # from source against the Homebrew Leptonica and installed into the prefix.
-      - name: provision toolchain + jbig2enc (macOS / Homebrew)
-        if: runner.os == 'macOS'
-        run: |
-          brew install leptonica poppler qpdf webp autoconf automake libtool pkg-config
-          prefix="$(brew --prefix)"
-          curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/0.31.tar.gz | tar -xz -C /tmp
-          cd /tmp/jbig2enc-0.31
-          ./autogen.sh
-          export PKG_CONFIG_PATH="$prefix/lib/pkgconfig"
-          export CPPFLAGS="-I$prefix/include" LDFLAGS="-L$prefix/lib"
-          ./configure --prefix="$prefix"
-          make -j"$(sysctl -n hw.ncpu)"
-          make install
+      # register/despeckle DO need jbig2enc (lossless-JBIG2 repack), built from source against the
+      # toolchain Leptonica (one coherent ABI) — so jbig2: true. The composite installs the build
+      # toolchain + the from-source jbig2enc per OS (Windows: MSYSTEM=MINGW64 mingw64; macOS: Homebrew
+      # prefix), pinned to the same jbig2enc version the dev image's Dockerfile uses.
+      - name: provision toolchain + jbig2enc (Leptonica + poppler + qpdf + jbig2enc)
+        id: natives
+        uses: ./.github/actions/provision-natives
+        with:
+          jbig2: "true"
 
-      - name: build register + despeckle app-images + sample (Windows)
-        if: runner.os == 'Windows'
+      - name: build register + despeckle app-images + sample
         run: >-
           ./gradlew :register:app:package :despeckle:app:package
           :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=C:\msys64\mingw64"
-          --no-daemon --console=plain
-      - name: build register + despeckle app-images + sample (macOS)
-        if: runner.os == 'macOS'
-        run: >-
-          ./gradlew :register:app:package :despeckle:app:package
-          :register:infrastructure:createSamplePdf
-          "-Pp4suta.nativePrefix=$(brew --prefix)"
+          "-Pp4suta.nativePrefix=${{ steps.natives.outputs.native-prefix }}"
           --no-daemon --console=plain
 
       # register pipeline = pdfimages -> register (Leptonica FFM) -> jbig2 repack:

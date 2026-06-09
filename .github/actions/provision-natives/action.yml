@@ -1,0 +1,77 @@
+name: Provision native toolchain
+description: >-
+  Install the per-OS native toolchain the cross-OS distribution legs build against —
+  Leptonica + poppler (and qpdf from Homebrew on macOS) — and expose this OS's
+  `-Pp4suta.nativePrefix` value as the `native-prefix` output, so each job sources
+  its natives and prefix from one place instead of repeating the per-OS steps. With
+  `jbig2: 'true'` it additionally installs the build toolchain and builds jbig2enc
+  from source against that Leptonica (register/despeckle need it; pdfbook/webapp do
+  not). Windows uses the preinstalled C:\msys64 mingw64 (pacman driven directly —
+  the setup-msys2 cache step intermittently 400s); macOS uses Homebrew. Run
+  `actions/checkout` before this.
+
+inputs:
+  jbig2:
+    description: "Also install the build toolchain and build jbig2enc from source."
+    required: false
+    default: "false"
+  jbig2enc-version:
+    description: "The jbig2enc release tag to build from source when jbig2 is true."
+    required: false
+    default: "0.31"
+
+outputs:
+  native-prefix:
+    description: "This OS's -Pp4suta.nativePrefix (C:\\msys64\\mingw64 / $(brew --prefix))."
+    value: ${{ steps.prefix.outputs.value }}
+
+runs:
+  using: composite
+  steps:
+    # Each per-OS command below is verbatim what the cross-OS legs ran inline; the
+    # jbig2 superset (build toolchain + from-source jbig2enc, with MSYSTEM=MINGW64
+    # putting gcc/pkg-config on the login-shell PATH on Windows) is selected by the
+    # `jbig2` input. The two builds stay per-OS — they are genuinely different
+    # (mingw64 prefix vs the Homebrew prefix with explicit PKG_CONFIG_PATH/flags).
+    - name: provision native toolchain (Windows / MSYS2 mingw64)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if ("${{ inputs.jbig2 }}" -eq "true") {
+          $env:MSYSTEM = "MINGW64"
+          $env:CHERE_INVOKING = "1"
+          C:\msys64\usr\bin\bash.exe -lc 'set -o pipefail; n=0; until pacman -S --needed --noconfirm autoconf automake libtool make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-libwebp mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done; set -e; curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/${{ inputs.jbig2enc-version }}.tar.gz | tar -xz -C /tmp; cd /tmp/jbig2enc-${{ inputs.jbig2enc-version }}; ./autogen.sh; ./configure --prefix=/mingw64; make -j$(nproc); make install'
+        } else {
+          C:\msys64\usr\bin\bash.exe -lc 'n=0; until pacman -S --needed --noconfirm mingw-w64-x86_64-leptonica mingw-w64-x86_64-poppler mingw-w64-x86_64-binutils; do n=$((n+1)); if [ $n -ge 4 ]; then echo "pacman failed after $n attempts"; exit 1; fi; echo "pacman attempt failed; retrying ($n)"; sleep 15; done'
+        }
+        if ($LASTEXITCODE -ne 0) { throw "MSYS2 provisioning failed ($LASTEXITCODE)" }
+    - name: provision native toolchain (macOS / Homebrew)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        if [ "${{ inputs.jbig2 }}" = "true" ]; then
+          brew install leptonica poppler qpdf webp autoconf automake libtool pkg-config
+          prefix="$(brew --prefix)"
+          curl -fsSL https://github.com/agl/jbig2enc/archive/refs/tags/${{ inputs.jbig2enc-version }}.tar.gz | tar -xz -C /tmp
+          cd /tmp/jbig2enc-${{ inputs.jbig2enc-version }}
+          ./autogen.sh
+          export PKG_CONFIG_PATH="$prefix/lib/pkgconfig"
+          export CPPFLAGS="-I$prefix/include" LDFLAGS="-L$prefix/lib"
+          ./configure --prefix="$prefix"
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+        else
+          brew install leptonica poppler qpdf
+        fi
+    # The -Pp4suta.nativePrefix for this OS: the mingw64 root on Windows, the
+    # Homebrew prefix on macOS. bash is available on every runner; backslashes are
+    # literal in a non-`-e` echo, so the Windows path is emitted as-is.
+    - name: expose native prefix
+      id: prefix
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          echo 'value=C:\msys64\mingw64' >> "$GITHUB_OUTPUT"
+        else
+          echo "value=$(brew --prefix)" >> "$GITHUB_OUTPUT"
+        fi
