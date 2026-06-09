@@ -136,11 +136,8 @@ jobs:
         os: [macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
-        with:
-          distribution: liberica
-          java-version: "25"
-      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+      # Liberica JDK 25 Full (jmods for jlink/jpackage) + Gradle — shared composite.
+      - uses: ./.github/actions/setup-jdk-gradle
 
       # qpdf per OS, as tate's original CI relied on. The Gradle build bundles a
       # qpdf zip on Windows from qpdf's releases; macOS has no upstream Darwin
@@ -189,11 +186,8 @@ jobs:
         os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
-        with:
-          distribution: liberica
-          java-version: "25"
-      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+      # Liberica JDK 25 Full (jmods for jlink/jpackage) + Gradle — shared composite.
+      - uses: ./.github/actions/setup-jdk-gradle
 
       # Leptonica + poppler from one native toolchain (coherent ABI), plus qpdf.
       # Windows: the preinstalled C:\msys64 mingw64 (we drive pacman directly — the
@@ -236,21 +230,14 @@ jobs:
           $sample   = "register\infrastructure\build\sample\sample.pdf"
           & $launcher $sample -o out.pdf
           if ($LASTEXITCODE -ne 0) { throw "pdfbook exited $LASTEXITCODE" }
-          if (-not (Test-Path out.pdf)) { throw "no output PDF produced" }
-          $text = [System.Text.Encoding]::Latin1.GetString([System.IO.File]::ReadAllBytes("out.pdf"))
-          if (-not $text.StartsWith("%PDF-")) { throw "output is not a PDF" }
-          if (-not $text.Contains("Linearized")) { throw "qpdf linearize did not run (silent noOp)" }
-          Write-Host "pdfbook Windows smoke OK: %PDF + Linearized"
+          ./scripts/dist-assert-pdf.ps1 out.pdf Linearized
       - name: real-PDF smoke (macOS)
         if: runner.os == 'macOS'
         run: |
           launcher="pipeline/app/build/dist-jpackage/pdfbook.app/Contents/MacOS/pdfbook"
           sample="register/infrastructure/build/sample/sample.pdf"
           "$launcher" "$sample" -o out.pdf
-          test -s out.pdf || { echo "::error::no output PDF produced"; exit 1; }
-          head -c5 out.pdf | grep -q '%PDF-' || { echo "::error::output is not a PDF"; exit 1; }
-          grep -aq Linearized out.pdf || { echo "::error::qpdf linearize did not run (silent noOp)"; exit 1; }
-          echo "pdfbook macOS smoke OK: %PDF + Linearized"
+          bash scripts/dist-assert-pdf.sh out.pdf Linearized
 
       - name: upload pdfbook app-image
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -292,11 +279,8 @@ jobs:
         os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
-        with:
-          distribution: liberica
-          java-version: "25"
-      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+      # Liberica JDK 25 Full (jmods for jlink/jpackage) + Gradle — shared composite.
+      - uses: ./.github/actions/setup-jdk-gradle
       # Node + pnpm for the Gradle-driven SPA build (download=false → the PATH node/pnpm). Pinned to
       # the dev image's Dockerfile ARGs (NODE_VERSION / PNPM_VERSION) — keep them in lockstep by hand,
       # as ci.yml's lint job does for biome/actionlint. pnpm is npm-installed, NOT corepack (corepack's
@@ -381,11 +365,8 @@ jobs:
         os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
-        with:
-          distribution: liberica
-          java-version: "25"
-      - uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+      # Liberica JDK 25 Full (jmods for jlink/jpackage) + Gradle — shared composite.
+      - uses: ./.github/actions/setup-jdk-gradle
 
       # Windows: MSYS2 mingw64 Leptonica + poppler, jbig2enc built from source
       # against it. MSYSTEM=MINGW64 puts /mingw64/bin (gcc, pkg-config) on the
@@ -440,33 +421,20 @@ jobs:
         shell: pwsh
         run: |
           $sample = "register\infrastructure\build\sample\sample.pdf"
-          function Read-Pdf($p) { [System.Text.Encoding]::Latin1.GetString([System.IO.File]::ReadAllBytes($p)) }
           & "register\app\build\dist-jpackage\register\register.exe" pipeline $sample reg.pdf
           if ($LASTEXITCODE -ne 0) { throw "register exited $LASTEXITCODE" }
-          $r = Read-Pdf reg.pdf
-          if (-not $r.StartsWith("%PDF-")) { throw "register: not a PDF" }
-          if (-not $r.Contains("JBIG2Decode")) { throw "register: no JBIG2 stream" }
-          Write-Host "register Windows smoke OK: %PDF + JBIG2Decode"
+          ./scripts/dist-assert-pdf.ps1 reg.pdf JBIG2Decode
           & "despeckle\app\build\dist-jpackage\despeckle\despeckle.exe" pipeline $sample desp.pdf
           if ($LASTEXITCODE -ne 0) { throw "despeckle exited $LASTEXITCODE" }
-          $d = Read-Pdf desp.pdf
-          if (-not $d.StartsWith("%PDF-")) { throw "despeckle: not a PDF" }
-          if (-not $d.Contains("JBIG2Decode")) { throw "despeckle: no JBIG2 stream" }
-          if (-not $d.Contains("Linearized")) { throw "despeckle: qpdf linearize did not run" }
-          Write-Host "despeckle Windows smoke OK: %PDF + JBIG2Decode + Linearized"
+          ./scripts/dist-assert-pdf.ps1 desp.pdf JBIG2Decode Linearized
       - name: smoke register + despeckle (macOS)
         if: runner.os == 'macOS'
         run: |
           sample="register/infrastructure/build/sample/sample.pdf"
           register/app/build/dist-jpackage/register.app/Contents/MacOS/register pipeline "$sample" reg.pdf
-          head -c5 reg.pdf | grep -q '%PDF-' || { echo "::error::register: not a PDF"; exit 1; }
-          grep -aq JBIG2Decode reg.pdf || { echo "::error::register: no JBIG2 stream"; exit 1; }
-          echo "register macOS smoke OK: %PDF + JBIG2Decode"
+          bash scripts/dist-assert-pdf.sh reg.pdf JBIG2Decode
           despeckle/app/build/dist-jpackage/despeckle.app/Contents/MacOS/despeckle pipeline "$sample" desp.pdf
-          head -c5 desp.pdf | grep -q '%PDF-' || { echo "::error::despeckle: not a PDF"; exit 1; }
-          grep -aq JBIG2Decode desp.pdf || { echo "::error::despeckle: no JBIG2 stream"; exit 1; }
-          grep -aq Linearized desp.pdf || { echo "::error::despeckle: qpdf linearize did not run"; exit 1; }
-          echo "despeckle macOS smoke OK: %PDF + JBIG2Decode + Linearized"
+          bash scripts/dist-assert-pdf.sh desp.pdf JBIG2Decode Linearized
 
       - name: upload app-images
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

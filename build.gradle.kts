@@ -291,12 +291,18 @@ tasks.register("checkExtraVersions") {
     val nativeConventions =
         rootProject.file("build-logic/src/main/kotlin/p4suta.native-conventions.gradle.kts")
     // Resolve the workflow file list at configuration time (rootProject.fileTree inside doLast is a
-    // configuration-cache leak).
+    // configuration-cache leak). Composite actions under .github/actions/ carry pinned `uses:` too
+    // (e.g. setup-jdk-gradle), so scan them as well — otherwise moving a pin into a composite would
+    // drop it from the GitHub Actions freshness report below.
     val workflowFiles =
         rootProject
             .fileTree(".github/workflows") {
                 include("*.yml", "*.yaml")
-            }.files
+            }.files +
+            rootProject
+                .fileTree(".github/actions") {
+                    include("**/action.yml", "**/action.yaml")
+                }.files
     val failOnUpdates =
         providers.gradleProperty("failOnUpdates").map { it.toBoolean() }.getOrElse(false)
     outputs.upToDateWhen { false }
