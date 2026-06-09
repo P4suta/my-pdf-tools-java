@@ -50,6 +50,20 @@ jobs:
         run: |
           echo "UID=$(id -u)" >> "$GITHUB_ENV"
           echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # Cache the in-container Gradle user-home (deps + build cache + wrapper) across runs, exactly
+      # as ci.yml's build job does: Gradle runs inside the dev container so setup-gradle cannot cache
+      # it, and an ephemeral runner starts cold otherwise. The cross-OS legs already cache via
+      # setup-gradle in setup-jdk-gradle; this closes the gap for this Docker-based leg.
+      - name: cache gradle home
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            .gradle-home/caches
+            .gradle-home/wrapper
+          key: gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}-${{ github.run_id }}
+          restore-keys: |
+            gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}-
+            gradle-home-${{ runner.os }}-
       - name: build dev image
         run: docker compose build dev
 

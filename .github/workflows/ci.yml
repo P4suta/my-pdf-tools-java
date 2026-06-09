@@ -49,6 +49,24 @@ jobs:
         run: |
           echo "UID=$(id -u)" >> "$GITHUB_ENV"
           echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # Persist the Gradle user-home across runs. The gate runs Gradle INSIDE the dev container with
+      # GRADLE_USER_HOME=/workspace/.gradle-home (compose.yml), which on an ephemeral runner starts
+      # empty every run — so a cold `gradle build` re-downloads every dependency and recompiles all
+      # 27 modules from scratch (the bulk of this job's time). gradle/actions/setup-gradle cannot help
+      # here (it caches the HOST ~/.gradle; our Gradle is in the container), so cache the bind-mounted
+      # dir directly. run_id makes each run save a fresh entry; restore-keys fall back to the newest
+      # compatible cache, keeping the build cache warm as sources evolve. The cross-OS dist legs get
+      # the same benefit via setup-gradle; this closes the gap for the Docker-based jobs.
+      - name: cache gradle home
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            .gradle-home/caches
+            .gradle-home/wrapper
+          key: gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}-${{ github.run_id }}
+          restore-keys: |
+            gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}-
+            gradle-home-${{ runner.os }}-
       # The dev image is self-contained (root Dockerfile): JDK + Leptonica + the
       # PDF toolbox + fonts. Reuse the image published by dev-image.yml so CI
       # does not rebuild the whole toolchain (notably jbig2enc-from-source) on
@@ -159,6 +177,17 @@ jobs:
         run: |
           echo "UID=$(id -u)" >> "$GITHUB_ENV"
           echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # Restore-only: reuse the Gradle home the build job populates (warm dependencies for the
+      # dry-run) without saving a second, duplicate cache from this advisory job.
+      - name: restore gradle home
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            .gradle-home/caches
+            .gradle-home/wrapper
+          key: gradle-home-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-home-${{ runner.os }}-
       # Reuse the published dev image (see the build job); fall back to a local
       # build only when nothing is published yet.
       - name: build dev image
