@@ -14,7 +14,8 @@ if (-not (Test-Path $Launcher)) { throw "launcher not found: $Launcher" }
 if (-not (Test-Path $sample)) { throw "sample PDF not found: $sample" }
 
 # Background the server PATH-empty; the --win-console launcher streams to the redirected files.
-$proc = Start-Process -FilePath $Launcher -PassThru -NoNewWindow `
+# --app.open-browser=false: this is a headless CI run, not a desktop launch (BrowserLauncher).
+$proc = Start-Process -FilePath $Launcher -ArgumentList "--app.open-browser=false" -PassThru -NoNewWindow `
     -RedirectStandardOutput server.out.log -RedirectStandardError server.err.log
 $result = New-TemporaryFile
 
