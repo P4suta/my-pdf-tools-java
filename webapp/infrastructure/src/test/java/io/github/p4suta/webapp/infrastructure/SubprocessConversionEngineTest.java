@@ -80,6 +80,37 @@ class SubprocessConversionEngineTest {
             exit 1
             """;
 
+    // Dies with pdfbook's INTERNAL exit code WITHOUT writing any progress event, but prints the
+    // real cause to stderr (and stdout) the way pdfbook --verbose does. The engine captures that
+    // and folds the tail into the failure message so the cause is recoverable from server logs.
+    private static final String STDERR_CRASH =
+            """
+            #!/usr/bin/env bash
+            echo 'Error[INTERNAL]: an unexpected internal failure' >&2
+            echo '  detail: qpdf failed with exit code 2: boom' >&2
+            exit 70
+            """;
+
+    // Records the exact argv it was invoked with next to the output, so the test can assert the
+    // engine passes --verbose (without which the captured stderr would carry no detail).
+    private static final String RECORD_ARGS =
+            """
+            #!/usr/bin/env bash
+            args="$*"
+            out=""
+            progress=""
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                -o) out="$2"; shift 2 ;;
+                --progress-file) progress="$2"; shift 2 ;;
+                *) shift ;;
+              esac
+            done
+            printf '%s' "$args" > "$out.args"
+            echo '{"type":"runCompleted"}' >> "$progress"
+            printf 'PDF' > "$out"
+            """;
+
     private static final String TIMEOUT =
             """
             #!/usr/bin/env bash
@@ -146,6 +177,28 @@ class SubprocessConversionEngineTest {
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("exited with code 1");
         assertThat(events).contains(new ProgressEvent.RunFailed("EXTRACT", "pdfimages not found"));
+    }
+
+    @Test
+    void foldsCapturedOutputIntoTheFailureMessageWhenNoEventWasEmitted() throws IOException {
+        SubprocessConversionEngine engine = engine(STDERR_CRASH, Duration.ofSeconds(10));
+
+        assertThatThrownBy(
+                        () -> engine.convert(REQUEST, input(), tmp.resolve("out.pdf"), events::add))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("exited with code 70")
+                .hasMessageContaining("qpdf failed with exit code 2: boom");
+        // No RunFailed was emitted, yet the cause survived via the captured stderr.
+        assertThat(events).isEmpty();
+    }
+
+    @Test
+    void passesVerboseSoTheCapturedStderrCarriesDetail() throws IOException {
+        Path output = tmp.resolve("out.pdf");
+
+        engine(RECORD_ARGS, Duration.ofSeconds(10)).convert(REQUEST, input(), output, events::add);
+
+        assertThat(Files.readString(Path.of(output + ".args"))).contains("--verbose");
     }
 
     @Test

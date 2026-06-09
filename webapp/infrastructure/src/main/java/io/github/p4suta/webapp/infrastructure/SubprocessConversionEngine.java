@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
@@ -37,6 +38,11 @@ public final class SubprocessConversionEngine implements ConversionEngine {
 
     private static final Logger log = LoggerFactory.getLogger(SubprocessConversionEngine.class);
     private static final Duration POLL = Duration.ofMillis(150);
+    // Bound how much of the child's captured output we fold into a failure message: read at most
+    // this many trailing bytes, then keep at most this many trailing lines. The tail is where the
+    // Error[...]/detail/stack-trace lands; the cap keeps a --verbose DEBUG log from bloating it.
+    private static final int MAX_DIAGNOSTIC_BYTES = 64 * 1024;
+    private static final int MAX_DIAGNOSTIC_LINES = 200;
 
     private final Path pdfbookBinary;
     private final Duration timeout;
@@ -55,13 +61,20 @@ public final class SubprocessConversionEngine implements ConversionEngine {
             ConversionRequest request, Path inputPdf, Path outputPdf, ProgressSink progress)
             throws IOException {
         Path progressFile = Files.createTempFile("pdfbook-progress-", ".jsonl");
+        // pdfbook emits a RunFailed progress event carrying the underlying cause for most
+        // failures, but a process that dies WITHOUT emitting one (a native crash, a JVM that never
+        // starts, the launcher misparsing its args) would otherwise leave no trace. Capturing the
+        // child's merged stdout+stderr to a file (paired with --verbose in buildCommand) means the
+        // real cause is always recoverable. A file, not a pipe, so there is no drain thread and no
+        // deadlock if the child out-writes a full pipe buffer.
+        Path diagnosticsFile = Files.createTempFile("pdfbook-stderr-", ".log");
         try {
             List<String> command = buildCommand(request, inputPdf, outputPdf, progressFile);
             log.info("running pdfbook: {}", command);
             ProcessBuilder builder =
                     new ProcessBuilder(command)
-                            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                            .redirectError(ProcessBuilder.Redirect.DISCARD);
+                            .redirectErrorStream(true)
+                            .redirectOutput(ProcessBuilder.Redirect.to(diagnosticsFile.toFile()));
             // jpackage-nesting gotcha: when this server runs as the self-contained app-image
             // and spawns the NESTED pdfbook app-image, the outer jpackage launcher has
             // setenv'd its re-launch marker _JPACKAGE_LAUNCHER plus the platform dynamic-linker
@@ -75,13 +88,15 @@ public final class SubprocessConversionEngine implements ConversionEngine {
             builder.environment().remove("LD_LIBRARY_PATH");
             builder.environment().remove("DYLD_LIBRARY_PATH");
             Process process = builder.start();
-            runToCompletion(process, progressFile, progress);
+            runToCompletion(process, progressFile, diagnosticsFile, progress);
         } finally {
             Files.deleteIfExists(progressFile);
+            Files.deleteIfExists(diagnosticsFile);
         }
     }
 
-    private void runToCompletion(Process process, Path progressFile, ProgressSink progress)
+    private void runToCompletion(
+            Process process, Path progressFile, Path diagnosticsFile, ProgressSink progress)
             throws IOException {
         ProgressFileTail tail = new ProgressFileTail(progressFile);
         long deadline = System.nanoTime() + timeout.toNanos();
@@ -90,7 +105,8 @@ public final class SubprocessConversionEngine implements ConversionEngine {
                 tail.drainTo(progress);
                 if (System.nanoTime() >= deadline) {
                     process.destroyForcibly();
-                    throw new IOException("pdfbook timed out after " + timeout);
+                    throw new IOException(
+                            "pdfbook timed out after " + timeout + detail(diagnosticsFile));
                 }
             }
             // Final drain: the last lines can land after the last poll, so read once more to EOF
@@ -99,7 +115,7 @@ public final class SubprocessConversionEngine implements ConversionEngine {
             tail.drainTo(progress);
             int exit = process.exitValue();
             if (exit != 0) {
-                throw new IOException("pdfbook exited with code " + exit);
+                throw new IOException("pdfbook exited with code " + exit + detail(diagnosticsFile));
             }
         } catch (InterruptedException e) {
             process.destroyForcibly();
@@ -108,10 +124,61 @@ public final class SubprocessConversionEngine implements ConversionEngine {
         }
     }
 
+    /**
+     * {@return the tail of pdfbook's captured output as a newline-prefixed block to append to a
+     * failure message, or an empty string when there is nothing to show}. Best-effort: reading the
+     * diagnostics must never mask the conversion failure that triggered it, so any error here
+     * yields {@code ""}.
+     */
+    private static String detail(Path diagnosticsFile) {
+        String tail = readDiagnosticsTail(diagnosticsFile);
+        return tail.isEmpty() ? "" : System.lineSeparator() + tail;
+    }
+
+    private static String readDiagnosticsTail(Path file) {
+        try {
+            if (!Files.exists(file)) {
+                return "";
+            }
+            long size = Files.size(file);
+            long start = Math.max(0, size - MAX_DIAGNOSTIC_BYTES);
+            byte[] bytes = new byte[(int) (size - start)];
+            try (SeekableByteChannel channel =
+                    Files.newByteChannel(file, StandardOpenOption.READ)) {
+                channel.position(start);
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining() && channel.read(buffer) >= 0) {
+                    // read to the end
+                }
+            }
+            String text = new String(bytes, StandardCharsets.UTF_8);
+            if (start > 0) {
+                // We sliced mid-file; drop the first, likely-partial line.
+                int newline = text.indexOf('\n');
+                text = newline >= 0 ? text.substring(newline + 1) : text;
+            }
+            return lastLines(text.strip());
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    private static String lastLines(String text) {
+        String[] lines = text.split("\n", -1);
+        if (lines.length <= MAX_DIAGNOSTIC_LINES) {
+            return text;
+        }
+        return String.join(
+                "\n", Arrays.copyOfRange(lines, lines.length - MAX_DIAGNOSTIC_LINES, lines.length));
+    }
+
     private List<String> buildCommand(
             ConversionRequest request, Path inputPdf, Path outputPdf, Path progressFile) {
         List<String> command = new ArrayList<>();
         command.add(pdfbookBinary.toString());
+        // --verbose turns pdfbook's captured stderr from a bare "Error[INTERNAL]: <generic>" line
+        // into the full detail + stack trace, which is what makes the captured diagnostics useful.
+        command.add("--verbose");
         command.add("-o");
         command.add(outputPdf.toString());
         command.add("-d");

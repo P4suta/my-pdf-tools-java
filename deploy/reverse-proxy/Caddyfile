@@ -1,0 +1,54 @@
+# Reverse-proxy reference for the pdfbook-web prod container — the ADR-0009 public-exposure model.
+#
+# The Spring app stays minimal (no Spring Security on the classpath, by design); the PERIMETER owns
+# TLS, authentication, rate limiting, connection/body caps. The app provides what a proxy cannot:
+# it never leaks failure detail to clients (kind-only over SSE/REST), rejects cross-origin
+# state-changing requests (SameOriginCsrfFilter), and serves /actuator on a SEPARATE loopback port.
+#
+# This is a REFERENCE, not a turnkey config: replace the domain, the ACME email, and the Basic-auth
+# hash before use. Generate the password hash with:  caddy hash-password
+#
+# Run the prod image bound to loopback, then put this proxy in front:
+#   docker run --rm -p 127.0.0.1:8080:8080 pdfbook-web
+#   caddy run --config deploy/reverse-proxy/Caddyfile
+#
+# The self-contained jpackage app-image is NOT a public-exposure target (it has no proxy and runs
+# the default, loopback profile) — it is for LAN/local desktop use. Public exposure = this model.
+
+pdfbook.example.com {
+	# --- TLS: automatic ACME (Let's Encrypt); Caddy manages issuance and renewal. ---
+	tls you@example.com
+
+	# --- AuthN: HTTP Basic over TLS. Replace with your own `caddy hash-password` output. ---
+	basic_auth {
+		admin $2a$14$REPLACE_WITH_caddy_hash_password_OUTPUT
+	}
+
+	# --- Cap the request body to the app's 512MB upload limit, rejecting oversized uploads early. ---
+	request_body {
+		max_size 512MB
+	}
+
+	# --- Rate limiting. Requires the caddy-ratelimit module (build with xcaddy):
+	#       xcaddy build --with github.com/mholt/caddy-ratelimit
+	#     Uncomment once your binary includes it. Conversions are ~minutes each and CPU-saturating,
+	#     so keep this tight. (nginx alternative: `limit_req`/`limit_conn` — see README.) ---
+	# rate_limit {
+	# 	zone conversions {
+	# 		key {remote_host}
+	# 		events 20
+	# 		window 1m
+	# 	}
+	# }
+
+	# --- Defense in depth: actuator already lives on the app's loopback :8081 (never on :8080), but
+	#     also refuse the path here so a misconfigured upstream can never surface it publicly. ---
+	@actuator path /actuator /actuator/*
+	respond @actuator 404
+
+	# --- Forward everything else to the app connector on loopback. ---
+	reverse_proxy 127.0.0.1:8080 {
+		# SSE (GET /api/v1/jobs/{id}/events): stream progress immediately, do not buffer.
+		flush_interval -1
+	}
+}

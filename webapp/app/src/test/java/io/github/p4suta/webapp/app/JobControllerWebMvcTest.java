@@ -136,6 +136,24 @@ class JobControllerWebMvcTest {
     }
 
     @Test
+    void failedStatusExposesTheKindButNotTheServerOnlyMessage() {
+        Job failed =
+                Job.queued(new JobId("job-1"), REQUEST, "scan.pdf", Instant.EPOCH)
+                        .toRunning()
+                        .toFailed(Instant.EPOCH, "INTERNAL", "qpdf failed: /tmp/secret/path boom");
+        when(conversions.get(new JobId("job-1"))).thenReturn(failed);
+
+        var response = mvc.get().uri("/api/v1/jobs/{id}", "job-1").exchange();
+        assertThat(response)
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.errorKind")
+                .isEqualTo("INTERNAL");
+        // The server-only failure detail must never reach the client.
+        assertThat(response).bodyText().doesNotContain("secret", "qpdf", "errorMessage");
+    }
+
+    @Test
     void resultServesThePdfInlineWithTheBookFilename(@TempDir Path tmp) throws Exception {
         Path out = Files.writeString(tmp.resolve("out.pdf"), "%PDF-1.7");
         Job done =

@@ -30,6 +30,10 @@ public final class SseProgressPublisher implements ProgressPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(SseProgressPublisher.class);
     private static final long SSE_TIMEOUT_MS = Duration.ofHours(1).toMillis();
+    // Cap concurrent live streams per job: a client cannot otherwise pin unbounded emitters (and
+    // the memory they hold) open for the full SSE timeout. Normal use opens one EventSource per
+    // job; a handful of browser tabs stays well under this.
+    private static final int MAX_EMITTERS_PER_JOB = 8;
 
     private final ConcurrentHashMap<JobId, JobStream> streams = new ConcurrentHashMap<>();
     private final Supplier<SseEmitter> emitterFactory;
@@ -116,6 +120,12 @@ public final class SseProgressPublisher implements ProgressPublisher {
             }
             if (completed) {
                 completeQuietly(emitter);
+            } else if (emitters.size() >= MAX_EMITTERS_PER_JOB) {
+                // Over the per-job cap: the subscriber still sees the replayed state so far, then
+                // the stream closes rather than holding another live emitter open.
+                log.debug(
+                        "refusing SSE subscribe: job already has {} live streams", emitters.size());
+                completeQuietly(emitter);
             } else {
                 emitters.add(emitter);
                 emitter.onCompletion(() -> remove(emitter));
@@ -132,11 +142,27 @@ public final class SseProgressPublisher implements ProgressPublisher {
             try {
                 // A default "message" event whose data is the shared JSONL line; the SPA parses it
                 // with JSON.parse on EventSource.onmessage.
-                emitter.send(JsonlProgressCodec.write(event));
+                emitter.send(JsonlProgressCodec.write(forClient(event)));
             } catch (IOException | IllegalStateException e) {
                 // The client went away or the stream already closed; its callback removes it.
                 log.debug("dropping SSE send: {}", e.getMessage());
             }
+        }
+
+        /**
+         * {@return the event as the browser may see it}. The HTTP boundary is presentation-free:
+         * the client localizes a failure from the stable {@code kind} alone. A {@code RunFailed}'s
+         * {@code message} carries server-only diagnostics (subprocess stderr, absolute paths) that
+         * must never reach the browser — it lives in the server log and the Job record instead — so
+         * it is blanked here. Every send path (live, replay, terminal synthesis) funnels through
+         * {@link #send}, so this one point sanitizes them all. Other events carry no sensitive
+         * data.
+         */
+        private static ProgressEvent forClient(ProgressEvent event) {
+            if (event instanceof ProgressEvent.RunFailed failed) {
+                return new ProgressEvent.RunFailed(failed.kind(), "");
+            }
+            return event;
         }
 
         private static void completeQuietly(SseEmitter emitter) {

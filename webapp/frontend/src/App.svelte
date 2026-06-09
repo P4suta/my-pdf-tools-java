@@ -253,7 +253,8 @@
         break;
       case "runFailed":
         markFailedStep();
-        error = event.message;
+        // The server sends no detail (it stays server-side); localize from the kind alone.
+        error = null;
         errorKind = event.kind;
         phase = "failed";
         source?.close();
@@ -282,7 +283,7 @@
           return;
         }
         if (status.state === "FAILED") {
-          error = status.errorMessage ?? "変換に失敗しました";
+          error = null; // detail stays server-side; localize from the kind
           errorKind = status.errorKind;
           markFailedStep();
           phase = "failed";
@@ -320,7 +321,7 @@
           phase = "done";
           return;
         } else if (status.state === "FAILED") {
-          error = status.errorMessage ?? "変換に失敗しました";
+          error = null; // detail stays server-side; localize from the kind
           errorKind = status.errorKind;
           markFailedStep();
           phase = "failed";
@@ -604,6 +605,7 @@
           <div class="errbox">
             <strong>{errorMessageJa(errorKind, error)}</strong>
             {#if errorKind}<p class="errkind">{errorKind}</p>{/if}
+            {#if jobId}<p class="errkind">ジョブID: {jobId}</p>{/if}
             <button class="ghost" type="button" onclick={reset}>戻る</button>
           </div>
         {/if}

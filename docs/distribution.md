@@ -31,6 +31,12 @@ portfolio / local use. The `webapp` app-image links no natives itself — it
 **nests the proven `pdfbook` app-image** under `$APPDIR/tools/pdfbook/` and points
 the server at it via `-Dp4suta.pdfbook.path` (see the property scheme below).
 
+**Public (WWW) exposure** is a property of the resident Docker model only, behind a
+reverse proxy that terminates TLS and adds authentication / rate limiting — see
+[`deploy/reverse-proxy/`](../deploy/reverse-proxy/) and the ADR-0009 2026-06-09
+hardening revision. The self-contained app-image runs the default loopback profile
+and has no proxy, so it is **LAN/local desktop only, not a public-exposure target**.
+
 ## Per-app native requirements
 
 What each app bundles into its self-contained app-image:
