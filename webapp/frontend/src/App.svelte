@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fade, fly } from "svelte/transition";
+  import { fade } from "svelte/transition";
   import {
     type ConversionOptions,
     type Direction,
@@ -13,7 +13,7 @@
     submitJob,
   } from "./api";
 
-  type Phase = "idle" | "uploading" | "running" | "done" | "failed";
+  type Phase = "select" | "options" | "uploading" | "running" | "done" | "failed";
   type StepKey = "extract" | "despeckle" | "register" | "spread";
   type StepStatus = "pending" | "active" | "done" | "failed";
 
@@ -24,6 +24,10 @@
     done: number;
     total: number;
     indeterminate: boolean; // extract reports no per-page events, so its bar can't be determinate
+    // Per-stage timing, measured client-side from SSE event arrival (the only signal without a
+    // backend change) — same basis as the overall elapsed clock. null until the stage starts/ends.
+    startedAt: number | null;
+    endedAt: number | null;
   }
 
   const STEP_LABELS: Record<StepKey, string> = {
@@ -73,7 +77,7 @@
     pdfA: false,
   });
 
-  let phase = $state<Phase>("idle");
+  let phase = $state<Phase>("select");
   let steps = $state<Step[]>([]);
   let jobId = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -155,6 +159,14 @@
     return Math.min(100, Math.round((step.done / step.total) * 100));
   }
 
+  // Determinate bar fill for a card: full when done, the page ratio while active, empty otherwise.
+  function barPercent(step: Step): number {
+    if (step.status === "done") {
+      return 100;
+    }
+    return step.status === "active" ? stepPercent(step) : 0;
+  }
+
   // The full milestone list is known up front from the submitted options (extract and spread always
   // run; despeckle/register are optional), so the stepper shows the whole pipeline from the start.
   function buildSteps(o: ConversionOptions): Step[] {
@@ -173,7 +185,19 @@
       done: 0,
       total: 0,
       indeterminate: key === "extract",
+      startedAt: null,
+      endedAt: null,
     }));
+  }
+
+  // Per-stage elapsed: live (now - startedAt) while active so it ticks with the 1s clock; the frozen
+  // span once done; nothing before it starts.
+  function stepElapsed(step: Step): string {
+    if (step.startedAt === null) {
+      return "—";
+    }
+    const end = step.endedAt ?? now;
+    return fmtDuration(Math.max(0, end - step.startedAt));
   }
 
   function stepOf(stage: string): Step | undefined {
@@ -197,13 +221,16 @@
   const downloadName = $derived(file ? bookName(file.name) : "book.pdf");
 
   function advance(event: ProgressEvent) {
-    lastEventAt = Date.now();
+    const at = Date.now();
+    lastEventAt = at;
     queued = false; // any progress event means the worker has picked the job up
     switch (event.type) {
       case "runStarted":
         for (const s of steps) {
           s.status = "pending";
           s.done = 0;
+          s.startedAt = null;
+          s.endedAt = null;
         }
         break;
       case "stageStarted": {
@@ -211,9 +238,11 @@
         for (const s of steps) {
           if (s.key === event.stage) {
             s.status = "active";
+            s.startedAt ??= at;
             reached = true;
           } else if (!reached && s.status !== "done") {
             s.status = "done";
+            s.endedAt ??= at; // a stage we never saw finish: close its span as the next one starts
             if (s.total > 0) {
               s.done = s.total;
             }
@@ -225,6 +254,7 @@
         const s = stepOf(event.stage);
         if (s) {
           s.status = "active";
+          s.startedAt ??= at; // defensive: page events can precede the stageStarted
           s.total = event.total;
           s.done = Math.max(s.done, event.done); // pages finish out of order; never step back
         }
@@ -234,6 +264,8 @@
         const s = stepOf(event.stage);
         if (s) {
           s.status = "done";
+          s.startedAt ??= at;
+          s.endedAt = at;
           if (s.total > 0) {
             s.done = s.total;
           }
@@ -245,6 +277,7 @@
         // the result until the job is DONE, or the preview races a 409 not-ready response.
         for (const s of steps) {
           s.status = "done";
+          s.endedAt ??= at;
         }
         source?.close();
         if (jobId) {
@@ -385,6 +418,19 @@
     }
     fileNote = null;
     file = picked;
+    // Picking a valid PDF advances to the options page (PDF選択 → オプション選択). Driven by the
+    // pick event, so returning to select and back never loops.
+    if (picked) {
+      phase = "options";
+    }
+  }
+
+  // Back from options to the file picker. Clears the file so the dropzone is empty (and the
+  // auto-advance does not immediately re-fire on a stale selection).
+  function toSelect() {
+    file = null;
+    fileNote = null;
+    phase = "select";
   }
 
   function onFile(event: Event) {
@@ -406,9 +452,12 @@
     setFile(event.dataTransfer?.files?.[0] ?? null);
   }
 
+  // "もう一冊": a fresh start. Clears the chosen file too, so the dropzone is empty on select.
   function reset() {
     source?.close();
-    phase = "idle";
+    phase = "select";
+    file = null;
+    fileNote = null;
     steps = [];
     jobId = null;
     error = null;
@@ -427,109 +476,107 @@
       <h1>pdfbook</h1>
       <p class="tagline">自炊した縦書き本のスキャンPDFを、右綴じの見開きに製本</p>
     </div>
+    <!-- Done-phase actions live in the header so the screen below is a full-bleed preview. -->
+    {#if phase === "done" && jobId}
+      <div class="topbar-actions" in:fade={{ duration: 180 }}>
+        <span class="done-note">
+          ✓ 完了{fromCache ? "（キャッシュ）" : `（所要 ${fmtDuration(elapsedMs)}）`}
+        </span>
+        <a class="primary" href={resultUrl(jobId, downloadName)} target="_blank" rel="noopener">
+          新規タブで開く
+        </a>
+        <button class="ghost" type="button" onclick={reset}>もう一冊</button>
+      </div>
+    {/if}
   </header>
 
   <main class="screen">
-    {#if phase === "idle"}
-      <!-- Setup: the only phase where the controls exist. -->
+    {#if phase === "select"}
+      <!-- Step 1 (PDF選択): just the picker. A valid pick auto-advances to the options page. -->
+      <section class="view" in:fade={{ duration: 180 }} out:fade={{ duration: 140 }}>
+        <label
+          class="dropzone block"
+          class:dragging
+          ondragover={onDragOver}
+          ondragleave={onDragLeave}
+          ondrop={onDrop}
+        >
+          <input type="file" accept="application/pdf" onchange={onFile} />
+          <span class="dz-icon" aria-hidden="true">⬆</span>
+          <span class="dz-title">スキャンPDFをドロップ</span>
+          <span class="dz-hint">またはクリックして選択 (application/pdf)</span>
+        </label>
+        {#if fileNote}
+          <p class="field-error">{fileNote}</p>
+        {/if}
+      </section>
+    {:else if phase === "options"}
+      <!-- Step 2 (オプション選択): the chosen file + options, then 製本する. -->
       <section class="view" in:fade={{ duration: 180 }} out:fade={{ duration: 140 }}>
         <form
-          class="panel"
-          class:has-file={!!file}
+          class="panel options"
           onsubmit={(e) => {
             e.preventDefault();
             start();
           }}
         >
-          <label
-            class="dropzone"
-            class:dragging
-            class:filled={!!file}
-            ondragover={onDragOver}
-            ondragleave={onDragLeave}
-            ondrop={onDrop}
-          >
-            <input type="file" accept="application/pdf" onchange={onFile} />
-            <span class="dz-icon" aria-hidden="true">⬆</span>
-            <span class="dz-title">{file ? file.name : "スキャンPDFをドロップ"}</span>
-            <span class="dz-hint">
-              {file ? "クリックで別のファイルに変更" : "またはクリックして選択 (application/pdf)"}
-            </span>
-          </label>
-          {#if fileNote}
-            <p class="field-error">{fileNote}</p>
-          {/if}
-          <!-- Options stay hidden until a file is picked: the empty state is just the picker. -->
-          {#if file}
-            <div class="setup-controls" in:fly={{ y: 10, duration: 180 }}>
-              <fieldset>
-                <legend>オプション</legend>
-                <div class="grid">
-                  <label class="field">
-                    <span>綴じ方向</span>
-                    <select
-                      value={options.direction}
-                      onchange={(e) => (options.direction = e.currentTarget.value as Direction)}
-                    >
-                      <option value="RTL">右綴じ (RTL)</option>
-                      <option value="LTR">左綴じ (LTR)</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span>1ページ目</span>
-                    <select
-                      value={options.firstPage}
-                      onchange={(e) => (options.firstPage = e.currentTarget.value as FirstPage)}
-                    >
-                      <option value="right">右始まり</option>
-                      <option value="left">左始まり (先頭空白)</option>
-                      <option value="cover">表紙単独</option>
-                    </select>
-                  </label>
-                </div>
-                <div class="checks">
-                  <label class="check">
-                    <input type="checkbox" bind:checked={options.despeckle} />
-                    <span>ノイズ除去 (despeckle)</span>
-                  </label>
-                  <label class="check">
-                    <input type="checkbox" bind:checked={options.register} />
-                    <span>整列 (register)</span>
-                  </label>
-                  <label class="check">
-                    <input type="checkbox" bind:checked={options.pdfA} />
-                    <span>PDF/A-2b 準拠</span>
-                  </label>
-                </div>
-              </fieldset>
-
-              <button class="primary block" type="submit">製本する</button>
+          <div class="file-summary">
+            <span class="fs-icon" aria-hidden="true">📄</span>
+            <span class="fs-name">{file?.name}</span>
+            <button class="ghost" type="button" onclick={toSelect}>戻る</button>
+          </div>
+          <fieldset>
+            <legend>オプション</legend>
+            <div class="grid">
+              <label class="field">
+                <span>綴じ方向</span>
+                <select
+                  value={options.direction}
+                  onchange={(e) => (options.direction = e.currentTarget.value as Direction)}
+                >
+                  <option value="RTL">右綴じ (RTL)</option>
+                  <option value="LTR">左綴じ (LTR)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>1ページ目</span>
+                <select
+                  value={options.firstPage}
+                  onchange={(e) => (options.firstPage = e.currentTarget.value as FirstPage)}
+                >
+                  <option value="right">右始まり</option>
+                  <option value="left">左始まり (先頭空白)</option>
+                  <option value="cover">表紙単独</option>
+                </select>
+              </label>
             </div>
-          {/if}
+            <div class="checks">
+              <label class="check">
+                <input type="checkbox" bind:checked={options.despeckle} />
+                <span>ノイズ除去 (despeckle)</span>
+              </label>
+              <label class="check">
+                <input type="checkbox" bind:checked={options.register} />
+                <span>整列 (register)</span>
+              </label>
+              <label class="check">
+                <input type="checkbox" bind:checked={options.pdfA} />
+                <span>PDF/A-2b 準拠</span>
+              </label>
+            </div>
+          </fieldset>
+          <button class="primary block" type="submit">製本する</button>
         </form>
       </section>
     {:else if phase === "done" && jobId}
-      <!-- Done: the section is the shared .view (a flex column), so the preview (flex: 1) is the one
-           child that grows to fill the height; the bar sits above it. -->
+      <!-- Done (DL): full-bleed preview; the open/another-book actions are in the header. -->
       <section class="view" in:fade={{ duration: 240 }}>
-        <div class="result-bar">
-          <span class="ok"
-            >✓ 製本が完了しました{fromCache
-              ? "（キャッシュ）"
-              : `（所要 ${fmtDuration(elapsedMs)}）`}</span
-          >
-          <span class="grow"></span>
-          <a class="primary" href={resultUrl(jobId, downloadName)} target="_blank" rel="noopener">
-            新規タブで開く
-          </a>
-          <button class="ghost" type="button" onclick={reset}>もう一冊</button>
-        </div>
         <iframe class="preview" src={resultUrl(jobId, downloadName)} title="製本PDFプレビュー"
         ></iframe>
       </section>
     {:else}
-      <!-- Work: the pipeline stepper shows the whole flow, current step, and liveness. The same view
-           (with the failed step in red) shows on failure. -->
+      <!-- 処理 (uploading / running / failed): per-stage cards side by side + a liveness header. The
+           same view (with the failed stage in red) shows on failure. -->
       <section class="view" in:fade={{ duration: 200 }}>
         <div class="run-head">
           <div class="run-status">
@@ -555,51 +602,43 @@
           </div>
         </div>
 
-        <ol class="stepper">
+        <ul class="cards">
           {#each steps as step (step.key)}
             <li
-              class="step"
+              class="card"
               class:active={step.status === "active"}
               class:done={step.status === "done"}
               class:failed={step.status === "failed"}
             >
-              <span class="step-icon" aria-hidden="true">
-                {#if step.status === "done"}✓{:else if step.status === "failed"}✕{:else if step.status === "active"}▶{:else}○{/if}
-              </span>
-              <div class="step-body">
-                <div class="step-row">
-                  <span class="step-name">{step.label}</span>
-                  <span class="step-meta">
-                    {#if step.status === "done"}
-                      完了
-                    {:else if step.status === "failed"}
-                      失敗
-                    {:else if step.status === "active"}
-                      {#if step.indeterminate || step.total <= 0}
-                        処理中…
-                      {:else}
-                        {step.done} / {step.total} ページ
-                      {/if}
-                    {:else}
-                      待機中
-                    {/if}
-                  </span>
-                </div>
-                {#if step.status === "active"}
-                  {#if step.indeterminate || step.total <= 0}
-                    <div class="step-bar indeterminate">
-                      <div class="step-fill"></div>
-                    </div>
-                  {:else}
-                    <div class="step-bar">
-                      <div class="step-fill" style:width={`${stepPercent(step)}%`}></div>
-                    </div>
-                  {/if}
-                {/if}
+              <div class="card-head">
+                <span class="step-icon" aria-hidden="true">
+                  {#if step.status === "done"}✓{:else if step.status === "failed"}✕{:else if step.status === "active"}▶{:else}○{/if}
+                </span>
+                <span class="card-name">{step.label}</span>
               </div>
+              <span class="card-status">
+                {#if step.status === "done"}完了{:else if step.status === "failed"}失敗{:else if step.status === "active"}処理中{:else}待機中{/if}
+              </span>
+              <span class="card-pages">
+                {#if step.status === "active" && !step.indeterminate && step.total > 0}
+                  {step.done} / {step.total} ページ
+                {:else if step.status === "done" && step.total > 0}
+                  {step.total} ページ
+                {:else}
+                  —
+                {/if}
+              </span>
+              {#if step.status === "active" && (step.indeterminate || step.total <= 0)}
+                <div class="card-bar indeterminate"><div class="card-fill"></div></div>
+              {:else}
+                <div class="card-bar">
+                  <div class="card-fill" style:width={`${barPercent(step)}%`}></div>
+                </div>
+              {/if}
+              <span class="card-time">{stepElapsed(step)}</span>
             </li>
           {/each}
-        </ol>
+        </ul>
 
         {#if phase === "failed"}
           <div class="errbox">
