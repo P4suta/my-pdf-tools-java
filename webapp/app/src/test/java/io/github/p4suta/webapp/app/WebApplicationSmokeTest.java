@@ -13,7 +13,10 @@ import org.springframework.boot.test.context.SpringBootTest;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
             "app.pdfbook-binary=/bin/true",
-            "app.work-dir=${java.io.tmpdir}/pdfbook-web-test/jobs"
+            "app.work-dir=${java.io.tmpdir}/pdfbook-web-test/jobs",
+            // ApplicationReadyEvent fires in this @SpringBootTest too; keep BrowserLauncher from
+            // launching a real browser on a developer's desktop during the build.
+            "app.open-browser=false"
         })
 class WebApplicationSmokeTest {
 

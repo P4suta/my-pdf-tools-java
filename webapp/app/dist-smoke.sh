@@ -14,7 +14,8 @@ base="http://127.0.0.1:8080"
 [ -s "$sample" ] || { echo "::error::sample PDF not found: $sample"; exit 1; }
 
 # Background the server PATH-empty (do NOT add pdfbook to PATH — the bundled -D must resolve it).
-"$launcher" > server.log 2>&1 &
+# --app.open-browser=false: this is a headless CI run, not a desktop launch (BrowserLauncher).
+"$launcher" --app.open-browser=false > server.log 2>&1 &
 server=$!
 result="$(mktemp)"
 cleanup() { kill "$server" 2>/dev/null || true; rm -f "$result"; }
