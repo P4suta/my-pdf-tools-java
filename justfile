@@ -155,6 +155,34 @@ web-app-run: web-package
     docker rm -f pdfbook-web-app >/dev/null 2>&1 || true
     exec docker compose run --rm --name pdfbook-web-app -p {{web_port}}:8080 dev bash -lc "$run"
 
+# ----- cross-OS self-contained app-images -----
+
+# Build a self-contained jpackage app-image for an app, on the CURRENT OS. See docs/distribution.md
+# for the build models, per-app native requirements, and the property scheme.
+#   just dist-package pdfbook | register | despeckle | tate | webapp
+# Linux builds in the dev container with NO native prefix (the convention resolves Leptonica/poppler/
+# qpdf from the dev image's standard dirs). macOS/Windows build with the HOST Gradle (jpackage emits an
+# OS-native launcher a Linux container cannot), pointed at the host natives via -Pp4suta.nativePrefix
+# (macOS=$(brew --prefix), Windows=C:\msys64\mingw64) — install the prerequisites first. The cross-OS
+# legs are CI-verified in distribution.yml; locally only the Linux path runs end-to-end.
+dist-package APP:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{APP}}" in
+        register)  project=":register:app:package" ;;
+        despeckle) project=":despeckle:app:package" ;;
+        pdfbook)   project=":pipeline:app:package" ;;
+        tate)      project=":tate-yoko-pdf:app:package" ;;
+        webapp)    project=":webapp:app:package" ;;
+        *) echo "unknown app '{{APP}}' — one of: register despeckle pdfbook tate webapp" >&2; exit 2 ;;
+    esac
+    case "{{os()}}" in
+        linux)   exec {{gradlew}} "$project" {{gradle_flags}} ;;
+        macos)   exec ./gradlew "$project" {{gradle_flags}} "-Pp4suta.nativePrefix=$(brew --prefix)" ;;
+        windows) exec ./gradlew "$project" {{gradle_flags}} '-Pp4suta.nativePrefix=C:\msys64\mingw64' ;;
+        *) echo "unsupported OS: {{os()}}" >&2; exit 2 ;;
+    esac
+
 # ----- format / lint (mirrors CI + the lefthook gates) -----
 
 # Auto-format everything in place (spelling included). yamlfmt gets NO path arg: a path overrides
