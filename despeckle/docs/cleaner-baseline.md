@@ -5,28 +5,28 @@ Times each Leptonica primitive the page cleaner composes on a synthetic
 600-dpi A5 page (3496x4961 px, fixed seed). Re-run after any change to the
 cleaner or the imaging bindings and compare before merging.
 
-- Date (UTC): 2026-06-10 06:36:38
+- Date (UTC): 2026-06-10 06:48:05
 - Host: Linux amd64, 8 CPUs
 - Samples: median of 10 reps after 2 warmups; single-threaded.
 
 | op | median (ms) | min (ms) | calls/clean() | est. share of clean() |
 |---|---:|---:|---:|---:|
-| read TIFF-G4 | 2.53 | 2.52 | 1 | 1.6% |
-| selectBySize k=6 (page) | 16.04 | 14.90 | 1 | 9.9% |
-| selectBySize 15 (page) | 15.02 | 14.84 | 1 | 9.3% |
-| selectBySize k=6 (inverted) | 22.14 | 21.84 | 2 | 27.4% |
-| dilate 43x43 (text mask) | 38.37 | 36.97 | 1 | 23.7% |
-| open 7x7 (page) | 12.15 | 12.01 | 1 | 7.5% |
-| invert | 0.25 | 0.25 | 2 | 0.3% |
-| subtract | 0.40 | 0.38 | 5 | 1.2% |
-| and | 0.41 | 0.40 | 1 | 0.3% |
-| or | 0.39 | 0.35 | 3 | 0.7% |
-| countConnComp | 11.53 | 11.46 | 2 | 14.3% |
-| countPixels | 0.41 | 0.41 | 2 | 0.5% |
-| write TIFF-G4 | 6.34 | 6.26 | 1 | 3.9% |
-| **Σ(median × calls)** | 162.69 | | | 100.6% |
-| **clean() end-to-end** | 161.78 | 159.91 | 1 | 100% |
-| **clean() without component stats** | 139.46 | 137.07 | 1 | 86.2% |
+| read TIFF-G4 | 2.58 | 2.54 | 1 | 2.0% |
+| selectBySize k=6 (page) | 15.22 | 14.89 | 1 | 11.6% |
+| selectBySize 15 (page) | 15.40 | 14.93 | 1 | 11.7% |
+| selectBySize k=6 (inverted) | 22.36 | 22.04 | 2 | 34.1% |
+| dilate 43x43 (text mask) | 14.08 | 13.74 | 1 | 10.7% |
+| open 7x7 (page) | 4.01 | 3.85 | 1 | 3.1% |
+| invert | 0.27 | 0.25 | 2 | 0.4% |
+| subtract | 0.40 | 0.38 | 5 | 1.5% |
+| and | 0.45 | 0.41 | 1 | 0.3% |
+| or | 0.40 | 0.36 | 3 | 0.9% |
+| countConnComp | 11.64 | 11.50 | 2 | 17.8% |
+| countPixels | 0.42 | 0.41 | 2 | 0.6% |
+| write TIFF-G4 | 6.34 | 6.27 | 1 | 4.8% |
+| **Σ(median × calls)** | 130.66 | | | 99.6% |
+| **clean() end-to-end** | 131.15 | 129.19 | 1 | 100% |
+| **clean() without component stats** | 107.60 | 106.36 | 1 | 82.0% |
 
 The Σ row landing near 100% means the table accounts for clean()'s real cost;
 a large gap points at untimed work (allocation churn, codec internals).
