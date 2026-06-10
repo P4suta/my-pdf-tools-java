@@ -70,7 +70,8 @@ public final class DespeckleService {
      * Aggregate outcome of a run.
      *
      * @param pages number of pages processed
-     * @param componentsRemoved total components removed across all pages
+     * @param componentsRemoved total components removed across all pages; {@code 0} when no report
+     *     consumed component stats (counting is skipped for speed without a report)
      * @param overRemovalWarnings number of pages flagged for possible over-removal
      */
     public record Summary(int pages, long componentsRemoved, int overRemovalWarnings) {}
@@ -96,14 +97,20 @@ public final class DespeckleService {
         }
         LOG.info("despeckling {} page(s) with {} thread(s)", files.size(), config.jobs());
 
+        @Nullable Path reportDir = config.reportDir();
+        boolean reporting = reportDir != null;
         Reporter report =
-                config.reportDir() == null
-                        ? Reporter.noOp()
-                        : reporterFactory.create(config.reportDir(), config.flipbook());
+                reportDir != null
+                        ? reporterFactory.create(reportDir, config.flipbook())
+                        : Reporter.noOp();
+        // The report is the only consumer of per-page component counts, and counting is a full
+        // connected-component labeling twice per page — skip it when no report will be written.
+        ProcessOptions options =
+                reporting ? config.options() : config.options().withoutComponentStats();
 
         List<Callable<PageOutcome>> tasks = new ArrayList<>(files.size());
         for (Path src : files) {
-            tasks.add(() -> processOne(src, config, report));
+            tasks.add(() -> processOne(src, config, options, report));
         }
         // Platform workers: each page is CPU-bound Leptonica work (FFM downcalls pin virtual
         // threads' carriers). The fan-out fails fast and quiesces before throwing, so a failed
@@ -124,9 +131,11 @@ public final class DespeckleService {
         report.finish();
 
         long totalRemoved = 0;
+        long blackRemoved = 0;
         int warnings = 0;
         for (PageOutcome outcome : outcomes) {
             totalRemoved += outcome.result().componentsRemoved();
+            blackRemoved += outcome.result().blackPixelsRemoved();
             if (outcome.result().isOverRemoval()) {
                 warnings++;
                 LOG.warn(
@@ -135,17 +144,28 @@ public final class DespeckleService {
                         Math.round(outcome.result().removedBlackPixelRatio() * 100));
             }
         }
-        LOG.info(
-                "done: {} page(s), {} component(s) removed, {} over-removal warning(s)",
-                files.size(),
-                totalRemoved,
-                warnings);
+        if (reporting) {
+            LOG.info(
+                    "done: {} page(s), {} component(s) removed, {} over-removal warning(s)",
+                    files.size(),
+                    totalRemoved,
+                    warnings);
+        } else {
+            // Without a report nothing counted components (the counting passes are skipped for
+            // speed), so the summary speaks in the always-measured black-pixel terms.
+            LOG.info(
+                    "done: {} page(s), {} black pixel(s) removed, {} over-removal warning(s)",
+                    files.size(),
+                    blackRemoved,
+                    warnings);
+        }
         return new Summary(files.size(), totalRemoved, warnings);
     }
 
     private record PageOutcome(Path source, ProcessResult result) {}
 
-    private PageOutcome processOne(Path src, Config config, Reporter report) throws IOException {
+    private PageOutcome processOne(Path src, Config config, ProcessOptions options, Reporter report)
+            throws IOException {
         Path dest =
                 CorpusFiles.mirrorDestination(
                         src, config.inputDir(), config.outputDir(), config.format().extension());
@@ -154,7 +174,7 @@ public final class DespeckleService {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            ProcessResult result = pageCleaner.clean(src, dest, config.format(), config.options());
+            ProcessResult result = pageCleaner.clean(src, dest, config.format(), options);
             Path stem = config.inputDir().relativize(src);
             report.addPage(stem, src, dest, result);
             return new PageOutcome(src, result);

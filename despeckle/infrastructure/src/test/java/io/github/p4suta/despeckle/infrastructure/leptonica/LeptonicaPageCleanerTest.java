@@ -1,6 +1,7 @@
 package io.github.p4suta.despeckle.infrastructure.leptonica;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.p4suta.despeckle.domain.model.OutputFormat;
@@ -229,6 +230,39 @@ final class LeptonicaPageCleanerTest {
         try (Pix cleaned = Pix.read(out)) {
             assertEquals(
                     ring, cleaned.blackPixels(), "the thin-walled gap is preserved, not filled");
+        }
+    }
+
+    @Test
+    void skippedComponentCountingStillCleansAndGuardsOverRemoval(@TempDir Path dir)
+            throws Exception {
+        // The same speck-removal scenario as removesSpecksButPreservesGlyph, with counting off:
+        // the output is identical, the result carries no component stats, and the always-measured
+        // black-pixel math still drives the over-removal guard.
+        Path src = dir.resolve("page.pbm");
+        Path out = dir.resolve("page-out.pbm");
+        boolean[][] img = TestImages.blank(40, 40);
+        TestImages.fillRect(img, 8, 8, 19, 25);
+        TestImages.dot(img, 2, 2);
+        TestImages.dot(img, 35, 30);
+        TestImages.dot(img, 30, 4);
+        TestImages.writePbm(src, img);
+
+        ProcessResult result =
+                cleaner.clean(
+                        src,
+                        out,
+                        OutputFormat.PBM,
+                        ProcessOptions.of(OptionalInt.of(300), OptionalInt.of(3), false)
+                                .withoutComponentStats());
+
+        assertFalse(result.hasComponentStats());
+        assertEquals(0, result.componentsRemoved(), "absent counts read as zero");
+        assertEquals(3L, result.blackPixelsRemoved(), "three 1px specks gone");
+        assertFalse(result.isOverRemoval(), "3 of 219 black pixels is under the 3% threshold");
+        try (Pix cleaned = Pix.read(out)) {
+            assertEquals(1, cleaned.connectedComponents());
+            assertEquals(12L * 18L, cleaned.blackPixels(), "the whole glyph survives intact");
         }
     }
 }

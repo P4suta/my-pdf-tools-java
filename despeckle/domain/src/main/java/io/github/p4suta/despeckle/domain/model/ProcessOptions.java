@@ -27,13 +27,16 @@ import java.util.OptionalInt;
  * @param removeIsolatedDust whether to run the isolated-medium-dust pass
  * @param isolatedDustSizePx an explicit max size for an isolated speck, or empty to derive it; a
  *     present value also implies {@code removeIsolatedDust}
+ * @param collectComponentStats whether to count 8-connected components before and after — two of
+ *     the most expensive full-page scans, so off when nothing consumes the counts (no report)
  */
 public record ProcessOptions(
         OptionalInt dpi,
         OptionalInt speckSizePx,
         boolean fillHoles,
         boolean removeIsolatedDust,
-        OptionalInt isolatedDustSizePx) {
+        OptionalInt isolatedDustSizePx,
+        boolean collectComponentStats) {
 
     /** Resolution assumed for the speck filter when neither a flag nor the image supplies one. */
     public static final int DEFAULT_DPI = 300;
@@ -48,6 +51,16 @@ public record ProcessOptions(
         if (isolatedDustSizePx.isPresent()) {
             Validators.requirePositive(isolatedDustSizePx.getAsInt(), "isolatedDustSizePx");
         }
+    }
+
+    /** The five-knob shape every direct caller uses; component counting defaults to on. */
+    public ProcessOptions(
+            OptionalInt dpi,
+            OptionalInt speckSizePx,
+            boolean fillHoles,
+            boolean removeIsolatedDust,
+            OptionalInt isolatedDustSizePx) {
+        this(dpi, speckSizePx, fillHoles, removeIsolatedDust, isolatedDustSizePx, true);
     }
 
     /** Options with the isolated-dust pass off — the common case. */
@@ -66,7 +79,17 @@ public record ProcessOptions(
                 speckSizePx,
                 fillHoles,
                 removeIsolatedDust,
-                isolatedDustSizePx);
+                isolatedDustSizePx,
+                collectComponentStats);
+    }
+
+    /**
+     * A copy with component counting disabled — for runs where nothing consumes the counts (no
+     * report), saving two full connected-component labelings per page.
+     */
+    public ProcessOptions withoutComponentStats() {
+        return new ProcessOptions(
+                dpi, speckSizePx, fillHoles, removeIsolatedDust, isolatedDustSizePx, false);
     }
 
     /**
