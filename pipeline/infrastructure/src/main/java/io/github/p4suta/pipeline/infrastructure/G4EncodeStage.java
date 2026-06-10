@@ -18,11 +18,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The G4-normalization {@link Stage}: re-encodes each extracted page as single-strip CCITT G4 TIFF
- * via Leptonica, which {@link SpreadPackSink}'s pass-through CCITT embedding requires. {@code
- * pdfimages -tiff} writes poppler's default (non-G4) TIFF compression, so the raw extract output
- * cannot be embedded directly; despeckle and register each re-encode their output as G4 themselves,
- * so the composition root inserts this stage only when neither of them runs. The corpus dpi is
- * stamped on every page, since {@code pdfimages} tags the extracted TIFFs at a default 72 dpi.
+ * via Leptonica, which {@link SpreadPackSink}'s pass-through CCITT embedding requires. The
+ * extractor's decoded mode ({@code pdfimages -tiff}, used for any source that is not all-CCITT)
+ * writes poppler's default (non-G4) TIFF compression at a default 72 dpi, so that output cannot be
+ * embedded directly; despeckle and register each re-encode their output as G4 themselves, so the
+ * composition root inserts this stage only when neither of them runs. The corpus dpi is stamped on
+ * every page. (For an all-CCITT source the extractor's remux already produces stamped single-strip
+ * G4 — this stage then re-encodes losslessly, a small constant cost that keeps the no-stage path
+ * uniform.)
  */
 public final class G4EncodeStage implements Stage {
 

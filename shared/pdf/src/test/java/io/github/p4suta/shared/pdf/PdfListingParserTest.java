@@ -120,4 +120,27 @@ final class PdfListingParserTest {
                 PdfListingParser.DEFAULT_DPI,
                 PdfListingParser.parseDominantDpi("hdr\n----\n   1   0   smask\n"));
     }
+
+    @Test
+    void parseImageRowsReadsTheColumnsTheExtractorNeeds() {
+        var rows = PdfListingParser.parseImageRows(LIST);
+        assertEquals(3, rows.size());
+        assertEquals(new PdfListingParser.ImageRow(1, 2480, 3508, 1, "ccitt", 300), rows.get(0));
+        assertEquals(new PdfListingParser.ImageRow(3, 1240, 1754, 1, "ccitt", 150), rows.get(2));
+    }
+
+    @Test
+    void parseImageRowsSkipsMalformedAndNonImageRows() {
+        String mixed =
+                """
+                page   num  type   width height color comp bpc  enc  interp object ID x-ppi y-ppi size ratio
+                --------------------------------------------------------------------------------------------
+                   1     0 smask    2480  3508  gray    1   1  ccitt  no      7  0   300   300  101K 1.2%
+                   2     1 image     bad  3508  gray    1   1  ccitt  no     11  0   300   300   99K 1.1%
+                   3     2 image    2480  3508  rgb     3   8  jpeg   no     14  0   150   150   40K 1.0%
+                """;
+        var rows = PdfListingParser.parseImageRows(mixed);
+        assertEquals(1, rows.size());
+        assertEquals(new PdfListingParser.ImageRow(3, 2480, 3508, 8, "jpeg", 150), rows.get(0));
+    }
 }

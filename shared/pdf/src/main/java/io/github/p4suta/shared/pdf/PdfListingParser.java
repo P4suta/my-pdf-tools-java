@@ -1,6 +1,8 @@
 package io.github.p4suta.shared.pdf;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,27 +38,17 @@ public final class PdfListingParser {
     }
 
     /**
-     * The most common rounded x-ppi (column 13, 0-based 12) across the {@code image} rows of a
-     * {@code pdfimages -list} report, skipping the two header rows. Ties resolve to the first value
-     * seen and a non-positive winner falls back to {@link #DEFAULT_DPI}.
+     * The most common rounded x-ppi across the {@code image} rows of a {@code pdfimages -list}
+     * report. Ties resolve to the first value seen and a non-positive winner falls back to {@link
+     * #DEFAULT_DPI}.
      *
      * @param listOutput the full text {@code pdfimages -list} printed
      * @return the dominant rounded x-ppi, or {@link #DEFAULT_DPI} when none is usable
      */
     public static int parseDominantDpi(String listOutput) {
-        String[] lines = listOutput.split("\n", -1);
         Map<Integer, Integer> counts = new LinkedHashMap<>();
-        for (int i = 2; i < lines.length; i++) {
-            String[] fields = lines[i].trim().split("\\s+", -1);
-            if (fields.length < 13 || !"image".equals(fields[2])) {
-                continue;
-            }
-            try {
-                int ppi = (int) Math.round(Double.parseDouble(fields[12]));
-                counts.merge(ppi, 1, Integer::sum);
-            } catch (NumberFormatException ignored) {
-                // Non-numeric x-ppi cell: skip this row.
-            }
+        for (ImageRow row : parseImageRows(listOutput)) {
+            counts.merge(row.xPpi(), 1, Integer::sum);
         }
         if (counts.isEmpty()) {
             return DEFAULT_DPI;
@@ -70,5 +62,51 @@ public final class PdfListingParser {
             }
         }
         return best > 0 ? best : DEFAULT_DPI;
+    }
+
+    /**
+     * One {@code image} row of a {@code pdfimages -list} report — the columns the extractor needs
+     * to pick its mode and to wrap raw CCITT dumps.
+     *
+     * @param page the 1-based page the image sits on
+     * @param width the image width in pixels
+     * @param height the image height in pixels
+     * @param bpc bits per component ({@code 1} for bitonal)
+     * @param enc the embedded encoding token ({@code ccitt}, {@code jbig2}, {@code jpeg}, {@code
+     *     image}, …)
+     * @param xPpi the rounded x-ppi the image is placed at (0 when the cell is unusable)
+     */
+    public record ImageRow(int page, int width, int height, int bpc, String enc, int xPpi) {}
+
+    /**
+     * Parse the {@code image} rows of a {@code pdfimages -list} report, in listing order (the same
+     * order {@code pdfimages} dumps the images in), skipping the two header rows and any row with
+     * unparsable numeric cells.
+     *
+     * @param listOutput the full text {@code pdfimages -list} printed
+     * @return the parsed rows, possibly empty
+     */
+    public static List<ImageRow> parseImageRows(String listOutput) {
+        String[] lines = listOutput.split("\n", -1);
+        List<ImageRow> rows = new ArrayList<>();
+        for (int i = 2; i < lines.length; i++) {
+            String[] fields = lines[i].trim().split("\\s+", -1);
+            if (fields.length < 13 || !"image".equals(fields[2])) {
+                continue;
+            }
+            try {
+                rows.add(
+                        new ImageRow(
+                                Integer.parseInt(fields[0]),
+                                Integer.parseInt(fields[3]),
+                                Integer.parseInt(fields[4]),
+                                Integer.parseInt(fields[7]),
+                                fields[8],
+                                (int) Math.round(Double.parseDouble(fields[12]))));
+            } catch (NumberFormatException ignored) {
+                // A non-numeric cell: skip this row.
+            }
+        }
+        return rows;
     }
 }

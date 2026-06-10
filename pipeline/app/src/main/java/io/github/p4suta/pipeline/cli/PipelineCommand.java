@@ -427,9 +427,11 @@ public final class PipelineCommand {
             stages.add(new RegisterStage(config.jobs(), config.deskew(), config.scale(), progress));
         }
         if (stages.isEmpty()) {
-            // --no-despeckle --no-register: the raw pdfimages TIFFs are not CCITT G4, which the
-            // spread sink's pass-through embedding requires; despeckle/register each re-encode G4
-            // themselves, so only the no-stage path needs this normalization.
+            // --no-despeckle --no-register: a non-CCITT source extracts as decoded TIFFs that are
+            // not the single-strip CCITT G4 the spread sink's pass-through embedding requires;
+            // despeckle/register each re-encode G4 themselves, so only the no-stage path needs
+            // this normalization (an all-CCITT source arrives already G4 — then this is a cheap
+            // lossless re-encode that keeps the path uniform).
             stages.add(new G4EncodeStage(config.jobs(), progress));
         }
         Source source = new PdfExtractSource(input, config.jobs());
