@@ -52,7 +52,11 @@ public final class LeptonicaPageCleaner implements PageCleaner {
             int raw = source.resolution();
             Optional<Resolution> img = raw > 0 ? Optional.of(Resolution.of(raw)) : Optional.empty();
             int k = options.speckSize(img);
-            int componentsBefore = source.connectedComponents();
+            // Component counting is a full connected-component labeling — one of the most
+            // expensive scans here — so it runs only when something consumes the counts (the
+            // report). The black-pixel counts always run: they feed the over-removal guard.
+            boolean countComponents = options.collectComponentStats();
+            int componentsBefore = countComponents ? source.connectedComponents() : 0;
             long blackBefore = source.blackPixels();
             int sourceFormat = source.inputFormat();
 
@@ -78,14 +82,18 @@ public final class LeptonicaPageCleaner implements PageCleaner {
                     current = filled;
                 }
 
-                int componentsAfter = current.connectedComponents();
                 long blackAfter = current.blackPixels();
                 // Stamp the honored resolution so a TIFF/PNG output carries an accurate tag. Only a
                 // known resolution is written; an unknown one is left untouched.
                 options.resolution(img).map(Resolution::dpi).ifPresent(current::setResolution);
                 writeIn(current, output, format, sourceFormat);
-                return new ProcessResult(
-                        componentsBefore, componentsAfter, blackBefore, blackAfter);
+                return countComponents
+                        ? new ProcessResult(
+                                componentsBefore,
+                                current.connectedComponents(),
+                                blackBefore,
+                                blackAfter)
+                        : ProcessResult.withoutComponentStats(blackBefore, blackAfter);
             } finally {
                 current.close();
             }

@@ -1,6 +1,7 @@
 package io.github.p4suta.despeckle.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -140,5 +141,31 @@ final class DespeckleServiceTest {
         assertEquals(report, factory.createdFor, "the factory is asked to build the report sink");
         assertEquals(2, factory.reporter.pages.get(), "every page is reported");
         assertEquals(1, factory.reporter.finished.get(), "the report is finalized once");
+    }
+
+    @Test
+    void skipsComponentCountingWithoutAReport(@TempDir Path tmp) throws IOException {
+        Path in = tmp.resolve("in");
+        writeInputs(in, 1);
+        FakePageCleaner cleaner = new FakePageCleaner(LIGHT);
+
+        new DespeckleService(cleaner, new RecordingReporterFactory())
+                .run(config(in, tmp.resolve("out"), false, null));
+
+        ProcessOptions seen = java.util.Objects.requireNonNull(cleaner.lastOptions);
+        assertFalse(seen.collectComponentStats(), "no report -> counting passes are skipped");
+    }
+
+    @Test
+    void keepsComponentCountingForTheReportPath(@TempDir Path tmp) throws IOException {
+        Path in = tmp.resolve("in");
+        writeInputs(in, 1);
+        FakePageCleaner cleaner = new FakePageCleaner(LIGHT);
+
+        new DespeckleService(cleaner, new RecordingReporterFactory())
+                .run(config(in, tmp.resolve("out"), false, tmp.resolve("report")));
+
+        ProcessOptions seen = java.util.Objects.requireNonNull(cleaner.lastOptions);
+        assertTrue(seen.collectComponentStats(), "the report consumes the counts");
     }
 }

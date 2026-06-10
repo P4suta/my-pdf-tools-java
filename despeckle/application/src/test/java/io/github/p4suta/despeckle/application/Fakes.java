@@ -33,6 +33,7 @@ final class Fakes {
     /** A {@link PageCleaner} that writes a stub output file and returns a fixed result. */
     static final class FakePageCleaner implements PageCleaner {
         final AtomicInteger calls = new AtomicInteger();
+        volatile @Nullable ProcessOptions lastOptions;
         private final ProcessResult result;
 
         FakePageCleaner(ProcessResult result) {
@@ -48,6 +49,7 @@ final class Fakes {
                 throw new java.io.UncheckedIOException(e);
             }
             calls.incrementAndGet();
+            lastOptions = options;
             return result;
         }
     }
