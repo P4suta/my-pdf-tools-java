@@ -181,11 +181,12 @@ class RegistrationServiceTest {
     }
 
     @Test
-    void propagatesAWorkerFailureAsAnIoException(@TempDir Path tmp) throws IOException {
+    void propagatesAWorkerFailureWithItsIdentity(@TempDir Path tmp) throws IOException {
         Path in = Files.createDirectories(tmp.resolve("in"));
         Path out = tmp.resolve("out");
         writePages(in, 2);
-        // A registrar whose analyze pass throws: the service must surface it, not swallow it.
+        // A registrar whose analyze pass throws: the service must surface the original exception
+        // unchanged (the fan-out preserves identity, so domain kinds reach the exception mapper).
         PageRegistrar failing =
                 new FakePageRegistrar(true, 600, 1000, 1500) {
                     @Override
@@ -201,7 +202,7 @@ class RegistrationServiceTest {
                 new RegistrationService(failing, new RecordingReporterFactory());
 
         assertThrows(
-                IOException.class,
+                IllegalStateException.class,
                 () ->
                         service.run(
                                 config(

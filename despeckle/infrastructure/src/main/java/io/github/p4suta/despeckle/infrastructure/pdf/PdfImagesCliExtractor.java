@@ -3,7 +3,6 @@ package io.github.p4suta.despeckle.infrastructure.pdf;
 import io.github.p4suta.despeckle.port.PdfImageExtractor;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Despeckle's {@link PdfImageExtractor} adapter — a wrapper over the shared {@code
@@ -34,10 +33,10 @@ public final class PdfImagesCliExtractor implements PdfImageExtractor {
 
     /**
      * Extract all pages of {@code pdf} into {@code outDir} as TIFFs, parallelized over page-range
-     * chunks. {@code jobs} bounds both the chunk count and the pool slots used.
+     * chunks. at most {@code jobs} chunks run at once.
      */
     @Override
-    public void extract(Path pdf, Path outDir, int jobs, ExecutorService pool) throws IOException {
-        delegate.extract(pdf, outDir, jobs, pool);
+    public void extract(Path pdf, Path outDir, int jobs) throws IOException {
+        delegate.extract(pdf, outDir, jobs);
     }
 }

@@ -3,7 +3,6 @@ package io.github.p4suta.register.infrastructure.process;
 import io.github.p4suta.register.domain.exception.RegisterErrorKind;
 import io.github.p4suta.register.domain.exception.RegisterException;
 import io.github.p4suta.shared.process.ProcessRunner;
-import io.github.p4suta.shared.process.Tasks;
 import io.github.p4suta.shared.process.ToolPath;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,8 +10,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -22,12 +19,11 @@ import java.util.concurrent.TimeoutException;
  * io.github.p4suta.shared.process} plumbing: discovery is delegated to {@link
  * io.github.p4suta.shared.process.ToolPath} (passing register's per-tool {@code
  * -Dregister.<tool>.path} override key — this is how the packaged app-image points at its bundled
- * binaries, else the tool is looked up on {@code PATH}), the discard-output run is delegated to
- * {@link io.github.p4suta.shared.process.ProcessRunner}, and the worker-pool fan-out to {@link
- * io.github.p4suta.shared.process.Tasks}. Unlike the optional flip-book, a missing pipeline tool is
- * fatal — the pipeline cannot proceed — so resolution throws, and the shared layer's neutral {@code
- * IOException}/{@code TimeoutException} failures are re-mapped to register's {@code
- * RegisterException} (NATIVE_TOOL_FAILED) so the pipeline keeps its own error wording.
+ * binaries, else the tool is looked up on {@code PATH}), and the discard-output run is delegated to
+ * {@link io.github.p4suta.shared.process.ProcessRunner}. Unlike the optional flip-book, a missing
+ * pipeline tool is fatal — the pipeline cannot proceed — so resolution throws, and the shared
+ * layer's neutral {@code IOException}/{@code TimeoutException} failures are re-mapped to register's
+ * {@code RegisterException} (NATIVE_TOOL_FAILED) so the pipeline keeps its own error wording.
  */
 public final class NativeTools {
 
@@ -127,16 +123,5 @@ public final class NativeTools {
                     command.get(0) + " failed with exit code " + code,
                     null);
         }
-    }
-
-    /**
-     * Run every task on {@code pool}, in submission order, surfacing the first failure as an {@link
-     * IOException}. Thin wrapper over the shared {@link
-     * io.github.p4suta.shared.process.Tasks#awaitAll} that supplies the pipeline's messages, so the
-     * await semantics live in one place while the pipeline keeps its own error wording.
-     */
-    public static <T> List<T> awaitAll(ExecutorService pool, List<Callable<T>> tasks)
-            throws IOException {
-        return Tasks.awaitAll(pool, tasks, "pipeline interrupted", "pipeline task failed");
     }
 }

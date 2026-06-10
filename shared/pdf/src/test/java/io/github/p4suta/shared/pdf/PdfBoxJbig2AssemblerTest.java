@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import javax.imageio.ImageIO;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSName;
@@ -57,13 +55,10 @@ final class PdfBoxJbig2AssemblerTest {
         writeBitonalPage(imageDir.resolve("page-000.png"), 64, 48);
         writeBitonalPage(imageDir.resolve("page-001.png"), 80, 60);
         Path outPdf = tmp.resolve("out.pdf");
-
-        ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             new PdfBoxJbig2Assembler(JBIG2_KEY)
-                    .assemble(imageDir, outPdf, null, OptionalInt.of(300), pool, scratch);
+                    .assemble(imageDir, outPdf, null, OptionalInt.of(300), 2, scratch);
         } finally {
-            pool.shutdownNow();
         }
 
         assertThat(Files.exists(outPdf)).isTrue();
@@ -103,13 +98,10 @@ final class PdfBoxJbig2AssemblerTest {
         Path scratch = Files.createDirectory(tmp.resolve("scratch"));
         writeBitonalPage(imageDir.resolve("page-000.png"), 64, 48);
         Path outPdf = tmp.resolve("out.pdf");
-
-        ExecutorService pool = Executors.newSingleThreadExecutor();
         try {
             new PdfBoxJbig2Assembler(JBIG2_KEY)
-                    .assemble(imageDir, outPdf, source, OptionalInt.empty(), pool, scratch);
+                    .assemble(imageDir, outPdf, source, OptionalInt.empty(), 2, scratch);
         } finally {
-            pool.shutdownNow();
         }
 
         try (PDDocument doc = Loader.loadPDF(outPdf.toFile())) {
@@ -125,7 +117,6 @@ final class PdfBoxJbig2AssemblerTest {
         // runs before tool resolution). Works on any host.
         Path imageDir = Files.createDirectory(tmp.resolve("empty"));
         Path scratch = Files.createDirectory(tmp.resolve("scratch"));
-        ExecutorService pool = Executors.newSingleThreadExecutor();
         try {
             PdfBoxJbig2Assembler assembler = new PdfBoxJbig2Assembler(JBIG2_KEY);
             assertThatThrownBy(
@@ -135,12 +126,11 @@ final class PdfBoxJbig2AssemblerTest {
                                             tmp.resolve("out.pdf"),
                                             null,
                                             OptionalInt.empty(),
-                                            pool,
+                                            1,
                                             scratch))
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("no cleaned images");
         } finally {
-            pool.shutdownNow();
         }
     }
 
@@ -156,7 +146,6 @@ final class PdfBoxJbig2AssemblerTest {
         String bogusKey = "shared.pdf.test.bogus.jbig2.path";
         System.setProperty(bogusKey, tmp.resolve("definitely-not-jbig2").toString());
         try {
-            ExecutorService pool = Executors.newSingleThreadExecutor();
             try {
                 PdfBoxJbig2Assembler assembler = new PdfBoxJbig2Assembler(bogusKey);
                 assertThatThrownBy(
@@ -166,11 +155,10 @@ final class PdfBoxJbig2AssemblerTest {
                                                 tmp.resolve("out.pdf"),
                                                 null,
                                                 OptionalInt.of(300),
-                                                pool,
+                                                1,
                                                 scratch))
                         .isInstanceOf(IOException.class);
             } finally {
-                pool.shutdownNow();
             }
         } finally {
             System.clearProperty(bogusKey);

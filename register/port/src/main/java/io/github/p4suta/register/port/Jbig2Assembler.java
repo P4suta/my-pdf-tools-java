@@ -3,7 +3,6 @@ package io.github.p4suta.register.port;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -28,7 +27,7 @@ public interface Jbig2Assembler {
             Path outPdf,
             @Nullable Path source,
             OptionalInt forcedDpi,
-            ExecutorService pool,
+            int jobs,
             Path scratchDir)
             throws IOException;
 }

@@ -25,6 +25,10 @@ dependencies {
     // caller-supplied extension). Register passes its own glob/OutputFormat.extension() so this layer
     // imports neither the matcher nor the OutputFormat enum.
     implementation(project(":shared:io"))
+    // Tasks.awaitAll(Workers...): the shared fail-fast page fan-out (batch-owned executor,
+    // sibling interruption, quiescence before the failure propagates) both registration passes
+    // run their per-page work on.
+    implementation(project(":shared:process"))
     implementation(libs.slf4j.api)
 }
 
