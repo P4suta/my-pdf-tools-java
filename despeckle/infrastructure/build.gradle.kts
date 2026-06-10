@@ -78,3 +78,21 @@ tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
 }
 
 tasks.named("check") { dependsOn("jacocoTestCoverageVerification") }
+
+// ---- Cleaner op-level micro-benchmark (see despeckle/docs/cleaner-baseline.md) ------------------
+// Times each Leptonica primitive the page cleaner composes, plus end-to-end clean(), on a
+// deterministic synthetic 600-dpi A5 page — the measurement every cleaner/imaging optimization is
+// judged against. Knob: -Preps=N (default 10). Dev-container only (needs the native Leptonica).
+tasks.register<JavaExec>("benchCleaner") {
+    group = "verification"
+    description = "Micro-benchmark cleaner ops + end-to-end clean(); writes despeckle/docs/cleaner-baseline.md"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "io.github.p4suta.despeckle.infrastructure.tools.CleanerBenchmark"
+    workingDir = rootDir
+    args =
+        listOf(
+            "despeckle/docs/cleaner-baseline.md",
+            providers.gradleProperty("reps").getOrElse("10"),
+        )
+}
