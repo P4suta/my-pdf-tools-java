@@ -5,28 +5,27 @@ Times each Leptonica primitive the page cleaner composes on a synthetic
 600-dpi A5 page (3496x4961 px, fixed seed). Re-run after any change to the
 cleaner or the imaging bindings and compare before merging.
 
-- Date (UTC): 2026-06-10 06:48:05
+- Date (UTC): 2026-06-10 06:25:05
 - Host: Linux amd64, 8 CPUs
 - Samples: median of 10 reps after 2 warmups; single-threaded.
 
 | op | median (ms) | min (ms) | calls/clean() | est. share of clean() |
 |---|---:|---:|---:|---:|
-| read TIFF-G4 | 2.58 | 2.54 | 1 | 2.0% |
-| selectBySize k=6 (page) | 15.22 | 14.89 | 1 | 11.6% |
-| selectBySize 15 (page) | 15.40 | 14.93 | 1 | 11.7% |
-| selectBySize k=6 (inverted) | 22.36 | 22.04 | 2 | 34.1% |
-| dilate 43x43 (text mask) | 14.08 | 13.74 | 1 | 10.7% |
-| open 7x7 (page) | 4.01 | 3.85 | 1 | 3.1% |
-| invert | 0.27 | 0.25 | 2 | 0.4% |
-| subtract | 0.40 | 0.38 | 5 | 1.5% |
-| and | 0.45 | 0.41 | 1 | 0.3% |
-| or | 0.40 | 0.36 | 3 | 0.9% |
-| countConnComp | 11.64 | 11.50 | 2 | 17.8% |
-| countPixels | 0.42 | 0.41 | 2 | 0.6% |
-| write TIFF-G4 | 6.34 | 6.27 | 1 | 4.8% |
-| **Σ(median × calls)** | 130.66 | | | 99.6% |
-| **clean() end-to-end** | 131.15 | 129.19 | 1 | 100% |
-| **clean() without component stats** | 107.60 | 106.36 | 1 | 82.0% |
+| read TIFF-G4 | 2.59 | 2.52 | 1 | 1.5% |
+| selectBySize k=6 (page) | 15.22 | 14.98 | 1 | 8.7% |
+| selectBySize 15 (page) | 15.19 | 14.80 | 1 | 8.7% |
+| selectBySize k=6 (inverted) | 22.16 | 21.89 | 2 | 25.3% |
+| dilate 43x43 (text mask) | 37.52 | 37.01 | 1 | 21.5% |
+| open 7x7 (page) | 12.18 | 12.04 | 1 | 7.0% |
+| invert | 0.26 | 0.25 | 2 | 0.3% |
+| subtract | 0.38 | 0.36 | 5 | 1.1% |
+| and | 0.40 | 0.38 | 1 | 0.2% |
+| or | 0.33 | 0.32 | 3 | 0.6% |
+| countConnComp | 11.82 | 11.46 | 2 | 13.5% |
+| countPixels | 0.41 | 0.41 | 2 | 0.5% |
+| write TIFF-G4 | 6.44 | 6.29 | 1 | 3.7% |
+| **Σ(median × calls)** | 161.74 | | | 92.5% |
+| **clean() end-to-end** | 174.91 | 173.28 | 1 | 100% |
 
 The Σ row landing near 100% means the table accounts for clean()'s real cost;
 a large gap points at untimed work (allocation churn, codec internals).
