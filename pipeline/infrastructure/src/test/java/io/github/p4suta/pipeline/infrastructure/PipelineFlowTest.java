@@ -91,9 +91,9 @@ class PipelineFlowTest {
     }
 
     /**
-     * Regression for the {@code --no-despeckle --no-register} path: the raw {@code pdfimages}
-     * TIFFs are not CCITT G4, which the spread sink's pass-through embedding requires, so without
-     * the G4 re-encode stage this exact chain fails with {@code PDF_WRITE_FAILED}.
+     * Regression for the {@code --no-despeckle --no-register} path: the raw {@code pdfimages} TIFFs
+     * are not CCITT G4, which the spread sink's pass-through embedding requires, so without the G4
+     * re-encode stage this exact chain fails with {@code PDF_WRITE_FAILED}.
      */
     @Test
     void extractEncodeSpread() throws Exception {
