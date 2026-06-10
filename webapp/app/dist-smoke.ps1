@@ -15,7 +15,9 @@ if (-not (Test-Path $sample)) { throw "sample PDF not found: $sample" }
 
 # Background the server PATH-empty; the --win-console launcher streams to the redirected files.
 # --app.open-browser=false: this is a headless CI run, not a desktop launch (BrowserLauncher).
-$proc = Start-Process -FilePath $Launcher -ArgumentList "--app.open-browser=false" -PassThru -NoNewWindow `
+# --server.port=8080: the default profile binds an OS-assigned random port (so the double-clicked
+# desktop image never dies on a taken 8080); this smoke needs a known port to poll, so pin it.
+$proc = Start-Process -FilePath $Launcher -ArgumentList "--app.open-browser=false","--server.port=8080" -PassThru -NoNewWindow `
     -RedirectStandardOutput server.out.log -RedirectStandardError server.err.log
 $result = New-TemporaryFile
 

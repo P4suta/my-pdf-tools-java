@@ -1,7 +1,11 @@
 package io.github.p4suta.webapp.app;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 
 /**
  * The whole bean graph wires: {@link WebappConfig}'s use cases and adapters, the {@code @Scheduled}
@@ -20,9 +24,18 @@ import org.springframework.boot.test.context.SpringBootTest;
         })
 class WebApplicationSmokeTest {
 
+    @Autowired Environment environment;
+
     @Test
     void contextLoads() {
         // The test fails if the application context cannot be built (a missing bean, a bad
         // @ConfigurationProperties binding, a validation failure, ...).
+    }
+
+    @Test
+    void defaultProfileBindsAnOsAssignedPort() {
+        // The default (desktop) profile must request port 0 so the double-clicked app-image never
+        // dies on a taken 8080; BrowserLauncher surfaces the real bound port at runtime.
+        assertThat(environment.getProperty("server.port")).isEqualTo("0");
     }
 }

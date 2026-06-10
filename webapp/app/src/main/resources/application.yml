@@ -2,7 +2,13 @@ server:
   # Bind to loopback by default: this is a personal/local tool. The `prod` profile (the Docker
   # runtime) binds 0.0.0.0; add authentication before any LAN exposure.
   address: 127.0.0.1
-  port: 8080
+  # Port 0 = let the OS assign a free ephemeral port. The self-contained app-image is double-clicked
+  # on machines where 8080 is often already taken (a dev's SSH forward, another app); a fixed port
+  # would fail to bind and the launcher window would flash and die. BrowserLauncher reads the REAL
+  # bound port (local.server.port) and surfaces it via the banner + auto-opened browser, so a
+  # random port is invisible to the user. The `prod` profile pins 8080 (the Docker/reverse-proxy
+  # contract); override either way with --server.port=NNNN or SERVER_PORT.
+  port: 0
   # On SIGTERM, stop accepting new requests and let in-flight HTTP requests (and SSE streams) finish
   # within the lifecycle timeout below. A background conversion on the worker pool is not drained
   # (it is a daemon thread); graceful shutdown covers only the HTTP surface.

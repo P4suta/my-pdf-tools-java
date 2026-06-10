@@ -93,8 +93,11 @@ web-serve: pdfbook-install
     # no Gradle lock, so `just build` and every other recipe keep working while it serves; the dev
     # loop is just `edit -> just build -> just web-serve` with nothing to stop first. Binds 0.0.0.0
     # for VSCode port-forwarding / the host IP; override the published host port with WEB_PORT.
+    # Pin --server.port=8080: the default profile binds an OS-assigned random port (for the
+    # double-clicked desktop image), but this dev loop needs a known port for the `-p :8080` publish,
+    # the VSCode forward, and the Vite dev proxy (frontend/vite.config.ts → 127.0.0.1:8080).
     {{gradlew}} :webapp:app:bootJar {{gradle_flags}}
-    run='jar=$(ls -t webapp/app/build/libs/*.jar | grep -v -- -plain | head -1); export PATH="$PWD/pipeline/app/build/install/pdfbook/bin:$PATH"; exec java -jar "$jar" --server.address=0.0.0.0'
+    run='jar=$(ls -t webapp/app/build/libs/*.jar | grep -v -- -plain | head -1); export PATH="$PWD/pipeline/app/build/install/pdfbook/bin:$PATH"; exec java -jar "$jar" --server.address=0.0.0.0 --server.port=8080'
     if [ "{{inside}}" = "1" ]; then
         exec bash -lc "$run"
     fi

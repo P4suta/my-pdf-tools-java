@@ -15,7 +15,9 @@ base="http://127.0.0.1:8080"
 
 # Background the server PATH-empty (do NOT add pdfbook to PATH — the bundled -D must resolve it).
 # --app.open-browser=false: this is a headless CI run, not a desktop launch (BrowserLauncher).
-"$launcher" --app.open-browser=false > server.log 2>&1 &
+# --server.port=8080: the default profile binds an OS-assigned random port (so the double-clicked
+# desktop image never dies on a taken 8080); this smoke needs a known port to poll, so pin it.
+"$launcher" --app.open-browser=false --server.port=8080 > server.log 2>&1 &
 server=$!
 result="$(mktemp)"
 cleanup() { kill "$server" 2>/dev/null || true; rm -f "$result"; }
