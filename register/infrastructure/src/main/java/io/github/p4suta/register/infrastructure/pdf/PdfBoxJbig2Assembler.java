@@ -4,7 +4,6 @@ import io.github.p4suta.register.port.Jbig2Assembler;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -40,9 +39,9 @@ public final class PdfBoxJbig2Assembler implements Jbig2Assembler {
             Path outPdf,
             @Nullable Path source,
             OptionalInt forcedDpi,
-            ExecutorService pool,
+            int jobs,
             Path scratchDir)
             throws IOException {
-        delegate.assemble(imageDir, outPdf, source, forcedDpi, pool, scratchDir);
+        delegate.assemble(imageDir, outPdf, source, forcedDpi, jobs, scratchDir);
     }
 }

@@ -4,7 +4,6 @@ import io.github.p4suta.despeckle.port.Jbig2Assembler;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -34,7 +33,7 @@ public final class PdfBoxJbig2Assembler implements Jbig2Assembler {
      * @param outPdf the lossless-JBIG2 PDF to write
      * @param source a PDF whose Info dict, XMP and version are inherited, or {@code null} for none
      * @param forcedDpi a single DPI to size every page with, or empty to read each image's own
-     * @param pool the worker pool the per-page {@code jbig2} encodes run on
+     * @param jobs how many {@code jbig2} children may encode at once
      * @param scratchDir scratch directory for the intermediate per-page JBIG2 streams
      *     (caller-owned)
      * @throws IOException if the directory is empty, a tool fails, or the write fails
@@ -45,9 +44,9 @@ public final class PdfBoxJbig2Assembler implements Jbig2Assembler {
             Path outPdf,
             @Nullable Path source,
             OptionalInt forcedDpi,
-            ExecutorService pool,
+            int jobs,
             Path scratchDir)
             throws IOException {
-        delegate.assemble(imageDir, outPdf, source, forcedDpi, pool, scratchDir);
+        delegate.assemble(imageDir, outPdf, source, forcedDpi, jobs, scratchDir);
     }
 }

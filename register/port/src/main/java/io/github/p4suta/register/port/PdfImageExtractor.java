@@ -2,7 +2,6 @@ package io.github.p4suta.register.port;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Extracts a scanned PDF's embedded bitonal images as TIFFs. The abstraction over {@code pdfimages}
@@ -20,10 +19,10 @@ public interface PdfImageExtractor {
 
     /**
      * Extract every page of {@code pdf} into {@code outDir} as TIFFs, parallelized over page-range
-     * chunks across the worker pool.
+     * chunks, at most {@code jobs} at once.
      *
-     * @param jobs the worker thread count (bounds the chunk count and pool slots used)
+     * @param jobs how many chunks may extract at once
      * @throws IOException if the external tool fails
      */
-    void extract(Path pdf, Path outDir, int jobs, ExecutorService pool) throws IOException;
+    void extract(Path pdf, Path outDir, int jobs) throws IOException;
 }

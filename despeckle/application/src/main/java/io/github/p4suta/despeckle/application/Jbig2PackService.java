@@ -9,8 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -77,17 +75,15 @@ public final class Jbig2PackService {
         }
 
         Path jb2Dir = createWorkDir(config.outPdf());
-        ExecutorService pool = Executors.newFixedThreadPool(config.jobs());
         try {
             assembler.assemble(
                     config.imageDir(),
                     config.outPdf(),
                     config.source(),
                     config.dpi(),
-                    pool,
+                    config.jobs(),
                     jb2Dir);
         } finally {
-            pool.shutdown();
             deleteRecursively(jb2Dir);
         }
         linearizer.linearize(config.outPdf());

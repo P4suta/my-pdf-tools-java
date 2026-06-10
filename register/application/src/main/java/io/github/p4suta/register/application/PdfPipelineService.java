@@ -11,8 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,40 +78,37 @@ public final class PdfPipelineService {
             Path extracted = Files.createDirectories(work.resolve("in"));
             Path registered = Files.createDirectories(work.resolve("reg"));
             Path jbig2Dir = Files.createDirectories(work.resolve("jb2"));
-            ExecutorService pool = Executors.newFixedThreadPool(config.jobs());
-            try {
-                int dpi =
-                        config.options().dpi().isPresent()
-                                ? config.options().dpi().getAsInt()
-                                : extractor.dominantDpi(config.inputPdf());
-                LOG.info(
-                        "pipeline: {} -> {} at {} dpi", config.inputPdf(), config.outputPdf(), dpi);
+            int dpi =
+                    config.options().dpi().isPresent()
+                            ? config.options().dpi().getAsInt()
+                            : extractor.dominantDpi(config.inputPdf());
+            LOG.info("pipeline: {} -> {} at {} dpi", config.inputPdf(), config.outputPdf(), dpi);
 
-                extractor.extract(config.inputPdf(), extracted, config.jobs(), pool);
+            // Each step fans out on its own batch-owned workers bounded by the same jobs budget,
+            // so the steps never hold idle threads for each other (the old shared outer pool sat
+            // idle through the whole registration step).
+            extractor.extract(config.inputPdf(), extracted, config.jobs());
 
-                RegistrationService.Config registration =
-                        new RegistrationService.Config(
-                                extracted,
-                                registered,
-                                OutputFormat.TIFF,
-                                "*.tif",
-                                config.jobs(),
-                                true,
-                                withDpi(config.options(), dpi),
-                                null,
-                                false);
-                registrationService.run(registration);
+            RegistrationService.Config registration =
+                    new RegistrationService.Config(
+                            extracted,
+                            registered,
+                            OutputFormat.TIFF,
+                            "*.tif",
+                            config.jobs(),
+                            true,
+                            withDpi(config.options(), dpi),
+                            null,
+                            false);
+            registrationService.run(registration);
 
-                assembler.assemble(
-                        registered,
-                        config.outputPdf(),
-                        config.inputPdf(),
-                        OptionalInt.of(dpi),
-                        pool,
-                        jbig2Dir);
-            } finally {
-                pool.shutdown();
-            }
+            assembler.assemble(
+                    registered,
+                    config.outputPdf(),
+                    config.inputPdf(),
+                    OptionalInt.of(dpi),
+                    config.jobs(),
+                    jbig2Dir);
             LOG.info("wrote {}", config.outputPdf());
         } finally {
             deleteRecursively(work);

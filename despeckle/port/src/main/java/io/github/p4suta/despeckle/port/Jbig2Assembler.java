@@ -3,13 +3,12 @@ package io.github.p4suta.despeckle.port;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Packs a directory of cleaned bitonal pages into a lossless-JBIG2 PDF. The abstraction over the
  * {@code jbig2} encoder + PDFBox container; the implementation ({@code
- * infrastructure.pdf.PdfBoxJbig2Assembler}) runs the per-page encodes on the supplied pool.
+ * infrastructure.pdf.PdfBoxJbig2Assembler}) runs at most {@code jobs} per-page encodes at once.
  */
 public interface Jbig2Assembler {
 
@@ -20,7 +19,7 @@ public interface Jbig2Assembler {
      * @param outPdf the lossless-JBIG2 PDF to write
      * @param source a PDF whose Info dict, XMP and version are inherited, or {@code null} for none
      * @param forcedDpi a single DPI to size every page with, or empty to read each image's own
-     * @param pool the worker pool the per-page encodes run on
+     * @param jobs how many per-page encodes may run at once
      * @param scratchDir scratch directory for the intermediate per-page JBIG2 streams
      *     (caller-owned)
      * @throws IOException if the directory is empty, a tool fails, or the write fails
@@ -30,7 +29,7 @@ public interface Jbig2Assembler {
             Path outPdf,
             @Nullable Path source,
             OptionalInt forcedDpi,
-            ExecutorService pool,
+            int jobs,
             Path scratchDir)
             throws IOException;
 }

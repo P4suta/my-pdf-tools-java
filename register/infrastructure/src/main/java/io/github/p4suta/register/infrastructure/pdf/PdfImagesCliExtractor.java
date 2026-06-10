@@ -3,7 +3,6 @@ package io.github.p4suta.register.infrastructure.pdf;
 import io.github.p4suta.register.port.PdfImageExtractor;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Register's {@link PdfImageExtractor} adapter: a thin binding onto the cross-app {@link
@@ -43,10 +42,10 @@ public final class PdfImagesCliExtractor implements PdfImageExtractor {
 
     /**
      * Extract all pages of {@code pdf} into {@code outDir} as TIFFs, parallelized over page-range
-     * chunks. {@code jobs} bounds both the chunk count and the pool slots used.
+     * chunks. at most {@code jobs} chunks run at once.
      */
     @Override
-    public void extract(Path pdf, Path outDir, int jobs, ExecutorService pool) throws IOException {
-        delegate.extract(pdf, outDir, jobs, pool);
+    public void extract(Path pdf, Path outDir, int jobs) throws IOException {
+        delegate.extract(pdf, outDir, jobs);
     }
 }

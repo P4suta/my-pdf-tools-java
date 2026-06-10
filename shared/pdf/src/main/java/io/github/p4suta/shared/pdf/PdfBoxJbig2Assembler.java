@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.pdfbox.Loader;
@@ -85,7 +84,7 @@ public final class PdfBoxJbig2Assembler {
      * @param outPdf the lossless-JBIG2 PDF to write
      * @param source a PDF whose Info dict, XMP and version are inherited, or {@code null} for none
      * @param forcedDpi a single DPI to size every page with, or empty to read each image's own
-     * @param pool the worker pool the per-page {@code jbig2} encodes run on
+     * @param jobs how many {@code jbig2} children may encode at once
      * @param scratchDir scratch directory for the intermediate per-page JBIG2 streams
      *     (caller-owned)
      * @throws IOException if the directory is empty, a tool fails, or the write fails
@@ -95,7 +94,7 @@ public final class PdfBoxJbig2Assembler {
             Path outPdf,
             @Nullable Path source,
             OptionalInt forcedDpi,
-            ExecutorService pool,
+            int jobs,
             Path scratchDir)
             throws IOException {
         List<Path> images = sortedImages(imageDir);
@@ -109,8 +108,9 @@ public final class PdfBoxJbig2Assembler {
             int index = i;
             tasks.add(() -> encode(jbig2, image, scratchDir, index, forcedDpi));
         }
-        List<Page> pages =
-                Tasks.awaitAll(pool, tasks, "jbig2 encode interrupted", "jbig2 encode failed");
+        // Virtual workers: each task is one subprocess wait plus a brief Pix header read; the
+        // semaphore-bounded admission keeps at most `jobs` jbig2 children alive at once.
+        List<Page> pages = Tasks.awaitAll(Tasks.Workers.virtual(jobs), tasks, "jbig2 encode");
 
         try (PDDocument doc = new PDDocument()) {
             for (Page page : pages) {

@@ -12,8 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -96,41 +94,37 @@ public final class PdfPipelineService {
             Path extracted = Files.createDirectories(work.resolve("in"));
             Path cleaned = Files.createDirectories(work.resolve("clean"));
             Path jbig2Dir = Files.createDirectories(work.resolve("jb2"));
-            ExecutorService pool = Executors.newFixedThreadPool(config.jobs());
-            DespeckleService.Summary summary;
-            try {
-                int dpi =
-                        config.options().dpi().isPresent()
-                                ? config.options().dpi().getAsInt()
-                                : extractor.dominantDpi(config.inputPdf());
-                LOG.info(
-                        "pipeline: {} -> {} at {} dpi", config.inputPdf(), config.outputPdf(), dpi);
+            int dpi =
+                    config.options().dpi().isPresent()
+                            ? config.options().dpi().getAsInt()
+                            : extractor.dominantDpi(config.inputPdf());
+            LOG.info("pipeline: {} -> {} at {} dpi", config.inputPdf(), config.outputPdf(), dpi);
 
-                extractor.extract(config.inputPdf(), extracted, config.jobs(), pool);
+            // Each step fans out on its own batch-owned workers bounded by the same jobs budget,
+            // so the steps never hold idle threads for each other (the old shared outer pool sat
+            // idle through the whole despeckle step).
+            extractor.extract(config.inputPdf(), extracted, config.jobs());
 
-                DespeckleService.Config clean =
-                        new DespeckleService.Config(
-                                extracted,
-                                cleaned,
-                                OutputFormat.TIFF,
-                                "*.tif",
-                                config.jobs(),
-                                true,
-                                config.options().withDpi(dpi),
-                                config.reportDir(),
-                                config.flipbook());
-                summary = despeckleService.run(clean);
+            DespeckleService.Config clean =
+                    new DespeckleService.Config(
+                            extracted,
+                            cleaned,
+                            OutputFormat.TIFF,
+                            "*.tif",
+                            config.jobs(),
+                            true,
+                            config.options().withDpi(dpi),
+                            config.reportDir(),
+                            config.flipbook());
+            DespeckleService.Summary summary = despeckleService.run(clean);
 
-                assembler.assemble(
-                        cleaned,
-                        config.outputPdf(),
-                        config.inputPdf(),
-                        OptionalInt.of(dpi),
-                        pool,
-                        jbig2Dir);
-            } finally {
-                pool.shutdown();
-            }
+            assembler.assemble(
+                    cleaned,
+                    config.outputPdf(),
+                    config.inputPdf(),
+                    OptionalInt.of(dpi),
+                    config.jobs(),
+                    jbig2Dir);
             linearizer.linearize(config.outputPdf());
             LOG.info("wrote {}", config.outputPdf());
             return summary;
