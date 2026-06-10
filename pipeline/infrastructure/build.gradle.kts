@@ -9,10 +9,11 @@ plugins {
 
 // The adapters that bind the pipeline ports to the existing apps' services, treating each app as a
 // library: PdfExtractSource (shared:pdf pdfimages) is the Source; DespeckleStage (despeckle's
-// DespeckleService) and RegisterStage (register's RegistrationService) are Stages over the shared
-// image working-set; SpreadPackSink (tate's SpreadService + the image-dir DocumentFactory) is the
-// Sink that composes the RTL spread as the only repack. The apps are not modified — this is the one
-// place that depends across them. native-conventions: the integration test drives Leptonica FFM.
+// DespeckleService), RegisterStage (register's RegistrationService), and G4EncodeStage (shared
+// Leptonica re-encode for the no-stage path) are Stages over the shared image working-set;
+// SpreadPackSink (tate's SpreadService + the image-dir DocumentFactory) is the Sink that composes
+// the RTL spread as the only repack. The apps are not modified — this is the one place that depends
+// across them. native-conventions: the integration test drives Leptonica FFM.
 dependencies {
     implementation(project(":pipeline:domain"))
     implementation(project(":pipeline:port"))
@@ -25,6 +26,11 @@ dependencies {
 
     // Source: the shared pdfimages extractor (extract the scan's pages once).
     implementation(project(":shared:pdf"))
+
+    // G4 encode stage: Leptonica re-encode (Pix), corpus walk/mirror, pooled awaitAll.
+    implementation(project(":shared:imaging"))
+    implementation(project(":shared:io"))
+    implementation(project(":shared:process"))
 
     // Despeckle stage: its application service + the Leptonica cleaner adapter + its option/format
     // value types.
