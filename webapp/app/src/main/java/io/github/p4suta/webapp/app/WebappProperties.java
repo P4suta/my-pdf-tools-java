@@ -24,6 +24,13 @@ import org.springframework.validation.annotation.Validated;
  *     entries
  * @param pdfbookBinary the pdfbook executable, or {@code null} to resolve it via {@code
  *     -Dp4suta.pdfbook.binary} or the {@code PATH}
+ * @param heartbeatGrace desktop-only: how long after the browser's last heartbeat (with nothing
+ *     running) the self-contained app-image waits before shutting itself down, so closing the
+ *     browser ends the process. Inert in {@code prod} (the watcher bean is
+ *     {@code @Profile("!prod")}). Keep well above the SPA's beat interval (~5s) to absorb
+ *     reloads/navigations.
+ * @param idleShutdownIntervalMs desktop-only: how often, in milliseconds, the idle watcher checks
+ *     whether to shut down
  */
 @Validated
 @ConfigurationProperties("app")
@@ -34,4 +41,6 @@ public record WebappProperties(
         Duration jobTtl,
         Duration cacheTtl,
         @Positive long reaperIntervalMs,
-        @Nullable Path pdfbookBinary) {}
+        @Nullable Path pdfbookBinary,
+        Duration heartbeatGrace,
+        @Positive long idleShutdownIntervalMs) {}

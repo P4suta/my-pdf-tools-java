@@ -50,6 +50,14 @@ app:
   cache-ttl: 30d
   # How often the reaper sweeps expired jobs and cache entries.
   reaper-interval-ms: 900000
+  # Desktop-only (the !prod self-contained app-image). The SPA POSTs /api/v1/heartbeat while a
+  # browser tab is open; this long after the last beat — and only when no conversion is running —
+  # the server shuts itself down, so closing the browser ends the process (no Ctrl+C). Inert in
+  # prod: the watcher bean is @Profile("!prod"), so the Docker/reverse-proxied runtime never exits
+  # on a client disconnect. Keep well above the frontend beat interval (~5s) to absorb reloads.
+  heartbeat-grace: 20s
+  # How often the desktop idle watcher checks whether to shut down (the !prod profile only).
+  idle-shutdown-interval-ms: 5000
   # The pdfbook executable. Leave unset to resolve it via -Dp4suta.pdfbook.binary or the PATH.
   # pdfbook-binary: /path/to/pdfbook
 
