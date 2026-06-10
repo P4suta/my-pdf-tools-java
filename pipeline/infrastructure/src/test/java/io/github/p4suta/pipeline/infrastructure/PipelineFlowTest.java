@@ -24,9 +24,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * End-to-end exercise of the pipeline adapters in the dev image (Leptonica + pdfimages + jbig2 +
- * PDFBox): a synthetic 4-page bitonal scan flows extract -> despeckle -> register -> spread, each
+ * PDFBox): a synthetic 4-page bitonal scan flows extract -> despeckle -> register -> spread (the
+ * default chain) and extract -> encode -> spread (the --no-despeckle --no-register chain), each
  * stage writing image files into its own directory, with the spread sink producing the only PDF.
- * Asserts the chain produces a valid landscape spread PDF (4 pages -> 2 spreads) and that the
+ * Asserts each chain produces a valid landscape spread PDF (4 pages -> 2 spreads) and that the
  * inter-stage hand-off carries the dpi and the self-describing glob (tif -> tif -> tiff).
  */
 class PipelineFlowTest {
@@ -85,6 +86,54 @@ class PipelineFlowTest {
         assertProgress(events, "despeckle", 4, 4);
         // register: two passes over 4 pages -> 8 PageProcessed over a 2N=8 total, reaching 8.
         assertProgress(events, "register", 8, 8);
+        // spread: 4 pages -> 2 spreads, so 2 PageProcessed over a total of 2, reaching 2.
+        assertProgress(events, "spread", 2, 2);
+    }
+
+    /**
+     * Regression for the {@code --no-despeckle --no-register} path: the raw {@code pdfimages}
+     * TIFFs are not CCITT G4, which the spread sink's pass-through embedding requires, so without
+     * the G4 re-encode stage this exact chain fails with {@code PDF_WRITE_FAILED}.
+     */
+    @Test
+    void extractEncodeSpread() throws Exception {
+        Path sample = tmp.resolve("sample-scan.pdf");
+        try (InputStream in = PipelineFlowTest.class.getResourceAsStream("/sample-scan.pdf")) {
+            assertThat(in).as("sample scan fixture on classpath").isNotNull();
+            Files.copy(in, sample);
+        }
+        Path extracted = Files.createDirectories(tmp.resolve("00-extract"));
+        Path encoded = Files.createDirectories(tmp.resolve("01-encode"));
+        Path output = tmp.resolve("book.pdf");
+
+        List<ProgressEvent> events = Collections.synchronizedList(new ArrayList<>());
+        ProgressSink sink = events::add;
+
+        Corpus afterExtract = new PdfExtractSource(sample, 2).open(extracted);
+        assertThat(afterExtract.pageCount()).isEqualTo(4);
+
+        Corpus afterEncode = new G4EncodeStage(2, sink).apply(afterExtract, encoded);
+        assertThat(afterEncode.glob()).isEqualTo("*.tif");
+        assertThat(afterEncode.dpi()).isEqualTo(afterExtract.dpi());
+
+        new SpreadPackSink(
+                        ReadingDirection.RTL,
+                        FirstPageMode.STANDARD,
+                        false,
+                        MemoryMode.IN_MEMORY,
+                        DocumentMetadata.empty(),
+                        sink)
+                .write(afterEncode, output);
+
+        assertThat(Files.size(output)).isPositive();
+        try (PDDocument doc = Loader.loadPDF(output.toFile())) {
+            assertThat(doc.getNumberOfPages()).isEqualTo(2);
+            PDRectangle box = doc.getPage(0).getMediaBox();
+            assertThat(box.getWidth()).isGreaterThan(box.getHeight());
+        }
+
+        // encode: one PageProcessed per page over a total of 4, the count reaching 4.
+        assertProgress(events, "encode", 4, 4);
         // spread: 4 pages -> 2 spreads, so 2 PageProcessed over a total of 2, reaching 2.
         assertProgress(events, "spread", 2, 2);
     }

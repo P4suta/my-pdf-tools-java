@@ -2,6 +2,7 @@ package io.github.p4suta.pipeline.cli;
 
 import io.github.p4suta.pipeline.application.PipelineRunner;
 import io.github.p4suta.pipeline.infrastructure.DespeckleStage;
+import io.github.p4suta.pipeline.infrastructure.G4EncodeStage;
 import io.github.p4suta.pipeline.infrastructure.PdfExtractSource;
 import io.github.p4suta.pipeline.infrastructure.RegisterStage;
 import io.github.p4suta.pipeline.infrastructure.SourceMetadata;
@@ -398,6 +399,12 @@ public final class PipelineCommand {
         }
         if (config.register()) {
             stages.add(new RegisterStage(config.jobs(), config.deskew(), config.scale(), progress));
+        }
+        if (stages.isEmpty()) {
+            // --no-despeckle --no-register: the raw pdfimages TIFFs are not CCITT G4, which the
+            // spread sink's pass-through embedding requires; despeckle/register each re-encode G4
+            // themselves, so only the no-stage path needs this normalization.
+            stages.add(new G4EncodeStage(config.jobs(), progress));
         }
         Source source = new PdfExtractSource(input, config.jobs());
         // Carry the source book's title/author/etc. onto the output, matching the standalone tate

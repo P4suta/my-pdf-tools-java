@@ -14,7 +14,7 @@
   } from "./api";
 
   type Phase = "select" | "options" | "uploading" | "running" | "done" | "failed";
-  type StepKey = "extract" | "despeckle" | "register" | "spread";
+  type StepKey = "extract" | "despeckle" | "register" | "encode" | "spread";
   type StepStatus = "pending" | "active" | "done" | "failed";
 
   interface Step {
@@ -34,6 +34,7 @@
     extract: "抽出",
     despeckle: "ノイズ除去",
     register: "整列",
+    encode: "圧縮",
     spread: "製本",
   };
 
@@ -168,7 +169,8 @@
   }
 
   // The full milestone list is known up front from the submitted options (extract and spread always
-  // run; despeckle/register are optional), so the stepper shows the whole pipeline from the start.
+  // run; despeckle/register are optional; with both off the backend inserts a G4 re-encode pass
+  // instead), so the stepper shows the whole pipeline from the start.
   function buildSteps(o: ConversionOptions): Step[] {
     const keys: StepKey[] = ["extract"];
     if (o.despeckle) {
@@ -176,6 +178,9 @@
     }
     if (o.register) {
       keys.push("register");
+    }
+    if (!o.despeckle && !o.register) {
+      keys.push("encode");
     }
     keys.push("spread");
     return keys.map((key) => ({
