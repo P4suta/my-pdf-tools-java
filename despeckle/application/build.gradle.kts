@@ -25,6 +25,10 @@ dependencies {
     // implementations are no longer duplicated here. Static calls returning java.base types only, so
     // implementation (not api) is the right scope.
     implementation(project(":shared:io"))
+    // Tasks.awaitAll(Workers...): the shared fail-fast page fan-out (batch-owned executor,
+    // sibling interruption, quiescence before the failure propagates) DespeckleService runs its
+    // per-page work on.
+    implementation(project(":shared:process"))
     implementation(libs.slf4j.api)
 }
 

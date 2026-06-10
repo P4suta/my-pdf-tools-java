@@ -9,18 +9,13 @@ import io.github.p4suta.despeckle.port.ReporterFactory;
 import io.github.p4suta.shared.io.CorpusFiles;
 import io.github.p4suta.shared.io.OutputDirs;
 import io.github.p4suta.shared.kernel.PageProgressListener;
+import io.github.p4suta.shared.process.Tasks;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,8 +83,8 @@ public final class DespeckleService {
     /**
      * Execute a run, reporting each finished page to {@code progress}.
      *
-     * @param progress called once per page as it completes (1-based count, total page count); may
-     *     be invoked from the worker threads, so it must be thread-safe
+     * @param progress called once per page as it completes (1-based count, total page count),
+     *     always on the calling thread and in order
      */
     public Summary run(Config config, PageProgressListener progress) throws IOException {
         OutputDirs.prepare(config.outputDir(), config.force());
@@ -106,27 +101,25 @@ public final class DespeckleService {
                         ? Reporter.noOp()
                         : reporterFactory.create(config.reportDir(), config.flipbook());
 
-        AtomicInteger done = new AtomicInteger();
-        List<PageOutcome> outcomes;
-        ExecutorService pool = Executors.newFixedThreadPool(config.jobs());
-        try {
-            List<Callable<PageOutcome>> tasks = new ArrayList<>(files.size());
-            for (Path src : files) {
-                tasks.add(
-                        () -> {
-                            PageOutcome outcome = processOne(src, config, report);
-                            int n = done.incrementAndGet();
-                            progress.onPage(n, files.size());
-                            if (n % PROGRESS_EVERY == 0 || n == files.size()) {
-                                LOG.info("{}/{}", n, files.size());
-                            }
-                            return outcome;
-                        });
-            }
-            outcomes = invokeAll(pool, tasks);
-        } finally {
-            pool.shutdown();
+        List<Callable<PageOutcome>> tasks = new ArrayList<>(files.size());
+        for (Path src : files) {
+            tasks.add(() -> processOne(src, config, report));
         }
+        // Platform workers: each page is CPU-bound Leptonica work (FFM downcalls pin virtual
+        // threads' carriers). The fan-out fails fast and quiesces before throwing, so a failed
+        // run never leaves workers writing into the output directory. Progress and the human
+        // log arrive on this thread, ordered.
+        List<PageOutcome> outcomes =
+                Tasks.awaitAll(
+                        Tasks.Workers.platform(config.jobs()),
+                        tasks,
+                        "despeckle",
+                        (done, total) -> {
+                            progress.onPage(done, total);
+                            if (done % PROGRESS_EVERY == 0 || done == total) {
+                                LOG.info("{}/{}", done, total);
+                            }
+                        });
 
         report.finish();
 
@@ -152,7 +145,7 @@ public final class DespeckleService {
 
     private record PageOutcome(Path source, ProcessResult result) {}
 
-    private PageOutcome processOne(Path src, Config config, Reporter report) {
+    private PageOutcome processOne(Path src, Config config, Reporter report) throws IOException {
         Path dest =
                 CorpusFiles.mirrorDestination(
                         src, config.inputDir(), config.outputDir(), config.format().extension());
@@ -166,30 +159,9 @@ public final class DespeckleService {
             report.addPage(stem, src, dest, result);
             return new PageOutcome(src, result);
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to process " + src, e);
+            // Re-throw with the page named: Tasks surfaces a task's IOException unchanged, so
+            // this context reaches the user instead of being lost in a generic wrapper.
+            throw new IOException("failed to process " + src, e);
         }
-    }
-
-    private static List<PageOutcome> invokeAll(
-            ExecutorService pool, List<Callable<PageOutcome>> tasks) throws IOException {
-        List<Future<PageOutcome>> futures;
-        try {
-            futures = pool.invokeAll(tasks);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("despeckle run interrupted", e);
-        }
-        List<PageOutcome> outcomes = new ArrayList<>(futures.size());
-        for (Future<PageOutcome> future : futures) {
-            try {
-                outcomes.add(future.get());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("despeckle run interrupted", e);
-            } catch (ExecutionException e) {
-                throw new IOException("page processing failed", e.getCause());
-            }
-        }
-        return outcomes;
     }
 }

@@ -81,9 +81,17 @@ public final class ProcessRunner {
         try (ExecutorService drainers = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<byte[]> out = drainers.submit(() -> process.getInputStream().readAllBytes());
             Future<byte[]> err = drainers.submit(() -> process.getErrorStream().readAllBytes());
-            if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+            try {
+                if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                    process.destroyForcibly();
+                    throw new TimeoutException(command.get(0) + " timed out after " + timeout);
+                }
+            } catch (InterruptedException e) {
+                // Kill the child before propagating, exactly like the timeout path: the drainers
+                // then reach EOF, so the try-with-resources close() returns instead of waiting on
+                // a live child's pipes — and no orphaned process outlives the interrupted caller.
                 process.destroyForcibly();
-                throw new TimeoutException(command.get(0) + " timed out after " + timeout);
+                throw e;
             }
             // Decode leniently (replace malformed bytes), matching the long-standing behavior.
             String stdout = new String(await(out), StandardCharsets.UTF_8);

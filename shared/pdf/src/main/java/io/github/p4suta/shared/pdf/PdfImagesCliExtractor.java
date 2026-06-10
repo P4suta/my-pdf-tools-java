@@ -14,7 +14,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
@@ -101,7 +100,8 @@ public final class PdfImagesCliExtractor {
 
     /**
      * Extract all pages of {@code pdf} into {@code outDir} as TIFFs, parallelized over page-range
-     * chunks of about {@link #CHUNK_PAGES} pages on {@code pool} (at most {@code 4 * jobs} chunks).
+     * chunks of about {@link #CHUNK_PAGES} pages, at most {@code jobs} running at once (and at most
+     * {@code 4 * jobs} chunks).
      *
      * <p>One {@code pdfimages -list} pass picks the mode: when every embedded image is 1-bpp CCITT
      * (the usual self-scanned book), each chunk dumps the raw G4 streams ({@code -ccitt}) and wraps
@@ -112,7 +112,7 @@ public final class PdfImagesCliExtractor {
      * a chunk whose dump or wrap deviates in any way is re-extracted decoded ({@code -tiff}), which
      * is also the whole-run mode for any other source.
      */
-    public void extract(Path pdf, Path outDir, int jobs, ExecutorService pool) throws IOException {
+    public void extract(Path pdf, Path outDir, int jobs) throws IOException {
         int total = pageCount(pdf);
         String pdfimages = resolve("pdfimages", pdfimagesPropertyKey);
         List<PdfListingParser.ImageRow> rows =
@@ -145,7 +145,9 @@ public final class PdfImagesCliExtractor {
                     });
             chunk++;
         }
-        Tasks.awaitAll(pool, tasks, "pdfimages extract interrupted", "pdfimages extract failed");
+        // Virtual workers: a chunk is one subprocess wait plus (in remux mode) a brief wrap; the
+        // semaphore-bounded admission keeps at most `jobs` pdfimages children alive at once.
+        Tasks.awaitAll(Tasks.Workers.virtual(jobs), tasks, "pdfimages extract");
     }
 
     /** Pages per extraction chunk; see {@link #extract}. */

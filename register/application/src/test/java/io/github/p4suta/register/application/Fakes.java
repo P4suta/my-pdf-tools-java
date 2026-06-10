@@ -23,7 +23,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 
@@ -194,8 +193,7 @@ final class Fakes {
         }
 
         @Override
-        public void extract(Path pdf, Path outDir, int jobs, ExecutorService pool)
-                throws IOException {
+        public void extract(Path pdf, Path outDir, int jobs) throws IOException {
             extractCalls.incrementAndGet();
             if (failOn != null && pdf.getFileName().toString().contains(failOn)) {
                 throw new IOException("fake extract failed for " + pdf);
@@ -220,7 +218,7 @@ final class Fakes {
                 Path outPdf,
                 @Nullable Path source,
                 OptionalInt forcedDpi,
-                ExecutorService pool,
+                int jobs,
                 Path scratchDir)
                 throws IOException {
             lastForcedDpi = forcedDpi;

@@ -12,9 +12,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The G4-normalization {@link Stage}: re-encodes each extracted page as single-strip CCITT G4 TIFF
@@ -57,29 +54,26 @@ public final class G4EncodeStage implements Stage {
     @Override
     public Corpus apply(Corpus input, Path workDir) throws IOException {
         List<Path> pages = CorpusFiles.collect(input.dir(), input.glob());
-        AtomicInteger done = new AtomicInteger();
-        ExecutorService pool = Executors.newFixedThreadPool(jobs);
-        try {
-            List<Callable<Void>> tasks = new ArrayList<>(pages.size());
-            for (Path src : pages) {
-                tasks.add(
-                        () -> {
-                            Path out =
-                                    CorpusFiles.mirrorDestination(src, input.dir(), workDir, "tif");
-                            try (Pix page = Pix.read(src)) {
-                                page.setResolution(input.dpi());
-                                page.writeTiffG4(out);
-                            }
-                            progress.emit(
-                                    new ProgressEvent.PageProcessed(
-                                            name(), done.incrementAndGet(), pages.size()));
-                            return null;
-                        });
-            }
-            Tasks.awaitAll(pool, tasks, "G4 encode interrupted", "G4 encode failed");
-        } finally {
-            pool.shutdown();
+        List<Callable<Void>> tasks = new ArrayList<>(pages.size());
+        for (Path src : pages) {
+            tasks.add(
+                    () -> {
+                        Path out = CorpusFiles.mirrorDestination(src, input.dir(), workDir, "tif");
+                        try (Pix page = Pix.read(src)) {
+                            page.setResolution(input.dpi());
+                            page.writeTiffG4(out);
+                        }
+                        return null;
+                    });
         }
+        // Platform workers: each task is a Leptonica decode + G4 encode (CPU-bound FFM downcalls,
+        // which would pin virtual threads' carriers). Progress arrives on this thread, ordered.
+        Tasks.awaitAll(
+                Tasks.Workers.platform(jobs),
+                tasks,
+                "G4 encode",
+                (done, total) ->
+                        progress.emit(new ProgressEvent.PageProcessed(name(), done, total)));
         return input.movedTo(workDir, OUTPUT_GLOB);
     }
 }
