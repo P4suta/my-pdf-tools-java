@@ -151,7 +151,7 @@ class TasksTest {
                     }
                     return null;
                 };
-        Callable<Void> failer =
+        Callable<Void> failing =
                 () -> {
                     blockerStarted.await(); // fail only once the sibling is provably running
                     throw boom;
@@ -168,7 +168,7 @@ class TasksTest {
                         () ->
                                 Tasks.awaitAll(
                                         Tasks.Workers.platform(2),
-                                        List.of(blocker, failer, queued),
+                                        List.of(blocker, failing, queued),
                                         "batch"));
         assertSame(boom, thrown);
         assertTrue(blockerInterrupted.get(), "the running sibling must be interrupted");
@@ -193,7 +193,7 @@ class TasksTest {
                         inFlight.decrementAndGet();
                     }
                 };
-        Callable<Void> failer =
+        Callable<Void> failing =
                 () -> {
                     blockerStarted.await();
                     throw new IllegalStateException("boom");
@@ -201,7 +201,7 @@ class TasksTest {
 
         assertThrows(
                 IllegalStateException.class,
-                () -> Tasks.awaitAll(Tasks.Workers.platform(2), List.of(blocker, failer), "batch"));
+                () -> Tasks.awaitAll(Tasks.Workers.platform(2), List.of(blocker, failing), "batch"));
         // The contract callers' finally-blocks rely on: when awaitAll throws, no worker is still
         // running (still writing into directories about to be deleted).
         assertEquals(0, inFlight.get());
@@ -209,16 +209,15 @@ class TasksTest {
 
     @Test
     void progressCountsOnlySuccessesContiguously() {
-        CountDownLatch twoDone = new CountDownLatch(2);
+        // Released from the PROGRESS callback (the orchestrating thread), not from the ok tasks:
+        // a task-side latch would leave a window where the failing task's completion overtakes an
+        // ok task's still-being-enqueued completion, making the recorded sequence racy.
+        CountDownLatch twoConsumed = new CountDownLatch(2);
         List<Integer> dones = new ArrayList<>(); // appended on the calling thread only
-        Callable<Void> ok =
+        Callable<Void> ok = () -> null;
+        Callable<Void> failing =
                 () -> {
-                    twoDone.countDown();
-                    return null;
-                };
-        Callable<Void> failer =
-                () -> {
-                    twoDone.await(); // both successes complete first
+                    twoConsumed.await(); // both successes are consumed first, provably
                     throw new IllegalStateException("boom");
                 };
         assertThrows(
@@ -226,9 +225,12 @@ class TasksTest {
                 () ->
                         Tasks.awaitAll(
                                 Tasks.Workers.platform(3),
-                                List.of(ok, ok, failer),
+                                List.of(ok, ok, failing),
                                 "batch",
-                                (done, total) -> dones.add(done)));
+                                (done, total) -> {
+                                    dones.add(done);
+                                    twoConsumed.countDown();
+                                }));
         assertEquals(List.of(1, 2), dones);
     }
 
