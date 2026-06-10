@@ -4,6 +4,9 @@ server:
   # Bind all interfaces inside the container; publish locally with `-p 127.0.0.1:8080:8080`, or put a
   # TLS-terminating reverse proxy in front (see ADR-0009) before any real exposure.
   address: 0.0.0.0
+  # Pin the port: the default profile uses 0 (OS-assigned) for the double-clicked desktop image, but
+  # the container contract (EXPOSE 8080, the -p publish, the reverse proxy) needs a fixed, known port.
+  port: 8080
   error:
     # Never echo exception messages, stack traces, or binding errors in responses — ApiExceptionHandler
     # returns curated problem+json; anything reaching the container's default error path must not leak
