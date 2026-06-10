@@ -70,7 +70,11 @@ public final class PipelineRunner {
 
             progress.emit(new ProgressEvent.StageStarted(source.name(), position, total));
             Corpus corpus = source.open(stageDir(work, 0, source.name()));
-            log.info("source: {} page(s) at {} dpi", corpus.pageCount(), corpus.dpi());
+            log.info(
+                    "source: {} page(s) at {} dpi, {}",
+                    corpus.pageCount(),
+                    corpus.dpi(),
+                    intermediatesSize(corpus.dir()));
             progress.emit(new ProgressEvent.StageCompleted(source.name()));
             position++;
 
@@ -78,7 +82,12 @@ public final class PipelineRunner {
             for (Stage stage : stages) {
                 progress.emit(new ProgressEvent.StageStarted(stage.name(), position, total));
                 corpus = stage.apply(corpus, stageDir(work, dirIndex, stage.name()));
-                log.info("stage {} ({}): {} page(s)", dirIndex, stage.name(), corpus.pageCount());
+                log.info(
+                        "stage {} ({}): {} page(s), {}",
+                        dirIndex,
+                        stage.name(),
+                        corpus.pageCount(),
+                        intermediatesSize(corpus.dir()));
                 progress.emit(new ProgressEvent.StageCompleted(stage.name()));
                 position++;
                 dirIndex++;
@@ -109,6 +118,28 @@ public final class PipelineRunner {
     private static Path stageDir(Path work, int index, String name) throws IOException {
         return Files.createDirectories(
                 work.resolve(String.format(Locale.ROOT, "%02d-%s", index, name)));
+    }
+
+    /**
+     * The stage directory's total file bytes rendered as MiB — visibility into how much
+     * intermediate I/O each stage produces (best-effort: {@code ?} when the walk fails).
+     */
+    private static String intermediatesSize(Path dir) {
+        try (Stream<Path> files = Files.walk(dir)) {
+            long bytes =
+                    files.filter(Files::isRegularFile).mapToLong(PipelineRunner::sizeQuietly).sum();
+            return String.format(Locale.ROOT, "%.1f MiB", bytes / (1024.0 * 1024.0));
+        } catch (IOException e) {
+            return "? MiB";
+        }
+    }
+
+    private static long sizeQuietly(Path file) {
+        try {
+            return Files.size(file);
+        } catch (IOException e) {
+            return 0L;
+        }
     }
 
     private static void deleteRecursively(Path dir) {

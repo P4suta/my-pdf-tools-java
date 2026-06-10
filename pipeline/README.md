@@ -33,6 +33,7 @@ never stops the rest; existing outputs are skipped unless `--force`).
 | `--pdf-a` | off | emit PDF/A-2b conformance |
 | `--force` | off | overwrite an existing output (batch: regenerate, don't skip) |
 | `--progress-file <path>` | — | write machine-readable JSONL progress events (single input only) |
+| `--timings` | off | print a per-stage wall-clock breakdown to stderr when each run ends |
 | `-i, --interactive` | off | guided mode: prompt for the input, options and output |
 | `-h, --help` | — | show help and exit |
 | `-V, --version` | — | print version and exit |

@@ -34,6 +34,10 @@ dependencies {
     implementation(libs.commons.cli)
     implementation(libs.slf4j.api)
     runtimeOnly(libs.slf4j.simple)
+
+    // The benchmark fixture generator (test sources, never shipped — mirroring register's
+    // createSamplePdf) draws synthetic scan pages with PDFBox directly.
+    testImplementation(libs.pdfbox)
 }
 
 // The one place native access is granted to the launched app; run, test and JavaExec inherit it.
@@ -84,4 +88,47 @@ selfContainedApp {
     // on macOS. Resolves via the canonical -Dp4suta.qpdf.path. See bundleQpdf. pdfbook bundles no
     // jbig2 (its register stage writes TIFF-G4; the spread pack embeds CCITT G4).
     bundleQpdf(this, libs.versions.qpdf.get())
+}
+
+// ---- Stage-level benchmark (see pipeline/docs/perf-baseline.md) ---------------------------------
+
+// Deterministic synthetic scan book for the benchmark: an existing output is reused, so the
+// generation cost (a minute at 200 pages × 600 dpi) is paid once. Knob: -Ppages=N (default 200).
+tasks.register<JavaExec>("createSampleScan") {
+    group = "verification"
+    description = "Generate the synthetic bitonal scan book the benchmark converts (cached)"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "io.github.p4suta.pipeline.tools.SampleScanGenerator"
+    val pages = providers.gradleProperty("pages").getOrElse("200")
+    args = listOf("build/test-data/sample-scan-${pages}p.pdf", pages, "600")
+}
+
+// Stage-level runtime + memory benchmark (the pdfbook counterpart of tate's benchRuntime): runs the
+// installDist launcher in-container with --timings, parses the per-stage breakdown, samples peak
+// RSS from /proc, and writes pipeline/docs/perf-baseline.md. Knobs: -Pruns=N (warm runs, default
+// 3), -Pjobs=1,8 (comma-separated -j sweep; default auto = the launcher's CPU-count default),
+// -Ppages=N (fixture size, default 200), -Pinputs="a.pdf b.pdf" (real books instead of the
+// fixture; resolved against the repo root).
+tasks.register<JavaExec>("benchPipeline") {
+    group = "verification"
+    description = "Benchmark pdfbook stage timings + peak memory; writes pipeline/docs/perf-baseline.md"
+    dependsOn(tasks.named("installDist"), tasks.named("createSampleScan"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "io.github.p4suta.pipeline.tools.PipelineBenchmark"
+    workingDir = rootDir
+    val runs = providers.gradleProperty("runs").getOrElse("3")
+    val jobs = providers.gradleProperty("jobs").getOrElse("auto")
+    val pages = providers.gradleProperty("pages").getOrElse("200")
+    val extraInputs =
+        providers
+            .gradleProperty("inputs")
+            .orNull
+            ?.split(Regex("\\s+"))
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
+    val launcher = "pipeline/app/build/install/pdfbook/bin/pdfbook"
+    val inputs =
+        extraInputs.ifEmpty { listOf("pipeline/app/build/test-data/sample-scan-${pages}p.pdf") }
+    args = listOf(launcher, "qpdf", "pipeline/docs/perf-baseline.md", runs, jobs) + inputs
 }
