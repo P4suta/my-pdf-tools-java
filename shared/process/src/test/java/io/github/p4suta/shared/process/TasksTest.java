@@ -201,7 +201,9 @@ class TasksTest {
 
         assertThrows(
                 IllegalStateException.class,
-                () -> Tasks.awaitAll(Tasks.Workers.platform(2), List.of(blocker, failing), "batch"));
+                () ->
+                        Tasks.awaitAll(
+                                Tasks.Workers.platform(2), List.of(blocker, failing), "batch"));
         // The contract callers' finally-blocks rely on: when awaitAll throws, no worker is still
         // running (still writing into directories about to be deleted).
         assertEquals(0, inFlight.get());
