@@ -7,8 +7,6 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * The pipeline {@link Source}: extracts a scan PDF's bitonal pages once, via the shared {@code
@@ -45,12 +43,7 @@ public final class PdfExtractSource implements Source {
     @Override
     public Corpus open(Path workDir) throws IOException {
         int dpi = extractor.dominantDpi(sourcePdf);
-        ExecutorService pool = Executors.newFixedThreadPool(jobs);
-        try {
-            extractor.extract(sourcePdf, workDir, jobs, pool);
-        } finally {
-            pool.shutdown();
-        }
+        extractor.extract(sourcePdf, workDir, jobs);
         return new Corpus(workDir, EXTRACT_GLOB, dpi, count(workDir, EXTRACT_GLOB));
     }
 

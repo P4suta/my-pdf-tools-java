@@ -17,6 +17,7 @@ import io.github.p4suta.shared.io.CorpusFiles;
 import io.github.p4suta.shared.io.OutputDirs;
 import io.github.p4suta.shared.kernel.Medians;
 import io.github.p4suta.shared.kernel.PageProgressListener;
+import io.github.p4suta.shared.process.Tasks;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,11 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -109,8 +105,8 @@ public final class RegistrationService {
      *
      * @param requested run configuration (its empty {@code --dpi} is resolved from the inputs
      *     before rendering)
-     * @param progress called once per finished page in each pass (1-based count over {@code 2N});
-     *     invoked from the worker threads, so it must be thread-safe
+     * @param progress called once per finished page in each pass (1-based count over {@code 2N}),
+     *     always on the calling thread and in order
      * @throws IOException on filesystem failure
      */
     public Summary run(Config requested, PageProgressListener progress) throws IOException {
@@ -130,7 +126,6 @@ public final class RegistrationService {
         // Per-page progress spans both passes (analyze 1..N, render N+1..2N), so each PageProcessed
         // the composing stage emits carries this 2N denominator.
         int progressTotal = files.size() * 2;
-        AtomicInteger pageProgress = new AtomicInteger();
 
         Path diagDir = config.diagDir();
         boolean recordDiagnostics = diagDir != null;
@@ -140,21 +135,15 @@ public final class RegistrationService {
                         : Reporter.noOp();
 
         // The analysis pass writes each deskewed page here; the render pass reads it back, so the
-        // costly deskew and detection run once per page, not again in pass two. Removed at the end.
+        // costly deskew and detection run once per page, not again in pass two. Removed at the
+        // end — safely: each pass's fan-out quiesces before returning or throwing, so no worker
+        // is still writing into the scratch when the finally-delete runs.
         Path scratchDir = createBeside(config.outputDir(), ".register-deskewed-");
-        ExecutorService pool = Executors.newFixedThreadPool(config.jobs());
         try {
             // Pass 1: deskew once, detect, cache the deskewed page for pass two
             List<AnalyzedPage> pages =
                     analyzePass(
-                            files,
-                            scratchDir,
-                            config,
-                            recordDiagnostics,
-                            pool,
-                            progress,
-                            pageProgress,
-                            progressTotal);
+                            files, scratchDir, config, recordDiagnostics, progress, progressTotal);
             List<PageObservation> observations = toObservations(pages);
             int analyzed = observations.size();
 
@@ -189,9 +178,7 @@ public final class RegistrationService {
                             config,
                             recordDiagnostics,
                             reporter,
-                            pool,
                             progress,
-                            pageProgress,
                             progressTotal);
 
             if (recordDiagnostics) {
@@ -221,7 +208,6 @@ public final class RegistrationService {
                     analyzed);
             return new Summary(files.size(), analyzed);
         } finally {
-            pool.shutdown();
             deleteRecursively(scratchDir);
         }
     }
@@ -235,9 +221,7 @@ public final class RegistrationService {
             Path scratchDir,
             Config config,
             boolean recordDiagnostics,
-            ExecutorService pool,
             PageProgressListener progress,
-            AtomicInteger pageProgress,
             int progressTotal)
             throws IOException {
         List<Callable<AnalyzedPage>> tasks = new ArrayList<>(files.size());
@@ -246,18 +230,23 @@ public final class RegistrationService {
             Path src = files.get(i);
             Path scratch = scratchDir.resolve(String.format(Locale.ROOT, "%06d.tif", index));
             tasks.add(
-                    () -> {
-                        PageAnalysis analysis =
-                                pageRegistrar.analyze(
-                                        src, scratch, config.options(), recordDiagnostics);
-                        AnalyzedPage analyzed =
-                                new AnalyzedPage(index, Parity.of(index), src, scratch, analysis);
-                        // The analyze pass occupies the first N of the 2N progress units.
-                        progress.onPage(pageProgress.incrementAndGet(), progressTotal);
-                        return analyzed;
-                    });
+                    () ->
+                            new AnalyzedPage(
+                                    index,
+                                    Parity.of(index),
+                                    src,
+                                    scratch,
+                                    pageRegistrar.analyze(
+                                            src, scratch, config.options(), recordDiagnostics)));
         }
-        return awaitAll(pool, tasks);
+        // Platform workers: deskew + detection are CPU-bound Leptonica work (FFM downcalls pin
+        // virtual threads' carriers). The analyze pass occupies the first N of the 2N progress
+        // units; the callback arrives on this thread, ordered.
+        return Tasks.awaitAll(
+                Tasks.Workers.platform(config.jobs()),
+                tasks,
+                "register analyze",
+                (done, total) -> progress.onPage(done, progressTotal));
     }
 
     /** The detected main-column boxes from pass 1, one per page that had a detectable column. */
@@ -286,36 +275,27 @@ public final class RegistrationService {
             Config config,
             boolean recordDiagnostics,
             Reporter reporter,
-            ExecutorService pool,
             PageProgressListener progress,
-            AtomicInteger pageProgress,
             int progressTotal)
             throws IOException {
-        AtomicInteger done = new AtomicInteger();
-        int total = pages.size();
-        List<Callable<Path>> tasks = new ArrayList<>(total);
+        List<Callable<Path>> tasks = new ArrayList<>(pages.size());
         for (AnalyzedPage page : pages) {
             tasks.add(
-                    () -> {
-                        Path dest =
-                                renderOne(
-                                        page,
-                                        reference,
-                                        canvas,
-                                        config,
-                                        recordDiagnostics,
-                                        reporter);
-                        int n = done.incrementAndGet();
-                        // The render pass occupies the second N of the 2N progress units; the local
-                        // count drives the human log at its own N denominator.
-                        progress.onPage(pageProgress.incrementAndGet(), progressTotal);
-                        if (n % PROGRESS_EVERY == 0 || n == total) {
-                            LOG.info("{}/{}", n, total);
-                        }
-                        return dest;
-                    });
+                    () -> renderOne(page, reference, canvas, config, recordDiagnostics, reporter));
         }
-        return awaitAll(pool, tasks);
+        // Platform workers: placement is CPU-bound Leptonica work. The render pass occupies the
+        // second N of the 2N progress units; the local count drives the human log at its own N
+        // denominator. Both arrive on this thread, ordered.
+        return Tasks.awaitAll(
+                Tasks.Workers.platform(config.jobs()),
+                tasks,
+                "register render",
+                (done, total) -> {
+                    progress.onPage(pages.size() + done, progressTotal);
+                    if (done % PROGRESS_EVERY == 0 || done == total) {
+                        LOG.info("{}/{}", done, total);
+                    }
+                });
     }
 
     /**
@@ -429,38 +409,6 @@ public final class RegistrationService {
             reporter.addPage(diagnostic, page.scratch());
         }
         return dest;
-    }
-
-    /**
-     * Run every task on {@code pool} in submission order, surfacing the first failure: a task's own
-     * {@link IOException} is re-thrown unchanged, any other failure is wrapped, and an interruption
-     * restores the interrupt flag.
-     */
-    private static <T> List<T> awaitAll(ExecutorService pool, List<Callable<T>> tasks)
-            throws IOException {
-        List<Future<T>> futures;
-        try {
-            futures = pool.invokeAll(tasks);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("register run interrupted", e);
-        }
-        List<T> results = new ArrayList<>(futures.size());
-        for (Future<T> future : futures) {
-            try {
-                results.add(future.get());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("register run interrupted", e);
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof IOException io) {
-                    throw io;
-                }
-                throw new IOException("page processing failed", cause);
-            }
-        }
-        return results;
     }
 
     /**

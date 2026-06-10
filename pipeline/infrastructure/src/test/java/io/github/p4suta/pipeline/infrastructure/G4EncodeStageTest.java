@@ -1,7 +1,7 @@
 package io.github.p4suta.pipeline.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIOException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.p4suta.pipeline.domain.Corpus;
 import io.github.p4suta.shared.imaging.Pix;
@@ -79,15 +79,17 @@ class G4EncodeStageTest {
     }
 
     @Test
-    void surfacesAnUnreadablePageAsIoException() throws Exception {
+    void surfacesAnUnreadablePageWithItsOriginalException() throws Exception {
         Path inputDir = Files.createDirectories(tmp.resolve("in"));
         Path workDir = Files.createDirectories(tmp.resolve("out"));
         Files.writeString(inputDir.resolve("page-000.tif"), "not a tiff");
         Corpus input = new Corpus(inputDir, "*.tif", DPI, 1);
 
-        assertThatIOException()
-                .isThrownBy(() -> new G4EncodeStage(2).apply(input, workDir))
-                .withMessage("G4 encode failed");
+        // The fan-out preserves the failure's identity (no generic IOException wrapper), so the
+        // shared exception mapper still sees the original type and the message names the page.
+        assertThatThrownBy(() -> new G4EncodeStage(2).apply(input, workDir))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("could not read image");
     }
 
     /**

@@ -6,12 +6,7 @@ import io.github.p4suta.shared.process.ToolPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -26,10 +21,10 @@ import java.util.concurrent.TimeUnit;
  * <p>The launch helpers stay local rather than routing through {@code :shared:process}'s {@code
  * ProcessRunner}/{@code Tasks}: {@link #capture} returns the raw {@code byte[]} a JBIG2 stream
  * needs (the shared runner decodes to a UTF-8 {@code String}, which is lossy for binary output),
- * and {@link #run}/{@link #awaitAll} raise/propagate the tagged {@link DespeckleException} kind
- * (the shared {@code Tasks} flattens any non-{@code IOException} cause, losing the kind and its
- * exit code). The {@code qpdf} call site, whose output is text and whose exit-3 tolerance the
- * shared runner models directly, uses {@code ProcessRunner} instead.
+ * and {@link #run} raises/propagates the tagged {@link DespeckleException} kind (the shared {@code
+ * Tasks} flattens any non-{@code IOException} cause, losing the kind and its exit code). The {@code
+ * qpdf} call site, whose output is text and whose exit-3 tolerance the shared runner models
+ * directly, uses {@code ProcessRunner} instead.
  *
  * <p>Public so the sibling {@code infrastructure.pdf} adapters can call it; it never leaves the
  * {@code :infrastructure} module (the application and CLI layers depend only on the {@code :port}
@@ -120,42 +115,5 @@ public final class NativeTools {
                     command.get(0) + " failed with exit code " + code,
                     null);
         }
-    }
-
-    /**
-     * Run every task on {@code pool}, in submission order, surfacing the first failure as
-     * IOException.
-     */
-    public static <T> List<T> awaitAll(ExecutorService pool, List<Callable<T>> tasks)
-            throws IOException {
-        List<Future<T>> futures;
-        try {
-            futures = pool.invokeAll(tasks);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("pipeline interrupted", e);
-        }
-        List<T> results = new ArrayList<>(futures.size());
-        for (Future<T> future : futures) {
-            try {
-                results.add(future.get());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("pipeline interrupted", e);
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                // Preserve a tagged domain failure (e.g. NATIVE_TOOL_FAILED / IMAGE_UNREADABLE
-                // raised inside a worker) so its kind — and exit code — survives the pool boundary
-                // instead of being flattened to a generic IOException.
-                if (cause instanceof DespeckleException de) {
-                    throw de;
-                }
-                if (cause instanceof IOException io) {
-                    throw io;
-                }
-                throw new IOException("pipeline task failed", cause);
-            }
-        }
-        return results;
     }
 }

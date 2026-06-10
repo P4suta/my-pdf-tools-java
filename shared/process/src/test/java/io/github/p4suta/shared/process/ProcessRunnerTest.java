@@ -111,4 +111,38 @@ final class ProcessRunnerTest {
                                         Duration.ofSeconds(10)))
                 .isInstanceOf(IOException.class);
     }
+
+    @Test
+    @org.junit.jupiter.api.Timeout(15)
+    void interruptedWaiterKillsTheChildAndUnwindsPromptly() throws Exception {
+        // Regression: an interrupt during waitFor used to propagate WITHOUT killing the child, so
+        // the drainer close() hung on the live child's pipes (here: up to the sleep's 30s) and the
+        // child leaked. Now the child is killed first, so the call unwinds promptly — the @Timeout
+        // and the bounded join are the proof.
+        var thrown = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var flagRestoredPathTaken = new java.util.concurrent.atomic.AtomicBoolean();
+        var started = new java.util.concurrent.CountDownLatch(1);
+        Thread caller =
+                new Thread(
+                        () -> {
+                            try {
+                                started.countDown();
+                                ProcessRunner.run(List.of("sleep", "30"), Duration.ofMinutes(5));
+                            } catch (InterruptedException e) {
+                                thrown.set(e);
+                                flagRestoredPathTaken.set(true);
+                            } catch (Exception e) {
+                                thrown.set(e);
+                            }
+                        });
+        caller.start();
+        assertThat(started.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        // Give the child a beat to actually spawn before interrupting the waiter.
+        Thread.sleep(300);
+        caller.interrupt();
+        caller.join(10_000);
+        assertThat(caller.isAlive()).as("the interrupted run must unwind promptly").isFalse();
+        assertThat(thrown.get()).isInstanceOf(InterruptedException.class);
+        assertThat(flagRestoredPathTaken).isTrue();
+    }
 }

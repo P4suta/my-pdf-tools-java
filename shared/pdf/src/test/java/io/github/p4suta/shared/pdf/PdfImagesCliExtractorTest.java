@@ -10,8 +10,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -68,12 +66,7 @@ final class PdfImagesCliExtractorTest {
         writePdfWithImage(pdf, 120, 90);
         Path outDir = Files.createDirectory(tmp.resolve("out"));
 
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            new PdfImagesCliExtractor(PDFIMAGES_KEY, PDFINFO_KEY).extract(pdf, outDir, 2, pool);
-        } finally {
-            pool.shutdownNow();
-        }
+        new PdfImagesCliExtractor(PDFIMAGES_KEY, PDFINFO_KEY).extract(pdf, outDir, 2);
 
         try (Stream<Path> entries = Files.list(outDir)) {
             List<Path> tiffs =
@@ -131,12 +124,7 @@ final class PdfImagesCliExtractorTest {
         writeCcittPdf(pdf, 3, 240, 180);
         Path outDir = Files.createDirectory(tmp.resolve("out"));
 
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            new PdfImagesCliExtractor(PDFIMAGES_KEY, PDFINFO_KEY).extract(pdf, outDir, 2, pool);
-        } finally {
-            pool.shutdownNow();
-        }
+        new PdfImagesCliExtractor(PDFIMAGES_KEY, PDFINFO_KEY).extract(pdf, outDir, 2);
 
         try (Stream<Path> entries = Files.list(outDir)) {
             List<Path> files = entries.sorted().toList();

@@ -20,8 +20,11 @@ plugins {
 //     (exitCode + stdout + stderr + elapsed Duration; tate's typed Result is the shape donor) and
 //     throwing TimeoutException on timeout. The caller passes the set of acceptable non-zero exits
 //     (generalizing despeckle's hardcoded qpdf-exit-3 tolerance) — a non-acceptable exit throws.
-//   * Tasks — awaitAll: a parameterized parallel fan-out over a caller-owned pool (register's),
-//     collecting results in submission order and aggregating the first failure as an IOException.
+//   * Tasks — awaitAll: a parallel fan-out over a batch-owned executor (Workers.platform for
+//     CPU-bound work, Workers.virtual for subprocess waits), collecting results in submission
+//     order with fail-fast sibling interruption, quiescence before the failure propagates, and
+//     exception identity preserved (domain RuntimeExceptions keep their error kind). Mirrors
+//     StructuredTaskScope.join() semantics on final-Java features.
 //
 // No domain exceptions are reachable here (that is the point of generalizing): a launch failure or
 // an unacceptable exit surfaces as a plain IOException, a timeout as a TimeoutException — so the
@@ -37,13 +40,11 @@ dependencies {
 
 // Coverage floor: the same realistic infra-like 0.75 line / 0.60 branch the despeckle
 // :infrastructure and :shared:imaging modules use — this is process/exec plumbing, not branch-rich
-// domain logic, so the domain-grade 0.95/0.90 the kernel/observability use would be dishonest. The
-// only branches a unit test cannot drive are the InterruptedException catches (you cannot
-// deterministically interrupt the waiting thread mid-waitFor) and a stray launch-failure path; at
-// CLASS granularity the imaging-style exclusion would throw away ProcessRunner's genuinely covered
-// happy/timeout/exit paths too, so NO class is excluded — the lenient floor absorbs the few
-// untestable catch arms. The same self-contained block the other shared modules carry, since the
-// floor is not applied by any convention plugin.
+// domain logic, so the domain-grade 0.95/0.90 the kernel/observability use would be dishonest.
+// (The interrupt arms are now deterministically covered — TasksTest and ProcessRunnerTest drive
+// them with latch-coordinated interrupts — but a stray launch-failure path remains; the lenient
+// floor absorbs it.) The same self-contained block the other shared modules carry, since the floor
+// is not applied by any convention plugin.
 tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     dependsOn(tasks.named("test"))
     violationRules {
