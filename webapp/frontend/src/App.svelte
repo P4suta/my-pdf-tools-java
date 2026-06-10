@@ -9,6 +9,7 @@
     type ProgressEvent,
     resultUrl,
     sha256Hex,
+    startHeartbeat,
     streamProgress,
     submitJob,
   } from "./api";
@@ -93,6 +94,10 @@
   let now = $state(Date.now());
   let startedAt = $state<number | null>(null);
   let lastEventAt = $state<number | null>(null);
+
+  // Beat to the server for as long as this tab is open; when it (and every other tab) closes, the
+  // beats stop and the desktop app-image shuts itself down. Runs once on mount, cleared on unmount.
+  $effect(() => startHeartbeat());
 
   $effect(() => {
     if (phase !== "uploading" && phase !== "running") {

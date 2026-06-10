@@ -103,6 +103,20 @@ export async function getStatus(jobId: string): Promise<JobStatus> {
   return (await response.json()) as JobStatus;
 }
 
+// While a tab is open, beat to the server so the desktop app-image knows the browser is still
+// here; when every tab closes the beats stop and the server shuts itself down (no Ctrl+C). A
+// build-time interval, kept well below the server's app.heartbeat-grace (~20s) so a reload's brief
+// gap never trips shutdown. In prod the endpoint is an inert 204. Returns a stop function.
+const HEARTBEAT_INTERVAL_MS = 5000;
+
+export function startHeartbeat(): () => void {
+  const beat = () =>
+    fetch("/api/v1/heartbeat", { method: "POST", keepalive: true }).catch(() => {});
+  beat(); // beat immediately so the watcher's first-beat gate trips without waiting one interval
+  const id = setInterval(beat, HEARTBEAT_INTERVAL_MS);
+  return () => clearInterval(id);
+}
+
 export function streamProgress(
   jobId: string,
   onEvent: (event: ProgressEvent) => void,
