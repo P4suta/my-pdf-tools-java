@@ -103,18 +103,26 @@ export async function getStatus(jobId: string): Promise<JobStatus> {
   return (await response.json()) as JobStatus;
 }
 
-// While a tab is open, beat to the server so the desktop app-image knows the browser is still
-// here; when every tab closes the beats stop and the server shuts itself down (no Ctrl+C). A
-// build-time interval, kept well below the server's app.heartbeat-grace (~20s) so a reload's brief
-// gap never trips shutdown. In prod the endpoint is an inert 204. Returns a stop function.
-const HEARTBEAT_INTERVAL_MS = 5000;
+export interface RuntimeInfo {
+  // Whether this is the auto-shutdown desktop build (false for the reverse-proxied prod server).
+  autoShutdown: boolean;
+}
 
-export function startHeartbeat(): () => void {
-  const beat = () =>
-    fetch("/api/v1/heartbeat", { method: "POST", keepalive: true }).catch(() => {});
-  beat(); // beat immediately so the watcher's first-beat gate trips without waiting one interval
-  const id = setInterval(beat, HEARTBEAT_INTERVAL_MS);
-  return () => clearInterval(id);
+export async function fetchRuntime(): Promise<RuntimeInfo> {
+  const response = await fetch("/api/v1/runtime");
+  if (!response.ok) {
+    throw new Error(await problem(response, "runtime info failed"));
+  }
+  return (await response.json()) as RuntimeInfo;
+}
+
+// Hold one SSE connection open for the page's lifetime; its mere existence tells the desktop
+// app-image the browser is still here. Closing the tab drops the connection (TCP FIN) and the
+// server shuts itself down after a short grace — no polling on either side. Opened only when
+// fetchRuntime() reports autoShutdown, so the prod server is never connected. We never read from
+// it (the server may send keep-alive comments); EventSource auto-reconnects on its own.
+export function openPresence(): EventSource {
+  return new EventSource("/api/v1/presence");
 }
 
 export function streamProgress(

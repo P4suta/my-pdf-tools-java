@@ -25,6 +25,7 @@ import org.springframework.core.env.Environment;
 class WebApplicationSmokeTest {
 
     @Autowired Environment environment;
+    @Autowired RuntimeInfoController runtimeInfo;
 
     @Test
     void contextLoads() {
@@ -37,5 +38,12 @@ class WebApplicationSmokeTest {
         // The default (desktop) profile must request port 0 so the double-clicked app-image never
         // dies on a taken 8080; BrowserLauncher surfaces the real bound port at runtime.
         assertThat(environment.getProperty("server.port")).isEqualTo("0");
+    }
+
+    @Test
+    void defaultProfileEnablesAutoShutdown() {
+        // The desktop build reports autoShutdown so the SPA opens its presence stream and the
+        // server stops when the browser closes (the DesktopIdleMonitor bean is present here).
+        assertThat(runtimeInfo.runtime().autoShutdown()).isTrue();
     }
 }

@@ -15,16 +15,19 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * The desktop idle watcher fires its shutdown seam (instead of killing the JVM) exactly when the
- * policy says to: never before a heartbeat, after the grace with nothing running, and never while a
- * conversion is in flight.
+ * The desktop auto-shutdown fires its shutdown seam (instead of killing the JVM) exactly when the
+ * browser's presence stream is the signal: never while a stream is open or none ever connected,
+ * after the grace once all streams have dropped, never while a conversion is in flight, and a
+ * reconnect cancels a pending shutdown. Drives register()/deregister() with token emitters and
+ * calls checkIdle() directly (tick()'s keep-alive ping needs a servlet async context).
  */
 class DesktopIdleMonitorTest {
 
     private static final Instant T0 = Instant.parse("2026-06-10T00:00:00Z");
-    private static final Duration GRACE = Duration.ofSeconds(20);
+    private static final Duration GRACE = Duration.ofSeconds(15);
     private static final ConversionRequest REQUEST =
             new ConversionRequest(Direction.RTL, FirstPage.RIGHT, true, true, true, true, false, 2);
 
@@ -35,39 +38,76 @@ class DesktopIdleMonitorTest {
             new DesktopIdleMonitor(store, clock, GRACE, shutdowns::incrementAndGet);
 
     @Test
-    void doesNotShutDownBeforeAnyHeartbeat() {
+    void doesNotShutDownWithNoConnectionEver() {
         clock.set(T0.plusSeconds(3600));
         monitor.checkIdle();
         assertThat(shutdowns).hasValue(0);
     }
 
     @Test
-    void shutsDownAfterGraceWithNoActiveJobs() {
-        monitor.recordHeartbeat(); // lastBeat = T0
+    void doesNotShutDownWhileAStreamIsOpen() {
+        monitor.register(new SseEmitter());
+        clock.set(T0.plusSeconds(3600));
+        monitor.checkIdle();
+        assertThat(shutdowns).hasValue(0);
+    }
+
+    @Test
+    void shutsDownAfterGraceOnceAllStreamsDropped() {
+        SseEmitter tab = new SseEmitter();
+        monitor.register(tab);
+        monitor.deregister(tab); // idleSince = T0
         clock.set(T0.plusSeconds(GRACE.toSeconds() + 1));
         monitor.checkIdle();
         assertThat(shutdowns).hasValue(1);
     }
 
     @Test
+    void doesNotShutDownWithinGrace() {
+        SseEmitter tab = new SseEmitter();
+        monitor.register(tab);
+        monitor.deregister(tab);
+        clock.set(T0.plusSeconds(GRACE.toSeconds() - 1));
+        monitor.checkIdle();
+        assertThat(shutdowns).hasValue(0);
+    }
+
+    @Test
     void doesNotShutDownWhileAConversionIsRunning() {
         store.save(Job.queued(new JobId("running-job"), REQUEST, "book.pdf", T0).toRunning());
-        monitor.recordHeartbeat();
+        SseEmitter tab = new SseEmitter();
+        monitor.register(tab);
+        monitor.deregister(tab);
         clock.set(T0.plusSeconds(GRACE.toSeconds() + 1));
         monitor.checkIdle();
         assertThat(shutdowns).hasValue(0);
     }
 
     @Test
-    void doesNotShutDownWithinGrace() {
-        monitor.recordHeartbeat();
-        clock.set(T0.plusSeconds(GRACE.toSeconds() - 1));
+    void reconnectBeforeGraceCancelsShutdown() {
+        SseEmitter first = new SseEmitter();
+        monitor.register(first);
+        monitor.deregister(first); // idleSince = T0
+        clock.set(T0.plusSeconds(5));
+        monitor.register(new SseEmitter()); // a reload reconnected — idleSince cleared
+        clock.set(T0.plusSeconds(GRACE.toSeconds() + 1));
+        monitor.checkIdle();
+        assertThat(shutdowns).hasValue(0);
+    }
+
+    @Test
+    void staysUpWhileAnyTabRemains() {
+        SseEmitter tabA = new SseEmitter();
+        monitor.register(tabA);
+        monitor.register(new SseEmitter()); // tab B
+        monitor.deregister(tabA); // tab A closed; B still open
+        clock.set(T0.plusSeconds(GRACE.toSeconds() + 1));
         monitor.checkIdle();
         assertThat(shutdowns).hasValue(0);
     }
 
     /**
-     * A {@link Clock} whose instant the test advances between recordHeartbeat() and checkIdle().
+     * A {@link Clock} whose instant the test advances between connect/disconnect and checkIdle().
      */
     private static final class MutableClock extends Clock {
         private volatile Instant now;

@@ -13,8 +13,10 @@ class DesktopShutdownPolicyTest {
     private static final Duration GRACE = Duration.ofSeconds(20);
 
     @Test
-    void noShutdownBeforeAnyHeartbeat() {
-        // A headless run (or a window that never opened) never auto-stops — Ctrl+C handles it.
+    void noShutdownWhileConnectedOrNeverConnected() {
+        // null idleSince = a presence stream is open, or none ever connected (a headless run):
+        // never
+        // auto-stops — Ctrl+C handles the headless case.
         assertThat(DesktopShutdownPolicy.shouldShutDown(null, T0.plusSeconds(3600), GRACE, 0))
                 .isFalse();
     }
@@ -40,7 +42,7 @@ class DesktopShutdownPolicyTest {
 
     @Test
     void graceBoundaryIsExclusive() {
-        // Exactly lastBeat+grace is not yet "after", so it must not shut down at the boundary.
+        // Exactly idleSince+grace is not yet "after", so it must not shut down at the boundary.
         assertThat(DesktopShutdownPolicy.shouldShutDown(T0, T0.plus(GRACE), GRACE, 0)).isFalse();
         assertThat(DesktopShutdownPolicy.shouldShutDown(T0, T0.plus(GRACE).plusMillis(1), GRACE, 0))
                 .isTrue();

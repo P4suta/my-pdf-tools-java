@@ -24,9 +24,17 @@ import org.springframework.test.context.ActiveProfiles;
 class DesktopShutdownProdProfileTest {
 
     @Autowired ApplicationContext context;
+    @Autowired RuntimeInfoController runtimeInfo;
 
     @Test
     void prodHasNoIdleShutdownWatcher() {
         assertThat(context.getBeanNamesForType(DesktopIdleMonitor.class)).isEmpty();
+    }
+
+    @Test
+    void prodReportsAutoShutdownDisabled() {
+        // The SPA opens its presence stream only when autoShutdown is true; false here means the
+        // prod server is never connected and so can never self-terminate on a client disconnect.
+        assertThat(runtimeInfo.runtime().autoShutdown()).isFalse();
     }
 }
