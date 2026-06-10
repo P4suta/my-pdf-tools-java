@@ -24,13 +24,16 @@ import org.springframework.validation.annotation.Validated;
  *     entries
  * @param pdfbookBinary the pdfbook executable, or {@code null} to resolve it via {@code
  *     -Dp4suta.pdfbook.binary} or the {@code PATH}
- * @param heartbeatGrace desktop-only: how long after the browser's last heartbeat (with nothing
- *     running) the self-contained app-image waits before shutting itself down, so closing the
- *     browser ends the process. Inert in {@code prod} (the watcher bean is
- *     {@code @Profile("!prod")}). Keep well above the SPA's beat interval (~5s) to absorb
- *     reloads/navigations.
- * @param idleShutdownIntervalMs desktop-only: how often, in milliseconds, the idle watcher checks
- *     whether to shut down
+ * @param presenceGrace desktop-only: how long after the browser's presence stream drops (with
+ *     nothing running) the self-contained app-image waits before shutting itself down, so closing
+ *     the browser ends the process. Inert in {@code prod} (the watcher bean is
+ *     {@code @Profile("!prod")}). Keep comfortably above the EventSource reconnect delay (~3s) so a
+ *     reload never trips shutdown.
+ * @param presenceTimeout desktop-only: the lifetime of a presence SSE stream. A healthy tab's
+ *     stream completes after this and EventSource transparently reconnects; it also bounds how long
+ *     a half-open connection (an abruptly-killed browser that sent no FIN) lingers before it is
+ *     reclaimed and shutdown can proceed.
+ * @param idleCheckIntervalMs desktop-only: how often, in milliseconds, the local idle check runs
  */
 @Validated
 @ConfigurationProperties("app")
@@ -42,5 +45,6 @@ public record WebappProperties(
         Duration cacheTtl,
         @Positive long reaperIntervalMs,
         @Nullable Path pdfbookBinary,
-        Duration heartbeatGrace,
-        @Positive long idleShutdownIntervalMs) {}
+        Duration presenceGrace,
+        Duration presenceTimeout,
+        @Positive long idleCheckIntervalMs) {}

@@ -3,13 +3,14 @@
   import {
     type ConversionOptions,
     type Direction,
+    fetchRuntime,
     type FirstPage,
     getStatus,
+    openPresence,
     probe,
     type ProgressEvent,
     resultUrl,
     sha256Hex,
-    startHeartbeat,
     streamProgress,
     submitJob,
   } from "./api";
@@ -95,9 +96,24 @@
   let startedAt = $state<number | null>(null);
   let lastEventAt = $state<number | null>(null);
 
-  // Beat to the server for as long as this tab is open; when it (and every other tab) closes, the
-  // beats stop and the desktop app-image shuts itself down. Runs once on mount, cleared on unmount.
-  $effect(() => startHeartbeat());
+  // Hold an SSE presence stream open for as long as this tab is open; closing it (and every other
+  // tab) lets the desktop app-image shut itself down. Opened only when the server says it is the
+  // auto-shutdown desktop build, so the prod server is never connected. Closed on unmount.
+  $effect(() => {
+    let presence: EventSource | null = null;
+    let cancelled = false;
+    fetchRuntime()
+      .then((info) => {
+        if (!cancelled && info.autoShutdown) {
+          presence = openPresence();
+        }
+      })
+      .catch(() => {}); // not the desktop build, or a transient miss — just don't hold a stream
+    return () => {
+      cancelled = true;
+      presence?.close();
+    };
+  });
 
   $effect(() => {
     if (phase !== "uploading" && phase !== "running") {

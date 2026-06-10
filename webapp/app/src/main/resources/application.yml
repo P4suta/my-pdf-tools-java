@@ -50,14 +50,19 @@ app:
   cache-ttl: 30d
   # How often the reaper sweeps expired jobs and cache entries.
   reaper-interval-ms: 900000
-  # Desktop-only (the !prod self-contained app-image). The SPA POSTs /api/v1/heartbeat while a
-  # browser tab is open; this long after the last beat — and only when no conversion is running —
-  # the server shuts itself down, so closing the browser ends the process (no Ctrl+C). Inert in
-  # prod: the watcher bean is @Profile("!prod"), so the Docker/reverse-proxied runtime never exits
-  # on a client disconnect. Keep well above the frontend beat interval (~5s) to absorb reloads.
-  heartbeat-grace: 20s
-  # How often the desktop idle watcher checks whether to shut down (the !prod profile only).
-  idle-shutdown-interval-ms: 5000
+  # Desktop-only (the !prod self-contained app-image). While a browser tab is open the SPA holds one
+  # SSE presence stream (GET /api/v1/presence); when it drops (tab closed → TCP FIN) and stays gone
+  # this long — with no conversion running — the server shuts itself down, so closing the browser
+  # ends the process (no Ctrl+C). No polling: the open connection IS the signal. Inert in prod (the
+  # watcher bean is @Profile("!prod"), and the SPA never opens the stream there). Keep comfortably
+  # above the EventSource reconnect delay (~3s) so a reload's brief disconnect never trips shutdown.
+  presence-grace: 15s
+  # Lifetime of a presence SSE stream: a healthy tab completes and EventSource transparently
+  # reconnects, and this bounds how long a half-open connection (an abruptly-killed browser, no FIN)
+  # lingers before it is reclaimed.
+  presence-timeout: 5m
+  # How often the local idle check runs (no network; the !prod profile only).
+  idle-check-interval-ms: 5000
   # The pdfbook executable. Leave unset to resolve it via -Dp4suta.pdfbook.binary or the PATH.
   # pdfbook-binary: /path/to/pdfbook
 
