@@ -163,4 +163,21 @@ final class ProcessOptionsTest {
         assertEquals(
                 2, options.isolatedDustSize(noImg()), "isolated-dust size floors at speckSize + 1");
     }
+
+    @Test
+    void componentStatsDefaultOnAndWitherTurnsThemOff() {
+        ProcessOptions defaults = ProcessOptions.defaults();
+        assertTrue(defaults.collectComponentStats(), "counting is on unless turned off");
+
+        ProcessOptions off = defaults.withoutComponentStats();
+        assertFalse(off.collectComponentStats());
+        // Every other knob survives the wither.
+        assertEquals(defaults.dpi(), off.dpi());
+        assertEquals(defaults.speckSizePx(), off.speckSizePx());
+        assertEquals(defaults.fillHoles(), off.fillHoles());
+        assertEquals(defaults.removeIsolatedDust(), off.removeIsolatedDust());
+        assertEquals(defaults.isolatedDustSizePx(), off.isolatedDustSizePx());
+        // ...including through withDpi.
+        assertFalse(off.withDpi(600).collectComponentStats());
+    }
 }

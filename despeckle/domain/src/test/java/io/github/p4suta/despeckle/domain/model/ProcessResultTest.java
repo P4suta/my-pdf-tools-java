@@ -60,4 +60,21 @@ final class ProcessResultTest {
     void isOverRemovalIsFalseForABlankInputPage() {
         assertFalse(new ProcessResult(0, 0, 0, 0).isOverRemoval());
     }
+
+    @Test
+    void withoutComponentStatsCarriesNoCountsButFullPixelMath() {
+        ProcessResult result = ProcessResult.withoutComponentStats(1000, 950);
+        assertFalse(result.hasComponentStats());
+        assertEquals(0, result.componentsRemoved(), "absent counts read as zero, documented");
+        assertEquals(50L, result.blackPixelsRemoved());
+        assertTrue(result.isOverRemoval(), "the over-removal guard works without counts");
+    }
+
+    @Test
+    void countedConstructorHasComponentStats() {
+        ProcessResult result = new ProcessResult(120, 95, 1000, 990);
+        assertTrue(result.hasComponentStats());
+        assertEquals(25, result.componentsRemoved());
+        assertEquals(10L, result.blackPixelsRemoved());
+    }
 }

@@ -148,14 +148,23 @@ public final class PdfBatchService {
 
         if (config.reportParent() != null) {
             batchReporter.write(config.reportParent(), books);
+            LOG.info(
+                    "done: {} ok, {} skipped, {} failed, {} page(s), {} component(s) removed",
+                    ok,
+                    skipped,
+                    failed,
+                    totalPages,
+                    totalComponentsRemoved);
+        } else {
+            // Without reports the runs skip component counting (an expensive labeling, twice per
+            // page), so a component total would always read 0 — leave it out of the line.
+            LOG.info(
+                    "done: {} ok, {} skipped, {} failed, {} page(s)",
+                    ok,
+                    skipped,
+                    failed,
+                    totalPages);
         }
-        LOG.info(
-                "done: {} ok, {} skipped, {} failed, {} page(s), {} component(s) removed",
-                ok,
-                skipped,
-                failed,
-                totalPages,
-                totalComponentsRemoved);
         return new Summary(ok, skipped, failed, totalPages, totalComponentsRemoved);
     }
 

@@ -88,11 +88,13 @@ public final class HtmlReporter implements Reporter {
         }
         writeOverlayAndAccumulate(beforeImg, afterImg, overlayWebp);
 
+        // The report path always runs with component counting on (DespeckleService enables it
+        // whenever a reportDir is set), so the counts are present here; orElse(0) is type-driven.
         stats.add(
                 new PageStat(
                         stem,
-                        result.componentsBefore(),
-                        result.componentsAfter(),
+                        result.componentsBefore().orElse(0),
+                        result.componentsAfter().orElse(0),
                         result.removedBlackPixelRatio()));
     }
 
