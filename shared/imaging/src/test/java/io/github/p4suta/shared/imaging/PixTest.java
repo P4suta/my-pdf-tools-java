@@ -295,4 +295,83 @@ final class PixTest {
         pix.close();
         assertThrows(IllegalStateException.class, pix::width);
     }
+
+    // DWA vs generic morphology: the empirical gate for the fast path
+
+    /**
+     * The load-bearing equality sweep: {@code dilated} runs on the DWA fast path for every size
+     * (single safe kernel up to 15, composed safe passes beyond — Leptonica's generated DWA sels
+     * are incomplete above 15 and silently diverge there, so the composition is the only exact
+     * route), and {@code opened} up to 15. Both must be pixel-identical to the generic rasterop
+     * morphology — including at the image borders, where DWA's internal bordering is the classic
+     * divergence trap. The fixture has ink touching all four borders, interior glyphs and isolated
+     * dots; the radii sweep covers the production sizes (7x7 open, 43x43 dilate) and the 63x63
+     * ceiling. A failure here means the fast path may not ship.
+     */
+    @Test
+    void dwaMorphologyMatchesGenericBrickIncludingBorders(@TempDir Path dir) throws Exception {
+        Path pbm = dir.resolve("border-ink.pbm");
+        boolean[][] img = TestImages.blank(200, 150);
+        // Ink on all four borders: full-width top/bottom lines, full-height left/right lines.
+        TestImages.fillRect(img, 0, 0, 199, 1);
+        TestImages.fillRect(img, 0, 148, 199, 149);
+        TestImages.fillRect(img, 0, 0, 1, 149);
+        TestImages.fillRect(img, 198, 0, 199, 149);
+        // Corner blocks, interior glyphs, isolated dots.
+        TestImages.fillRect(img, 0, 0, 8, 8);
+        TestImages.fillRect(img, 190, 140, 199, 149);
+        TestImages.fillRect(img, 40, 30, 80, 90);
+        TestImages.fillRect(img, 120, 50, 150, 60);
+        TestImages.fillRect(img, 100, 110, 100, 110);
+        TestImages.fillRect(img, 20, 130, 20, 130);
+        TestImages.writePbm(pbm, img);
+
+        int[] radii = {0, 1, 3, 7, 10, 15, 21, 31};
+        try (Pix page = Pix.read(pbm)) {
+            for (int radius : radii) {
+                try (Pix dwa = page.dilated(radius);
+                        Pix generic = page.dilatedGeneric(radius)) {
+                    assertTrue(
+                            dwa.pixelsEqual(generic),
+                            "dilate radius " + radius + " must be pixel-identical");
+                }
+                try (Pix dwa = page.opened(radius);
+                        Pix generic = page.openedGeneric(radius)) {
+                    assertTrue(
+                            dwa.pixelsEqual(generic),
+                            "open radius " + radius + " must be pixel-identical");
+                }
+            }
+        }
+    }
+
+    /** The sweep on degenerate pages: smaller than DWA's border, all-black, and all-white. */
+    @Test
+    void dwaMorphologyMatchesGenericOnDegeneratePages(@TempDir Path dir) throws Exception {
+        boolean[][] tiny = TestImages.blank(20, 20);
+        TestImages.fillRect(tiny, 0, 0, 19, 2);
+        TestImages.fillRect(tiny, 17, 0, 19, 19);
+        TestImages.fillRect(tiny, 9, 9, 9, 9);
+        boolean[][] black = TestImages.blank(50, 40);
+        TestImages.fillRect(black, 0, 0, 49, 39);
+        boolean[][] white = TestImages.blank(50, 40);
+
+        int page = 0;
+        for (boolean[][] img : java.util.List.of(tiny, black, white)) {
+            Path pbm = dir.resolve("degenerate-" + page++ + ".pbm");
+            TestImages.writePbm(pbm, img);
+            try (Pix pix = Pix.read(pbm)) {
+                for (int radius : new int[] {1, 3, 21}) {
+                    try (Pix dwa = pix.dilated(radius);
+                            Pix generic = pix.dilatedGeneric(radius)) {
+                        assertTrue(dwa.pixelsEqual(generic), "dilate r=" + radius);
+                    }
+                    try (Pix dwa = pix.opened(radius);
+                            Pix generic = pix.openedGeneric(radius)) {
+                        assertTrue(dwa.pixelsEqual(generic), "open r=" + radius);
+                    }
+                }
+            }
+        }
+    }
 }
