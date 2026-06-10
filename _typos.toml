@@ -45,3 +45,7 @@ Pagent = "Pagent"
 Flavour = "Flavour"
 flavours = "flavours"
 initialise = "initialise"
+# The PDF spec's own key name `DecodeParms` (and PDFBox's COSName.DECODE_PARMS
+# constant mirroring it) — third-party/spec identifiers we must name verbatim.
+Parms = "Parms"
+PARMS = "PARMS"
