@@ -239,7 +239,7 @@ public final class PdfImagesCliExtractor {
     /**
      * Whether the wrapped TIFF decodes to the listing row's dimensions — the read-back proof that
      * the stream really was plain T.6 (an {@code EncodedByteAlign} stream, undetectable from the
-     * params file, fails or mis-sizes here).
+     * params file, fails to decode or comes back the wrong size here).
      */
     private static boolean decodesBack(Path tif, PdfListingParser.ImageRow row) {
         try (Pix pix = Pix.read(tif)) {
