@@ -153,6 +153,13 @@ public final class PipelineCommand {
                                 "Write machine-readable JSONL progress events to this file (single"
                                         + " input only); used by front ends to report progress.")
                         .get());
+        options.addOption(
+                Option.builder()
+                        .longOpt("timings")
+                        .desc(
+                                "Print a per-stage wall-clock breakdown to stderr when each run"
+                                        + " ends.")
+                        .get());
         CliDocs.options(options);
         return options;
     }
@@ -351,6 +358,7 @@ public final class PipelineCommand {
                         deskew,
                         scale,
                         pdfA,
+                        false,
                         force);
         return new Plan(input, output, config);
     }
@@ -380,12 +388,30 @@ public final class PipelineCommand {
     private static void runOne(Path input, Path output, Config config, @Nullable Path progressFile)
             throws IOException {
         if (progressFile == null) {
-            runWith(input, output, config, ProgressSink.NO_OP);
+            runWith(input, output, config, withTimings(config, ProgressSink.NO_OP));
         } else {
             try (JsonlFileProgressSink progress = new JsonlFileProgressSink(progressFile)) {
-                runWith(input, output, config, progress);
+                runWith(input, output, config, withTimings(config, progress));
             }
         }
+    }
+
+    /**
+     * Wraps {@code sink} with a fresh {@link StageTimingSink} when {@code --timings} is set, so
+     * each run (every book of a batch separately) prints its own per-stage breakdown to stderr.
+     */
+    private static ProgressSink withTimings(Config config, ProgressSink sink) {
+        if (!config.timings()) {
+            return sink;
+        }
+        StageTimingSink timings = new StageTimingSink(System.err);
+        if (sink == ProgressSink.NO_OP) {
+            return timings;
+        }
+        return event -> {
+            sink.emit(event);
+            timings.emit(event);
+        };
     }
 
     // Resolves the progress sink first so the stages and sink report page-level PageProcessed
@@ -447,6 +473,7 @@ public final class PipelineCommand {
                 !cmd.hasOption("no-deskew"),
                 !cmd.hasOption("no-scale"),
                 cmd.hasOption("pdf-a"),
+                cmd.hasOption("timings"),
                 cmd.hasOption("force"));
     }
 
@@ -475,5 +502,6 @@ public final class PipelineCommand {
             boolean deskew,
             boolean scale,
             boolean pdfA,
+            boolean timings,
             boolean force) {}
 }
