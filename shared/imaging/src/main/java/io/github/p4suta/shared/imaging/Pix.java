@@ -312,7 +312,8 @@ public final class Pix implements AutoCloseable {
         MemorySegment h = requireHandle();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment count = arena.allocate(JAVA_INT);
-            Leptonica.pixCountPixels(h, count, MemorySegment.NULL);
+            // The shared popcount table: without it Leptonica rebuilds (and frees) one per call.
+            Leptonica.pixCountPixels(h, count, Leptonica.pixelSumTab8());
             return Integer.toUnsignedLong(count.get(JAVA_INT, 0));
         }
     }
@@ -352,8 +353,41 @@ public final class Pix implements AutoCloseable {
     /**
      * Return a new {@code Pix} grown by {@code radius} pixels in every direction (dilation by a
      * {@code (2*radius+1)} square). A {@code radius} of 0 is the identity.
+     *
+     * <p>Runs on Leptonica's word-accelerated DWA kernels for every size: bricks up to {@link
+     * Leptonica#DWA_SAFE_BRICK} directly, larger ones as a chain of safe-size passes — exact,
+     * because dilating by {@code brick(a)} then {@code brick(b)} equals dilating by {@code
+     * brick(a+b-1)} (Minkowski sum; within the image rectangle the L∞ paths between in-bounds
+     * points stay in bounds, so per-pass clipping changes nothing). Pixel-identity against the
+     * generic rasterop path is pinned by {@code PixTest}'s full sweep.
      */
     public Pix dilated(int radius) {
+        int size = 2 * radius + 1;
+        if (size <= Leptonica.DWA_SAFE_BRICK) {
+            return wrap(
+                    Leptonica.pixDilateBrickDwa(requireHandle(), size, size), "pixDilateBrickDwa");
+        }
+        int covered = Leptonica.DWA_SAFE_BRICK;
+        Pix current =
+                wrap(
+                        Leptonica.pixDilateBrickDwa(requireHandle(), covered, covered),
+                        "pixDilateBrickDwa");
+        while (covered < size) {
+            // size and covered stay odd, so the step is odd and within the safe sel set.
+            int step = Math.min(Leptonica.DWA_SAFE_BRICK, size - covered + 1);
+            Pix next =
+                    wrap(
+                            Leptonica.pixDilateBrickDwa(current.requireHandle(), step, step),
+                            "pixDilateBrickDwa");
+            current.close();
+            current = next;
+            covered += step - 1;
+        }
+        return current;
+    }
+
+    /** The generic rasterop dilation — kept as the DWA equality oracle for {@code PixTest}. */
+    Pix dilatedGeneric(int radius) {
         int size = 2 * radius + 1;
         return wrap(Leptonica.pixDilateBrick(requireHandle(), size, size), "pixDilateBrick");
     }
@@ -361,8 +395,22 @@ public final class Pix implements AutoCloseable {
     /**
      * Return a new {@code Pix} opened (eroded then dilated) by a {@code (2*radius+1)} square — i.e.
      * foreground thinner than the brick in either axis is erased, leaving only the solid parts.
+     *
+     * <p>Bricks up to {@link Leptonica#DWA_SAFE_BRICK} run on Leptonica's word-accelerated DWA
+     * kernels — pixel-identical to the generic rasterop path (pinned by {@code PixTest}'s sweep)
+     * and several times faster; larger bricks fall back to the generic path (an opening, unlike a
+     * dilation, does not compose from smaller passes).
      */
     public Pix opened(int radius) {
+        int size = 2 * radius + 1;
+        if (size <= Leptonica.DWA_SAFE_BRICK) {
+            return wrap(Leptonica.pixOpenBrickDwa(requireHandle(), size, size), "pixOpenBrickDwa");
+        }
+        return openedGeneric(radius);
+    }
+
+    /** The generic rasterop opening — the large-brick fallback and the DWA equality oracle. */
+    Pix openedGeneric(int radius) {
         int size = 2 * radius + 1;
         return wrap(Leptonica.pixOpenBrick(requireHandle(), size, size), "pixOpenBrick");
     }

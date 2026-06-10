@@ -296,6 +296,16 @@ final class Leptonica {
             handle(
                     "pixOpenBrick",
                     FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
+    private static final MethodHandle PIX_DILATE_BRICK_DWA =
+            handle(
+                    "pixDilateBrickDwa",
+                    FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
+    private static final MethodHandle PIX_OPEN_BRICK_DWA =
+            handle(
+                    "pixOpenBrickDwa",
+                    FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
+    private static final MethodHandle MAKE_PIXEL_SUM_TAB8 =
+            handle("makePixelSumTab8", FunctionDescriptor.of(ADDRESS));
     private static final MethodHandle PIX_AND =
             handle("pixAnd", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS));
     private static final MethodHandle PIX_OR =
@@ -316,14 +326,36 @@ final class Leptonica {
     private static final MethodHandle SET_MSG_SEVERITY =
             handle("setMsgSeverity", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
 
+    /**
+     * Largest brick side routed to a single DWA kernel call. Leptonica generates DWA sels only for
+     * a fixed set of linear sizes; measured against this build's 1.82, {@code pixDilateBrickDwa}
+     * silently diverges from the generic brick for the missing sizes (every prime above 15, e.g.
+     * 17, 43), while sizes up to 15 are complete. Larger dilations are composed from safe passes in
+     * {@code Pix}; the equality sweep in {@code PixTest} pins all of this empirically.
+     */
+    static final int DWA_SAFE_BRICK = 15;
+
+    /**
+     * The process-lifetime 8-bit popcount table {@code pixCountPixels} consumes (~1 KiB native,
+     * deliberately never freed): without it Leptonica mallocs, fills and frees the same table on
+     * every call.
+     */
+    private static final MemorySegment PIXEL_SUM_TAB8;
+
     static {
         // Suppress Leptonica's stderr diagnostics once, at class load. The returned previous
         // severity is discarded.
         try {
             SET_MSG_SEVERITY.invoke(L_SEVERITY_NONE);
+            PIXEL_SUM_TAB8 = (MemorySegment) MAKE_PIXEL_SUM_TAB8.invoke();
         } catch (Throwable t) {
-            throw sneaky("setMsgSeverity", t);
+            throw sneaky("leptonica static init", t);
         }
+    }
+
+    /** {@return the shared popcount table for {@code pixCountPixels}} */
+    static MemorySegment pixelSumTab8() {
+        return PIXEL_SUM_TAB8;
     }
 
     // pix lifecycle / metadata
@@ -610,6 +642,34 @@ final class Leptonica {
             return (MemorySegment) PIX_OPEN_BRICK.invoke(MemorySegment.NULL, src, hsize, vsize);
         } catch (Throwable t) {
             throw sneaky("pixOpenBrick", t);
+        }
+    }
+
+    /**
+     * Dilate {@code src} by a {@code hsize x vsize} brick via the word-accelerated DWA kernels into
+     * a fresh {@code PIX}. Only exact for sizes up to {@link #DWA_SAFE_BRICK} — see that constant;
+     * {@code Pix} owns the larger-size composition.
+     */
+    static MemorySegment pixDilateBrickDwa(MemorySegment src, int hsize, int vsize) {
+        try {
+            return (MemorySegment)
+                    PIX_DILATE_BRICK_DWA.invoke(MemorySegment.NULL, src, hsize, vsize);
+        } catch (Throwable t) {
+            throw sneaky("pixDilateBrickDwa", t);
+        }
+    }
+
+    /**
+     * Open (erode then dilate) {@code src} by a {@code hsize x vsize} brick via the
+     * word-accelerated DWA kernels into a fresh {@code PIX}. Routed only for sizes up to {@link
+     * #DWA_SAFE_BRICK}; pixel-identical there to {@link #pixOpenBrick} (pinned by {@code PixTest}'s
+     * sweep) and several times faster.
+     */
+    static MemorySegment pixOpenBrickDwa(MemorySegment src, int hsize, int vsize) {
+        try {
+            return (MemorySegment) PIX_OPEN_BRICK_DWA.invoke(MemorySegment.NULL, src, hsize, vsize);
+        } catch (Throwable t) {
+            throw sneaky("pixOpenBrickDwa", t);
         }
     }
 
