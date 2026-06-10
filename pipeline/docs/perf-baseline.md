@@ -6,7 +6,7 @@ of the installDist `pdfbook` launcher. Re-run after any change to the pipeline
 and compare against the previous run before merging (acceptance: ≥5% median
 total-wall improvement, or an explicit RSS/disk win, with output validated).
 
-- Date (UTC): 2026-06-10 04:46:07
+- Date (UTC): 2026-06-10 07:01:04
 - Host: Linux 6.8.0-124-generic amd64, 8 CPUs, RAM 16Gi
 - Launcher: `pipeline/app/build/install/pdfbook/bin/pdfbook`
 - Samples per measurement: cold (1st run) + warm median of 3.
@@ -21,8 +21,8 @@ total-wall improvement, or an explicit RSS/disk win, with output validated).
 
 | Input | Jobs | Pages | E2E wall | conv | extract | despeckle | register | spread | startup+init | Cold wall | Peak RSS (MiB) | Output (MiB) |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| sample-scan-200p.pdf | 1 | 200 | 50.10s | 49.85s | 4.57s | 32.16s | 12.94s | 0.20s | 0.25s | 51.42s | 156 | 6.4 |
-| sample-scan-200p.pdf | 8 | 200 | 14.77s | 14.48s | 1.15s | 9.85s | 3.27s | 0.21s | 0.29s | 15.04s | 328 | 6.4 |
+| sample-scan-200p.pdf | 1 | 200 | 35.83s | 35.63s | 0.90s | 21.23s | 13.13s | 0.19s | 0.20s | 36.61s | 187 | 6.4 |
+| sample-scan-200p.pdf | 8 | 200 | 9.23s | 9.03s | 0.45s | 5.21s | 3.16s | 0.20s | 0.20s | 9.30s | 379 | 6.4 |
 
 ## Stage shares (of conv, warm median)
 
@@ -31,5 +31,5 @@ cannot pay for a parallelization rewrite no matter how elegant.
 
 | Input | Jobs | extract | despeckle | register | spread |
 |---|---|---:|---:|---:|---:|
-| sample-scan-200p.pdf | 1 | 9.2% | 64.5% | 26.0% | 0.4% |
-| sample-scan-200p.pdf | 8 | 7.9% | 68.0% | 22.6% | 1.5% |
+| sample-scan-200p.pdf | 1 | 2.5% | 59.6% | 36.9% | 0.5% |
+| sample-scan-200p.pdf | 8 | 5.0% | 57.7% | 35.0% | 2.2% |
