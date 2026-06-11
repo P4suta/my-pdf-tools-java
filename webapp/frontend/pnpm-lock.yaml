@@ -10,7 +10,7 @@ importers:
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.1.2
-        version: 7.1.2(svelte@5.56.2)(vite@8.0.16(jiti@2.7.0))
+        version: 7.1.2(svelte@5.56.3)(vite@8.0.16(jiti@2.7.0))
       '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.3.0(vite@8.0.16(jiti@2.7.0))
@@ -18,20 +18,20 @@ importers:
         specifier: ^5.0.4
         version: 5.0.8
       prettier:
-        specifier: ^3.8.3
-        version: 3.8.3
+        specifier: ^3.8.4
+        version: 3.8.4
       prettier-plugin-svelte:
         specifier: ^4.1.0
-        version: 4.1.0(prettier@3.8.3)(svelte@5.56.2)
+        version: 4.1.0(prettier@3.8.4)(svelte@5.56.3)
       prettier-plugin-tailwindcss:
         specifier: ^0.8.0
-        version: 0.8.0(prettier-plugin-svelte@4.1.0(prettier@3.8.3)(svelte@5.56.2))(prettier@3.8.3)
+        version: 0.8.0(prettier-plugin-svelte@4.1.0(prettier@3.8.4)(svelte@5.56.3))(prettier@3.8.4)
       svelte:
-        specifier: ^5.16.0
-        version: 5.56.2
+        specifier: ^5.56.3
+        version: 5.56.3
       svelte-check:
         specifier: ^4.1.4
-        version: 4.6.0(picomatch@4.0.4)(svelte@5.56.2)(typescript@6.0.3)
+        version: 4.6.0(picomatch@4.0.4)(svelte@5.56.3)(typescript@6.0.3)
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.0
@@ -535,8 +535,8 @@ packages:
       prettier-plugin-svelte:
         optional: true
 
-  prettier@3.8.3:
-    resolution: {integrity: sha512-7igPTM53cGHMW8xWuVTydi2KO233VFiTNyF5hLJqpilHfmn8C8gPf+PS7dUT64YcXFbiMGZxS9pCSxL/Dxm/Jw==}
+  prettier@3.8.4:
+    resolution: {integrity: sha512-N2MylSdi48+5N/6S5j+maeHbUSIzzZ5uOcX5Hm4QpV8Dkb1HFjfAKTKX6yNPJQD9AhcT3ifHNB66tWTTJDi11Q==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -565,8 +565,8 @@ packages:
       svelte: ^4.0.0 || ^5.0.0-next.0
       typescript: '>=5.0.0'
 
-  svelte@5.56.2:
-    resolution: {integrity: sha512-1lDf8TLqpxyAt3xgybfytWPJQbaUD6TiDgpiCLH0BKrKEwzecB9pjuNVnEJMpzH018xUzo6oxheK2HT0oa2RoQ==}
+  svelte@5.56.3:
+    resolution: {integrity: sha512-w7JvrM5IFl5cmfbY0TLik9o7mjRUJmRMhOR51tBPu708Gr/MjbGs7VnJnr/B0CaXeI4vtnOh7RKxDr0cwhMdDA==}
     engines: {node: '>=18'}
 
   tailwindcss@4.3.0:
@@ -745,12 +745,12 @@ snapshots:
 
   '@sveltejs/load-config@0.1.1': {}
 
-  '@sveltejs/vite-plugin-svelte@7.1.2(svelte@5.56.2)(vite@8.0.16(jiti@2.7.0))':
+  '@sveltejs/vite-plugin-svelte@7.1.2(svelte@5.56.3)(vite@8.0.16(jiti@2.7.0))':
     dependencies:
       deepmerge: 4.3.1
       magic-string: 0.30.21
       obug: 2.1.2
-      svelte: 5.56.2
+      svelte: 5.56.3
       vite: 8.0.16(jiti@2.7.0)
       vitefu: 1.1.3(vite@8.0.16(jiti@2.7.0))
 
@@ -948,18 +948,18 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  prettier-plugin-svelte@4.1.0(prettier@3.8.3)(svelte@5.56.2):
+  prettier-plugin-svelte@4.1.0(prettier@3.8.4)(svelte@5.56.3):
     dependencies:
-      prettier: 3.8.3
-      svelte: 5.56.2
+      prettier: 3.8.4
+      svelte: 5.56.3
 
-  prettier-plugin-tailwindcss@0.8.0(prettier-plugin-svelte@4.1.0(prettier@3.8.3)(svelte@5.56.2))(prettier@3.8.3):
+  prettier-plugin-tailwindcss@0.8.0(prettier-plugin-svelte@4.1.0(prettier@3.8.4)(svelte@5.56.3))(prettier@3.8.4):
     dependencies:
-      prettier: 3.8.3
+      prettier: 3.8.4
     optionalDependencies:
-      prettier-plugin-svelte: 4.1.0(prettier@3.8.3)(svelte@5.56.2)
+      prettier-plugin-svelte: 4.1.0(prettier@3.8.4)(svelte@5.56.3)
 
-  prettier@3.8.3: {}
+  prettier@3.8.4: {}
 
   readdirp@4.1.2: {}
 
@@ -990,7 +990,7 @@ snapshots:
 
   source-map-js@1.2.1: {}
 
-  svelte-check@4.6.0(picomatch@4.0.4)(svelte@5.56.2)(typescript@6.0.3):
+  svelte-check@4.6.0(picomatch@4.0.4)(svelte@5.56.3)(typescript@6.0.3):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@sveltejs/load-config': 0.1.1
@@ -998,12 +998,12 @@ snapshots:
       fdir: 6.5.0(picomatch@4.0.4)
       picocolors: 1.1.1
       sade: 1.8.1
-      svelte: 5.56.2
+      svelte: 5.56.3
       typescript: 6.0.3
     transitivePeerDependencies:
       - picomatch
 
-  svelte@5.56.2:
+  svelte@5.56.3:
     dependencies:
       '@jridgewell/remapping': 2.3.5
       '@jridgewell/sourcemap-codec': 1.5.5
