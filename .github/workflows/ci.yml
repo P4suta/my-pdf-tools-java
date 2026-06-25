@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # compose runs the container as ${UID:-1000}:${GID:-1000} and bind-mounts
       # the checkout at /workspace; the GitHub runner user is uid 1001, so without
       # this the container would run as 1000 and Gradle could not write the
@@ -58,7 +58,7 @@ jobs:
       # compatible cache, keeping the build cache warm as sources evolve. The cross-OS dist legs get
       # the same benefit via setup-gradle; this closes the gap for the Docker-based jobs.
       - name: cache gradle home
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: |
             .gradle-home/caches
@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # The SPA's Node + pnpm toolchain lives in the dev image at pinned versions (same as the build
       # job), so Prettier, svelte-check, and the vite build all run there rather than against a
       # different host toolchain. See the build job for the uid/gid rationale.
@@ -142,7 +142,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1.47.2
       # Versions pinned to match the dev image (root Dockerfile) so CI and the
       # container can never check formatting with different tool versions.
@@ -180,7 +180,7 @@ jobs:
     # rewrite.yml). rewriteDryRun parses sources only.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # See the build job: compose must run as the 1001 runner user, not the 1000
       # default, or Gradle cannot write into the bind-mounted checkout.
       - name: export host uid/gid for compose
@@ -190,7 +190,7 @@ jobs:
       # Restore-only: reuse the Gradle home the build job populates (warm dependencies for the
       # dry-run) without saving a second, duplicate cache from this advisory job.
       - name: restore gradle home
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: |
             .gradle-home/caches
