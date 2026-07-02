@@ -58,7 +58,7 @@ jobs:
       # compatible cache, keeping the build cache warm as sources evolve. The cross-OS dist legs get
       # the same benefit via setup-gradle; this closes the gap for the Docker-based jobs.
       - name: cache gradle home
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             .gradle-home/caches
@@ -75,9 +75,9 @@ jobs:
       # the image (tagged as compose.yml's `image:` ref) into the local daemon so the
       # `docker compose run` steps below reuse it (pull_policy: missing). This job owns cache-to to
       # keep the shared cache warm across runs; the other docker jobs read it cache-from-only.
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: build dev image
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           load: true
@@ -122,9 +122,9 @@ jobs:
       # cache so an unchanged Dockerfile is a near-instant hit. Read-only (no cache-to) — the build
       # job owns writing the shared cache. `load: true` tags it as compose.yml's `image:` ref so the
       # `docker compose run` step below reuses it.
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: build dev image
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           load: true
@@ -143,7 +143,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1.47.2
+      - uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1.48.0
       # Versions pinned to match the dev image (root Dockerfile) so CI and the
       # container can never check formatting with different tool versions.
       - name: install biome + taplo + yamlfmt + actionlint
@@ -190,7 +190,7 @@ jobs:
       # Restore-only: reuse the Gradle home the build job populates (warm dependencies for the
       # dry-run) without saving a second, duplicate cache from this advisory job.
       - name: restore gradle home
-        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             .gradle-home/caches
@@ -202,9 +202,9 @@ jobs:
       # cache so an unchanged Dockerfile is a near-instant hit. Read-only (no cache-to) — the build
       # job owns writing the shared cache. `load: true` tags it as compose.yml's `image:` ref so the
       # `docker compose run` step below reuses it.
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: build dev image
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           load: true
