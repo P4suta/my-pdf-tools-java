@@ -10,11 +10,11 @@
 [versions]
 # --- Runtime / library versions (register + despeckle agreed on all of these) ---
 commons-cli = "1.11.0"
-pdfbox = "3.0.7"
+pdfbox = "3.0.8"
 slf4j = "2.0.18"
-junit = "6.1.0"
-errorprone = "2.49.0"
-nullaway = "0.13.6"
+junit = "6.1.2"
+errorprone = "2.50.0"
+nullaway = "0.13.7"
 jspecify = "1.0.0"
 archunit = "1.4.2"
 # google-java-format: was inlined in despeckle's quality script and pinned in register's catalog;
@@ -31,28 +31,28 @@ system-stubs = "2.1.8"
 awaitility = "4.3.0"
 
 # --- Plugin marker versions (read by build-logic/build.gradle.kts and by `version.ref` below) ---
-spotless = "8.6.0"
+spotless = "8.8.0"
 errorprone-plugin = "5.1.0"
-spotbugs-plugin = "6.5.5"
+spotbugs-plugin = "6.5.9"
 # SpotBugs analysis-engine version (distinct from the Gradle plugin marker above); was inlined in
 # tate-yoko-pdf's quality script. The unified quality convention sets spotbugs.toolVersion from here.
 spotbugs-tool = "4.9.6"
 # Fat-jar plugin: shades the runtime classpath into <app>-all.jar, the single jar jpackage bundles
 # into the app-image. Applied per-app via `alias(libs.plugins.shadow)`.
-shadow = "9.4.2"
+shadow = "9.6.0"
 # Spring Boot Gradle plugin (bootRun/bootJar) for the :webapp:app web front end. Boot 4.0 (Spring
 # Framework 7) baselines Java 17 with first-class Java 25 support. Applied only in :webapp:app via
 # `alias(libs.plugins.springBoot)`; it imports its own dependency BOM for spring-boot-starter-*.
-spring-boot = "4.0.6"
+spring-boot = "4.1.0"
 # springdoc-openapi (Swagger UI + /v3/api-docs) for the :webapp:app REST API. The 3.0.x line targets
 # Spring Boot 4 / Jackson 3 (2.8.x is the Boot 3 line). App-only dep; not BOM-managed by Spring Boot.
 springdoc = "3.0.3"
-rewrite-plugin = "7.34.0"
-rewrite-recipe-bom = "3.32.0"
+rewrite-plugin = "7.37.0"
+rewrite-recipe-bom = "3.35.0"
 # rewrite-java-security is the one recipe module not managed by the recipe BOM, so its version is
 # pinned here. Compatibility comes from it depending on the same rewrite-bom (rewrite-core) line as
 # the recipe BOM — verify that shared line on each bump; the matching 3.31.0 numbers are incidental.
-rewrite-java-security = "3.32.0"
+rewrite-java-security = "3.35.0"
 
 # PIT mutation testing. ADOPTED FROM DESPECKLE (camelCase leaves, NOT dashed). `pitest` is the PIT
 # analysis tool version; `pitestJunit5Plugin` is the JUnit 5 bridge. Both are single camelCase
